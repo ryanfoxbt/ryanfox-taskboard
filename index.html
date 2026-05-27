@@ -764,11 +764,52 @@
             document.getElementById('prompt-modal').close();
         });
 
+       // --- UPDATED FRONTEND CALLS ---
+
+        // Create Workspace
         document.getElementById('create-workspace-form').addEventListener('submit', async function(e) {
-            e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
-            if (name) { const newId = 'ws_' + Date.now(); currentWorkspaceId = newId; currentProjectId = null; await apiCall('/workspaces', 'POST', {id: newId, name: name}); workspaces.push({id: newId, name: name}); initValidation(); renderAll(); }
+            e.preventDefault(); 
+            const name = document.getElementById('create-workspace-name').value.trim();
+            if (name) { 
+                const newId = 'ws_' + Date.now(); 
+                currentWorkspaceId = newId; 
+                currentProjectId = null; 
+                const currentUserObj = getActiveUserObj();
+                
+                // Save to DB and link the current user
+                await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj ? currentUserObj.id : null }); 
+                await loadDataFromDB(); 
+            }
             document.getElementById('create-workspace-modal').close();
         });
+
+        // Add User
+        document.getElementById('add-user-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const name = document.getElementById('new-ws-user-name').value.trim(); 
+            const email = document.getElementById('new-ws-user-email').value.trim(); 
+            const role = document.getElementById('new-ws-user-role').value;
+            
+            if (name) {
+                const newUserId = 'u_' + Date.now();
+                await apiCall('/users', 'POST', { id: newUserId, name, email, role, workspace_id: currentWorkspaceId });
+                await loadDataFromDB();
+            }
+            closeAddUserModal();
+        });
+
+        // Delete User from Workspace
+        function deleteWorkspaceUser(id, name) {
+            if (getVisibleUsers().length <= 1) { alert("You must have at least one user in the workspace."); return; }
+            document.getElementById('confirm-message').innerHTML = `Are you sure you want to remove <strong>${sanitize(name)}</strong> from this workspace?`;
+            document.getElementById('confirm-execute-btn').className = "danger-solid";
+            
+            pendingConfirmAction = async () => {
+                await apiCall(`/users/${id}/${currentWorkspaceId}`, 'DELETE');
+                await loadDataFromDB();
+            };
+            document.getElementById('confirm-modal').showModal();
+        }
 
         // Setup Delete Triggers
         function triggerDeleteTask(id) { document.getElementById('confirm-message').innerHTML = "Delete this task?<br>This cannot be undone."; document.getElementById('confirm-execute-btn').className = "danger-solid"; pendingConfirmAction = () => deleteTaskDB(id); document.getElementById('confirm-modal').showModal(); }
