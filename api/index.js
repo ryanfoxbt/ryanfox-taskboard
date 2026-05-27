@@ -12,9 +12,11 @@ app.use(express.json());
 // Database Connection
 const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
-  ssl: { require: true }
+  ssl: { 
+      require: true,
+      rejectUnauthorized: false 
+  }
 });
-
 // --- API ROUTES ---
 
 // 1. Get All Data (Hydrates the frontend in one go)
