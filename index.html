@@ -10,7 +10,6 @@
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
         .header-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
         
-        /* Buttons */
         button { background: #0052cc; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-family: inherit; transition: background 0.1s; }
         button:hover { background: #0043a6; }
         button.secondary { background: #dfe1e6; color: #172b4d; }
@@ -32,7 +31,6 @@
         .gear-btn { background: transparent; color: #5e6c84; font-size: 20px; padding: 4px 8px; line-height: 1; }
         .gear-btn:hover { background: #ebecf0; color: #172b4d; }
 
-        /* Project Tabs */
         .project-tabs { display: flex; gap: 8px; margin-bottom: 15px; border-bottom: 2px solid #dfe1e6; padding-bottom: 12px; overflow-x: auto; }
         .tab { display: flex; align-items: center; gap: 8px; background: transparent; color: #5e6c84; border: none; padding: 8px 16px; border-radius: 4px; cursor: grab; font-weight: bold; font-size: 14px; transition: opacity 0.2s ease; white-space: nowrap; }
         .tab:active { cursor: grabbing; }
@@ -45,7 +43,6 @@
         .delete-project { background: rgba(255,255,255,0.2); border-radius: 50%; width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; font-size: 14px; line-height: 1; padding: 0; margin-left: 5px; cursor: pointer;}
         .delete-project:hover { background: #de350b; color: white; }
 
-        /* View Navigation & Filters Bar */
         .tools-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
         .view-toggles { display: flex; background: #dfe1e6; border-radius: 6px; padding: 4px; flex-wrap: wrap; gap: 2px; }
         .view-toggle { background: transparent; color: #42526e; border-radius: 4px; padding: 6px 16px; margin: 0; font-size: 14px; display: flex; align-items: center; gap: 6px; }
@@ -57,7 +54,6 @@
         .filters-bar input, .filters-bar select { padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px; }
         .filters-bar input:focus, .filters-bar select:focus { border-color: #4c9aff; }
 
-        /* Board Layouts */
         .board { display: flex; gap: 20px; align-items: flex-start; overflow-x: auto; padding-bottom: 10px; }
         .column { flex: 1; min-width: 260px; background: #ebecf0; padding: 12px; border-radius: 6px; min-height: 400px; display: flex; flex-direction: column; }
         .column-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
@@ -70,7 +66,6 @@
         .single-column-board .column { background: transparent; padding: 0; min-height: auto; }
         .single-column-board .column-header { border-bottom: 2px solid #dfe1e6; padding-bottom: 10px; margin-bottom: 20px; }
 
-        /* Urgency Dots & Badges */
         .dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
         .dot.low { background-color: #36b37e; }
         .dot.medium { background-color: #ff991f; }
@@ -79,7 +74,6 @@
         .badge.subtask-badge { background: #eae6ff; color: #403294; }
         .date-badge { font-size: 12px; color: #5e6c84; display: inline-flex; align-items: center; gap: 4px; background: #f4f5f7; padding: 2px 6px; border-radius: 4px; border: 1px solid #dfe1e6; }
 
-        /* --- Task Cards --- */
         .card { background: white; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); border: 1px solid #dfe1e6; cursor: pointer; transition: box-shadow 0.2s ease, border-color 0.2s ease; display: flex; flex-direction: column; }
         .card:hover { border-color: #b3d4ff; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
         .card.dragging { opacity: 0.4; cursor: grabbing; box-shadow: 0 8px 16px rgba(0,0,0,0.15); transform: scale(1.02); }
@@ -89,7 +83,6 @@
         .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; pointer-events: none; }
         .meta-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; pointer-events: none; }
 
-        /* Global Action Hiding for Cards */
         .card .actions { opacity: 0; pointer-events: none; transition: opacity 0.2s ease; display: flex; gap: 2px; }
         .card:hover .actions { opacity: 1; pointer-events: auto; }
         @media (hover: none) { .card .actions, .list-item .list-actions { opacity: 1; pointer-events: auto; } }
@@ -111,7 +104,6 @@
         .board-container.size-small .card p { display: none; } 
         .board-container.size-small .badge { font-size: 10px; padding: 2px 5px; }
 
-        /* Custom Context Menus */
         .custom-context-menu { display: none; position: fixed; background: white; border: 1px solid #dfe1e6; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 6px; z-index: 10000; overflow: hidden; min-width: 140px; padding: 4px 0; }
         .custom-context-menu button { display: block; width: 100%; text-align: left; background: transparent; color: #172b4d; border: none; padding: 8px 16px; font-size: 14px; border-radius: 0; cursor: pointer; font-weight: normal; }
         .custom-context-menu button:hover { background: #ebecf0; }
@@ -268,7 +260,7 @@
         <h2 style="margin-top:0;">Invite User</h2>
         <form id="add-user-form">
             <div class="form-group"><label>Name</label><input type="text" id="new-ws-user-name" required placeholder="E.g., Sarah" autocomplete="off"></div>
-            <div class="form-group"><label>Email (Optional)</label><input type="text" id="new-ws-user-email" placeholder="sarah@example.com" autocomplete="off"></div>
+            <div class="form-group"><label>Email</label><input type="text" id="new-ws-user-email" required placeholder="sarah@example.com" autocomplete="off"></div>
             <div class="form-group"><label>Role</label><select id="new-ws-user-role"><option value="Member">Member</option><option value="Admin">Admin</option></select></div>
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeAddUserModal()">Cancel</button><button type="submit">Add User</button></div>
         </form>
@@ -310,21 +302,10 @@
     </dialog>
 
     <dialog id="assignee-prompt-modal">
-        <h2 style="margin-top:0;">Assign to Task</h2>
+        <h2 style="margin-top:0;">Assign Users to Task</h2>
         <form id="assignee-prompt-form">
-            <div class="form-group">
-                <label>Name</label><input type="text" id="new-assignee-name" list="assignee-datalist" required placeholder="E.g., Sarah" autocomplete="off">
-                <datalist id="assignee-datalist"></datalist>
-            </div>
-            <div class="dialog-actions"><button type="button" class="secondary" onclick="closeAssigneePromptModal()">Cancel</button><button type="submit">Add to Task</button></div>
-        </form>
-    </dialog>
-
-    <dialog id="edit-assignee-modal">
-        <h2 style="margin-top:0;">Edit Assignee Name</h2>
-        <form id="edit-assignee-form">
-            <div class="form-group"><label>Name</label><input type="text" id="edit-assignee-input" required autocomplete="off"></div>
-            <div class="dialog-actions"><button type="button" class="secondary" onclick="closeEditAssigneeModal()">Cancel</button><button type="submit">Save Changes</button></div>
+            <div class="list-container" id="assignee-checkbox-container" style="max-height: 200px;"></div>
+            <div class="dialog-actions"><button type="button" class="secondary" onclick="closeAssigneePromptModal()">Done</button></div>
         </form>
     </dialog>
 
@@ -366,7 +347,7 @@
                         <label style="margin: 0;">Assignees</label>
                         <button type="button" class="add-icon" onclick="openAssigneePromptModal()" title="Add Assignee">+</button>
                     </div>
-                    <div class="list-container" id="assignee-checkbox-container"></div>
+                    <div class="list-container" id="task-assignees-display" style="border:none; padding:0; background:transparent;"></div>
                 </div>
                 
                 <div class="form-group" style="flex: 1; min-width: 140px;">
@@ -394,7 +375,6 @@
             return String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
         }
 
-        // POSTGRES UUID GENERATOR
         function generateUUID() {
             if (crypto && crypto.randomUUID) return crypto.randomUUID();
             return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -410,14 +390,13 @@
         let currentWorkspaceId = localStorage.getItem('currentWorkspaceId');
         let currentProjectId = localStorage.getItem('currentProjectId');
         
-        let activeUserEmail = null;
-        let activeUserName = null;
+        let activeUserEmail = null; let activeUserName = null;
         
         let uiSize = 'auto'; 
         let displayConfig = { showDate: true, showUrgency: true, showDesc: true, showAssignee: true };
 
         let currentView = 'active'; let draftTask = null; let draftSubtasks = []; let pendingConfirmAction = null; 
-        let contextTargetMainId = null; let contextTargetSubtaskId = null; let oldAssigneeNameTarget = null;
+        let contextTargetMainId = null; let contextTargetSubtaskId = null;
 
         const lists = { future: document.getElementById('future-list'), todo: document.getElementById('todo-list'), doing: document.getElementById('doing-list'), done: document.getElementById('done-list'), complete: document.getElementById('complete-list') };
         const workspaceContextMenu = document.getElementById('workspace-context-menu'); const activeContextMenu = document.getElementById('active-context-menu'); const futureContextMenu = document.getElementById('future-context-menu'); const archiveContextMenu = document.getElementById('archive-context-menu'); const subtaskContextMenu = document.getElementById('subtask-context-menu');
@@ -427,7 +406,6 @@
             await Clerk.load();
 
             if (Clerk.user) {
-                // User is authenticated
                 document.getElementById('app-container').style.display = 'block';
                 Clerk.mountUserButton(document.getElementById('user-button'));
                 
@@ -442,7 +420,6 @@
                     const newUserId = generateUUID();
                     let wsId = currentWorkspaceId;
                     
-                    // If no workspaces exist at all, create a default one
                     if (workspaces.length === 0) {
                         wsId = generateUUID();
                         await apiCall('/workspaces', 'POST', { id: wsId, name: 'Personal Workspace', userId: null });
@@ -456,12 +433,10 @@
 
                 renderAll();
             } else {
-                // Show Login Screen
                 document.getElementById('sign-in-container').style.display = 'flex';
                 Clerk.mountSignIn(document.getElementById('sign-in'));
             }
         });
-
 
         // --- 2. ASYNC DATA ENGINE ---
         async function loadDataFromDB() {
@@ -472,30 +447,60 @@
                 const data = await response.json();
                 
                 workspaces = data.workspaces || [];
-                workspaceUsers = data.users || [];
                 projects = data.projects || [];
-                tasks = data.tasks || [];
                 
+                // Map Relational Tables perfectly to Frontend arrays
+                workspaceUsers = (data.users || []).map(u => {
+                    const memberships = (data.workspace_members || []).filter(wm => wm.user_id === u.id);
+                    u.workspace_ids = memberships.map(wm => wm.workspace_id);
+                    const curr = memberships.find(wm => wm.workspace_id === currentWorkspaceId);
+                    if (curr) {
+                        u.role = curr.role;
+                        u.preferences = curr.preferences || { projectOrder: [], uiSize: 'auto', displayConfig: { showDate: true, showUrgency: true, showDesc: true, showAssignee: true } };
+                    }
+                    return u;
+                });
+
+                tasks = (data.tasks || []).map(t => {
+                    t.assignees = (data.task_assignees || []).filter(ta => ta.task_id === t.id).map(ta => ta.user_id);
+                    if (t.due_date) t.due_date = t.due_date.split('T')[0];
+                    return t;
+                });
+
                 initValidation();
             } catch (error) { console.error("Database connection failed.", error); }
         }
 
         function initValidation() {
-            if (workspaces.length > 0 && (!currentWorkspaceId || !workspaces.find(w => w.id === currentWorkspaceId))) {
-                currentWorkspaceId = workspaces[0].id; localStorage.setItem('currentWorkspaceId', currentWorkspaceId);
+            const me = getActiveUserObj();
+            const myWorkspaces = workspaces.filter(ws => me.workspace_ids && me.workspace_ids.includes(ws.id));
+
+            if (myWorkspaces.length > 0 && (!currentWorkspaceId || !myWorkspaces.find(w => w.id === currentWorkspaceId))) {
+                currentWorkspaceId = myWorkspaces[0].id; 
+                localStorage.setItem('currentWorkspaceId', currentWorkspaceId);
+                loadDataFromDB(); // Restart the load to properly grab preferences
+                return; 
             }
+            
             const activeWorkspaceProjects = projects.filter(p => p.workspace_id === currentWorkspaceId);
             if (activeWorkspaceProjects.length > 0 && (!currentProjectId || !activeWorkspaceProjects.find(p => p.id === currentProjectId))) {
-                currentProjectId = activeWorkspaceProjects[0].id; localStorage.setItem('currentProjectId', currentProjectId);
+                currentProjectId = activeWorkspaceProjects[0].id; 
+                localStorage.setItem('currentProjectId', currentProjectId);
+            }
+
+            if (me && me.preferences) {
+                uiSize = me.preferences.uiSize || 'auto';
+                displayConfig = me.preferences.displayConfig || { showDate: true, showUrgency: true, showDesc: true, showAssignee: true };
             }
         }
 
         function renderAll() {
-            renderWorkspaceMenu(); renderWorkspaceUsers(); renderProjects(); updateAssigneeFilterOptions(); renderBoard();
+            renderWorkspaceMenu(); renderProjects(); updateAssigneeFilterOptions(); renderBoard();
         }
 
-        function getActiveUserObj() { return workspaceUsers.find(u => u.email === activeUserEmail) || { preferences: { projectOrder: [], uiSize: 'auto', displayConfig: displayConfig } }; }
+        function getActiveUserObj() { return workspaceUsers.find(u => u.email === activeUserEmail) || { id: null, preferences: { projectOrder: [], uiSize: 'auto', displayConfig: displayConfig }, workspace_ids: [] }; }
         function getVisibleUsers() { return workspaceUsers.filter(u => u.workspace_ids && u.workspace_ids.includes(currentWorkspaceId)); }
+        function getUserName(id) { const u = workspaceUsers.find(x => x.id === id); return u ? u.name : 'Unknown'; }
 
         // --- 3. API WRITE WRAPPERS ---
         async function apiCall(endpoint, method, body = null) {
@@ -507,10 +512,8 @@
         }
 
         async function saveTaskDB(t) {
-            const idx = tasks.findIndex(x => x.id === t.id);
-            if (idx > -1) tasks[idx] = t; else tasks.push(t);
-            renderBoard(); 
-            await apiCall('/tasks', 'POST', t);
+            const idx = tasks.findIndex(x => x.id === t.id); if (idx > -1) tasks[idx] = t; else tasks.push(t);
+            renderBoard(); await apiCall('/tasks', 'POST', t);
         }
 
         async function deleteTaskDB(id) {
@@ -519,8 +522,7 @@
         }
 
         async function saveProjectDB(p) {
-            const idx = projects.findIndex(x => x.id === p.id);
-            if (idx > -1) projects[idx] = p; else projects.push(p);
+            const idx = projects.findIndex(x => x.id === p.id); if (idx > -1) projects[idx] = p; else projects.push(p);
             renderProjects(); await apiCall('/projects', 'POST', p);
         }
 
@@ -533,30 +535,28 @@
         // --- 4. UI RENDERERS ---
         function renderWorkspaceMenu() {
             const list = document.getElementById('workspace-list-menu'); list.innerHTML = '';
-            workspaces.forEach(ws => {
+            const myWorkspaces = workspaces.filter(ws => getActiveUserObj().workspace_ids.includes(ws.id));
+            
+            myWorkspaces.forEach(ws => {
                 const btn = document.createElement('button');
                 btn.innerHTML = ws.id === currentWorkspaceId ? `<strong>✓ ${sanitize(ws.name)}</strong>` : sanitize(ws.name);
-                btn.onclick = () => { currentWorkspaceId = ws.id; currentProjectId = null; workspaceContextMenu.style.display = 'none'; initValidation(); renderAll(); };
+                btn.onclick = async () => { 
+                    currentWorkspaceId = ws.id; localStorage.setItem('currentWorkspaceId', ws.id);
+                    currentProjectId = null; workspaceContextMenu.style.display = 'none'; 
+                    await loadDataFromDB(); 
+                    renderAll(); 
+                };
                 list.appendChild(btn);
             });
             const activeWorkspace = workspaces.find(w => w.id === currentWorkspaceId);
             document.getElementById('app-title').innerText = activeWorkspace ? activeWorkspace.name : "Task Board";
         }
 
-        function renderWorkspaceUsers() {
-            const settingsList = document.getElementById('settings-user-list'); settingsList.innerHTML = '';
-            getVisibleUsers().forEach(u => {
-                const div = document.createElement('div'); div.className = 'list-item';
-                div.innerHTML = `<span class="title">${sanitize(u.name)} <span class="meta">(${sanitize(u.role || 'Member')})</span></span>
-                    <div class="list-actions"><button type="button" class="danger" style="padding: 2px 6px;" onclick="deleteWorkspaceUser('${u.id}', '${sanitize(u.name)}')" title="Remove User">&times;</button></div>`;
-                settingsList.appendChild(div);
-            });
-        }
-
         function renderProjects() {
             const tabsContainer = document.getElementById('project-tabs'); tabsContainer.innerHTML = '';
-            const userPrefs = getActiveUserObj().preferences || { projectOrder: [] };
+            const userPrefs = getActiveUserObj().preferences;
             const myId = getActiveUserObj().id;
+            
             let visible = projects.filter(p => p.workspace_id === currentWorkspaceId && (!p.isSecret || p.owner_id === myId));
             visible.sort((a, b) => {
                 let idxA = userPrefs.projectOrder.indexOf(a.id); let idxB = userPrefs.projectOrder.indexOf(b.id);
@@ -579,7 +579,7 @@
         function updateAssigneeFilterOptions() {
             const filterSelect = document.getElementById('filter-assignee'); const currentSelection = filterSelect.value; filterSelect.innerHTML = '<option value="All">All Assignees</option>';
             const activeAssignees = new Set(); tasks.filter(t => t.project_id === currentProjectId).forEach(t => { if (t.assignees) t.assignees.forEach(a => activeAssignees.add(a)); });
-            Array.from(activeAssignees).sort().forEach(assignee => { const option = document.createElement('option'); option.value = assignee; option.innerText = sanitize(assignee); filterSelect.appendChild(option); });
+            Array.from(activeAssignees).sort().forEach(id => { const option = document.createElement('option'); option.value = id; option.innerText = sanitize(getUserName(id)); filterSelect.appendChild(option); });
             if (activeAssignees.has(currentSelection) || currentSelection === "All") filterSelect.value = currentSelection;
         }
 
@@ -618,7 +618,13 @@
                 card.ondragstart = (e) => dragStart(e, task.id); card.ondragend = (e) => dragEnd(e); card.setAttribute('onclick', `editTask('${task.id}')`); card.setAttribute('oncontextmenu', `showContextMenuMain(event, '${task.id}')`);
                 
                 const urgencyHtml = displayConfig.showUrgency ? `<span class="dot ${task.urgency}" title="Urgency: ${task.urgency}"></span>` : ''; const descHtml = (displayConfig.showDesc && task.description) ? `<p>${sanitize(task.description)}</p>` : '';
-                let assigneesHtml = ''; if (displayConfig.showAssignee) { const aList = task.assignees || []; if (aList.length === 0) assigneesHtml = `<span class="badge" style="background:#dfe1e6; color:#42526e;">Unassigned</span>`; else assigneesHtml = aList.map(a => `<span class="badge">👤 ${sanitize(a)}</span>`).join(''); }
+                let assigneesHtml = ''; 
+                if (displayConfig.showAssignee) { 
+                    const aList = task.assignees || []; 
+                    if (aList.length === 0) assigneesHtml = `<span class="badge" style="background:#dfe1e6; color:#42526e;">Unassigned</span>`; 
+                    else assigneesHtml = aList.map(id => `<span class="badge">👤 ${sanitize(getUserName(id))}</span>`).join(''); 
+                }
+                
                 let dateHtml = ''; if (displayConfig.showDate && task.due_date) { const d = new Date(task.due_date + 'T12:00:00'); dateHtml = `<span class="date-badge" title="Due Date">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; }
                 const childTasks = tasks.filter(t => t.parent_task_id === task.id); let subtaskHtml = ''; if (childTasks.length > 0) { subtaskHtml = `<span class="badge subtask-badge" title="Subtasks">☑ ${childTasks.filter(s => s.status === 'complete').length}/${childTasks.length}</span>`; }
                 
@@ -627,7 +633,48 @@
             });
         }
 
-        // --- 5. INTERACTION LOGIC ---
+        // --- 5. SETTINGS ---
+        function openSettings() {
+            const prefs = getActiveUserObj().preferences || { uiSize: 'auto', displayConfig: displayConfig };
+            document.getElementById('setting-task-size').value = prefs.uiSize || 'auto';
+            document.getElementById('setting-show-date').checked = prefs.displayConfig.showDate;
+            document.getElementById('setting-show-urgency').checked = prefs.displayConfig.showUrgency;
+            document.getElementById('setting-show-desc').checked = prefs.displayConfig.showDesc;
+            document.getElementById('setting-show-assignee').checked = prefs.displayConfig.showAssignee;
+            
+            // Populate workspace users list within settings
+            const settingsList = document.getElementById('settings-user-list'); settingsList.innerHTML = '';
+            getVisibleUsers().forEach(u => {
+                const div = document.createElement('div'); div.className = 'list-item';
+                div.innerHTML = `<span class="title">${sanitize(u.name)} <span class="meta">(${sanitize(u.role || 'Member')})</span></span>
+                    <div class="list-actions"><button type="button" class="danger" style="padding: 2px 6px;" onclick="deleteWorkspaceUser('${u.id}', '${sanitize(u.name)}')" title="Remove User">&times;</button></div>`;
+                settingsList.appendChild(div);
+            });
+            document.getElementById('settings-modal').showModal();
+        }
+
+        function closeSettings() { document.getElementById('settings-modal').close(); }
+
+        async function saveSettings() {
+            const user = getActiveUserObj();
+            if (!user || !user.id) { closeSettings(); return; }
+            
+            if (!user.preferences) user.preferences = {};
+            user.preferences.uiSize = document.getElementById('setting-task-size').value;
+            user.preferences.displayConfig = { 
+                showDate: document.getElementById('setting-show-date').checked, 
+                showUrgency: document.getElementById('setting-show-urgency').checked, 
+                showDesc: document.getElementById('setting-show-desc').checked, 
+                showAssignee: document.getElementById('setting-show-assignee').checked 
+            }; 
+            uiSize = user.preferences.uiSize; displayConfig = user.preferences.displayConfig; 
+            
+            closeSettings(); 
+            await apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: user.id, preferences: user.preferences });
+            renderAll(); 
+        }
+
+        // --- 6. INTERACTION LOGIC ---
         function switchView(v) {
             currentView = v;
             document.getElementById('btn-view-active').classList.toggle('active', v === 'active'); document.getElementById('btn-view-future').classList.toggle('active', v === 'future'); document.getElementById('btn-view-archive').classList.toggle('active', v === 'archive');
@@ -651,7 +698,7 @@
             e.preventDefault(); const draggedId = e.dataTransfer.getData("projectId"); if (!draggedId || draggedId === targetId) return;
             const user = getActiveUserObj(); let currentOrder = projects.filter(p => p.workspace_id === currentWorkspaceId).map(p => p.id);
             const fromIdx = currentOrder.indexOf(draggedId); const toIdx = currentOrder.indexOf(targetId);
-            if (fromIdx > -1 && toIdx > -1) { const [movedId] = currentOrder.splice(fromIdx, 1); currentOrder.splice(toIdx, 0, movedId); user.preferences.projectOrder = [...new Set([...currentOrder, ...user.preferences.projectOrder])]; renderProjects(); }
+            if (fromIdx > -1 && toIdx > -1) { const [movedId] = currentOrder.splice(fromIdx, 1); currentOrder.splice(toIdx, 0, movedId); user.preferences.projectOrder = [...new Set([...currentOrder, ...user.preferences.projectOrder])]; renderProjects(); apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: user.id, preferences: user.preferences });}
         }
 
         function dragStart(e, id) { e.dataTransfer.setData("taskId", id); setTimeout(() => e.target.classList.add('dragging'), 0); }
@@ -662,9 +709,9 @@
         }
         function allowDrop(e, status) { e.preventDefault(); const list = document.getElementById(status + '-list'); const dragEl = document.querySelector('.dragging'); if (!dragEl) return; const afterEl = [...list.querySelectorAll('.card:not(.dragging)')].reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = e.clientY - box.top - box.height / 2; return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest; }, { offset: Number.NEGATIVE_INFINITY }).element; if (afterEl == null) list.appendChild(dragEl); else list.insertBefore(dragEl, afterEl); }
 
-        // --- 6. FORMS & MODALS ---
+        // --- 7. FORMS & MODALS ---
         function openModal(defaultStatus = 'todo') {
-            draftTask = { id: 'temp_' + generateUUID(), title: '', description: '', assignees: [], due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null };
+            draftTask = { id: generateUUID(), title: '', description: '', assignees: [], due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null };
             draftSubtasks = []; draftSubtaskId = null; document.getElementById('task-form').reset(); updateFormUI(); document.getElementById('task-modal').showModal();
         }
         function editTask(id) {
@@ -682,17 +729,20 @@
         function updateFormUI() {
             if (!draftTask) return; const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask; if (!data) return;
             document.getElementById('task-title').value = data.title || ''; document.getElementById('task-desc').value = data.description || ''; document.getElementById('task-due-date').value = data.due_date || ''; document.getElementById('task-status').value = data.status || 'todo'; document.getElementById('task-urgency').value = data.urgency || 'low';
+            
+            // Render checks and badges in task form
             renderAssigneeCheckboxes(data.assignees || []);
-            document.getElementById('subtasks-form-section').style.display = draftSubtaskId ? 'none' : 'block'; document.getElementById('status-form-section').style.display = draftSubtaskId ? 'none' : 'block'; document.getElementById('modal-back-btn').style.display = draftSubtaskId ? 'inline-block' : 'none'; document.getElementById('modal-title').innerText = draftSubtaskId ? "Subtask Details" : (draftTask.id.includes('temp') ? `Add Task` : 'Edit Task');
+            const badgeContainer = document.getElementById('task-assignees-display'); badgeContainer.innerHTML = '';
+            (data.assignees || []).forEach(id => { badgeContainer.innerHTML += `<span class="badge" style="margin-right:4px;">👤 ${sanitize(getUserName(id))}</span>`; });
+            
+            document.getElementById('subtasks-form-section').style.display = draftSubtaskId ? 'none' : 'block'; document.getElementById('status-form-section').style.display = draftSubtaskId ? 'none' : 'block'; document.getElementById('modal-back-btn').style.display = draftSubtaskId ? 'inline-block' : 'none'; document.getElementById('modal-title').innerText = draftSubtaskId ? "Subtask Details" : 'Task Configuration';
             if(!draftSubtaskId) renderSubtasks();
         }
 
         document.getElementById('task-form').addEventListener('submit', async function(e) {
             e.preventDefault(); syncFormToDraft(); 
-            const isNew = draftTask.id.includes('temp'); 
-            if (isNew) draftTask.id = generateUUID();
             await saveTaskDB(draftTask);
-            for (const st of draftSubtasks) { if (st.id.includes('sub_') || st.id.includes('temp')) st.id = generateUUID(); st.parent_task_id = draftTask.id; await saveTaskDB(st); }
+            for (const st of draftSubtasks) { if (st.id.includes('sub_')) st.id = generateUUID(); st.parent_task_id = draftTask.id; await saveTaskDB(st); }
             closeModal();
         });
 
@@ -706,14 +756,18 @@
             draftSubtasks.forEach(st => { const isComplete = st.status === 'complete'; const div = document.createElement('div'); div.className = `list-item subtask-item ${isComplete ? 'completed' : ''}`; div.setAttribute('onclick', `openSubtaskDetails('${st.id}')`); div.setAttribute('oncontextmenu', `showContextMenuSubtask(event, '${st.id}')`); div.innerHTML = `<input type="checkbox" ${isComplete ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleSubtask('${st.id}')" title="Mark complete"><span class="title">${sanitize(st.title)}</span><div class="list-actions subtask-actions"><button type="button" class="edit" onclick="event.stopPropagation(); openSubtaskDetails('${st.id}')" title="Edit Subtask">✎</button><button type="button" class="danger" style="padding: 2px 6px;" onclick="event.stopPropagation(); removeSubtask('${st.id}')" title="Delete Subtask">&times;</button></div>`; container.appendChild(div); }); container.scrollTop = container.scrollHeight;
         }
 
-        function openAssigneePromptModal() { document.getElementById('new-assignee-name').value = ''; document.getElementById('assignee-prompt-modal').showModal(); } function closeAssigneePromptModal() { document.getElementById('assignee-prompt-modal').close(); }
-        document.getElementById('assignee-prompt-form').addEventListener('submit', function(e) { e.preventDefault(); const newName = document.getElementById('new-assignee-name').value.trim(); if (newName) { const checks = Array.from(document.querySelectorAll('.assignee-check:checked')).map(cb => cb.value); if (!checks.includes(newName)) checks.push(newName); renderAssigneeCheckboxes(checks); } closeAssigneePromptModal(); });
+        // Changed to use Checkboxes for proper relational mapping
+        function openAssigneePromptModal() { document.getElementById('assignee-prompt-modal').showModal(); } function closeAssigneePromptModal() { document.getElementById('assignee-prompt-modal').close(); syncFormToDraft(); updateFormUI(); }
         function renderAssigneeCheckboxes(selected = []) {
             const container = document.getElementById('assignee-checkbox-container'); container.innerHTML = '';
-            const allKnown = new Set(); getVisibleUsers().forEach(u => allKnown.add(u.name)); tasks.filter(t => t.project_id === currentProjectId).forEach(t => { if (t.assignees) t.assignees.forEach(a => allKnown.add(a)); });
-            const merged = Array.from(new Set([...Array.from(allKnown), ...selected])).sort();
-            if (merged.length === 0) { container.innerHTML = '<span style="color:#5e6c84; font-size:12px; margin-top:4px;">No one added yet.</span>'; return; }
-            merged.forEach(name => { const isChecked = selected.includes(name) ? 'checked' : ''; const div = document.createElement('div'); div.className = 'list-item assignee-item'; div.innerHTML = `<label style="flex: 1; margin: 0; cursor: pointer; display: flex; align-items: center; gap: 8px;"><input type="checkbox" class="assignee-check" value="${sanitize(name)}" ${isChecked}> <span class="title" style="color: #172b4d;">${sanitize(name)}</span></label><div class="list-actions assignee-actions"><button type="button" class="edit" onclick="event.stopPropagation(); editGlobalAssignee('${sanitize(name)}')" title="Edit Assignee String">✎</button> <button type="button" class="danger" style="padding:2px 6px; font-size:10px;" onclick="event.stopPropagation(); deleteGlobalAssignee('${sanitize(name)}')" title="Delete Assignee">&times;</button></div>`; container.appendChild(div); });
+            const allKnownUsers = getVisibleUsers();
+            if (allKnownUsers.length === 0) { container.innerHTML = '<span style="color:#5e6c84; font-size:12px;">No one added yet.</span>'; return; }
+            allKnownUsers.forEach(u => { 
+                const isChecked = selected.includes(u.id) ? 'checked' : ''; 
+                const div = document.createElement('div'); div.className = 'list-item assignee-item'; 
+                div.innerHTML = `<label style="flex: 1; margin: 0; cursor: pointer; display: flex; align-items: center; gap: 8px;"><input type="checkbox" class="assignee-check" value="${u.id}" ${isChecked}> <span class="title" style="color: #172b4d;">${sanitize(u.name)}</span></label>`; 
+                container.appendChild(div); 
+            });
         }
 
         document.getElementById('prompt-form').addEventListener('submit', async function(e) {
@@ -722,13 +776,13 @@
             document.getElementById('prompt-modal').close();
         });
 
-        // --- UPDATED FRONTEND CALLS ---
         document.getElementById('create-workspace-form').addEventListener('submit', async function(e) {
             e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
             if (name) { 
-                const newId = generateUUID(); currentWorkspaceId = newId; currentProjectId = null; 
+                const newId = generateUUID(); 
                 const currentUserObj = getActiveUserObj();
                 await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj ? currentUserObj.id : null }); 
+                currentWorkspaceId = newId; localStorage.setItem('currentWorkspaceId', newId); currentProjectId = null; 
                 await loadDataFromDB(); 
             }
             document.getElementById('create-workspace-modal').close();
