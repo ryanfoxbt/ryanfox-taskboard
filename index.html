@@ -10,11 +10,6 @@
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
         .header-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
         
-        /* User Simulator */
-        .user-simulator { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: bold; background: white; padding: 4px 12px; border-radius: 20px; border: 1px solid #dfe1e6; }
-        .user-simulator select { border: none; font-weight: bold; color: #0052cc; width: auto; outline: none; background: transparent; font-family: inherit; cursor: pointer; max-width: 120px; }
-        .user-simulator select:focus { border-bottom: 1px solid #0052cc; }
-
         /* Buttons */
         button { background: #0052cc; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-family: inherit; transition: background 0.1s; }
         button:hover { background: #0043a6; }
@@ -52,7 +47,6 @@
 
         /* View Navigation & Filters Bar */
         .tools-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
-        
         .view-toggles { display: flex; background: #dfe1e6; border-radius: 6px; padding: 4px; flex-wrap: wrap; gap: 2px; }
         .view-toggle { background: transparent; color: #42526e; border-radius: 4px; padding: 6px 16px; margin: 0; font-size: 14px; display: flex; align-items: center; gap: 6px; }
         .view-toggle:hover { background: rgba(255,255,255,0.5); }
@@ -98,10 +92,7 @@
         /* Global Action Hiding for Cards */
         .card .actions { opacity: 0; pointer-events: none; transition: opacity 0.2s ease; display: flex; gap: 2px; }
         .card:hover .actions { opacity: 1; pointer-events: auto; }
-
-        @media (hover: none) {
-            .card .actions, .list-item .list-actions { opacity: 1; pointer-events: auto; }
-        }
+        @media (hover: none) { .card .actions, .list-item .list-actions { opacity: 1; pointer-events: auto; } }
 
         /* SIZES */
         .board-container.size-big .card { padding: 16px; gap: 12px; }
@@ -121,16 +112,8 @@
         .board-container.size-small .badge { font-size: 10px; padding: 2px 5px; }
 
         /* Custom Context Menus */
-        .custom-context-menu {
-            display: none; position: fixed; background: white; border: 1px solid #dfe1e6;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 6px; z-index: 10000;
-            overflow: hidden; min-width: 140px; padding: 4px 0;
-        }
-        .custom-context-menu button {
-            display: block; width: 100%; text-align: left; background: transparent;
-            color: #172b4d; border: none; padding: 8px 16px; font-size: 14px;
-            border-radius: 0; cursor: pointer; font-weight: normal;
-        }
+        .custom-context-menu { display: none; position: fixed; background: white; border: 1px solid #dfe1e6; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 6px; z-index: 10000; overflow: hidden; min-width: 140px; padding: 4px 0; }
+        .custom-context-menu button { display: block; width: 100%; text-align: left; background: transparent; color: #172b4d; border: none; padding: 8px 16px; font-size: 14px; border-radius: 0; cursor: pointer; font-weight: normal; }
         .custom-context-menu button:hover { background: #ebecf0; }
         .custom-context-menu button.danger-text { color: #de350b; }
         .custom-context-menu button.danger-text:hover { background: #ffebe6; }
@@ -142,15 +125,12 @@
         dialog::backdrop { background: rgba(9, 30, 66, 0.54); }
         .modal-header-row { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; border-bottom: 2px solid #ebecf0; padding-bottom: 12px; }
         .modal-header-row h2 { margin: 0; flex: 1; font-size: 18px; }
-        
         .form-group { margin-bottom: 16px; }
         .form-group label { display: block; margin-bottom: 6px; font-weight: bold; font-size: 14px; }
         .form-group input[type="text"], .form-group input[type="date"], .form-group textarea, .form-group select { width: 100%; padding: 8px; border: 2px solid #dfe1e6; border-radius: 4px; box-sizing: border-box; font-family: inherit; }
         .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: #4c9aff; outline: none; }
-        
         .checkbox-group { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 14px; }
         .checkbox-group input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; margin: 0; }
-        
         .list-container { border: 1px solid #dfe1e6; border-radius: 4px; padding: 8px; background: #fafbfc; max-height: 140px; overflow-y: auto; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
         .list-item { display: flex; align-items: center; gap: 6px; font-size: 13px; background: white; padding: 6px; border: 1px solid #ebecf0; border-radius: 4px; cursor: pointer; transition: all 0.2s ease; }
         .list-item:hover { border-color: #4c9aff; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
@@ -158,103 +138,83 @@
         .list-item .title { flex: 1; word-break: break-word; pointer-events: none; }
         .list-item .meta { font-size: 11px; color: #5e6c84; font-weight: normal; margin-left: 6px; }
         .list-item.completed .title { text-decoration: line-through; color: #8993a4; }
-        
         .list-actions { opacity: 0; pointer-events: none; transition: opacity 0.2s ease; display: flex; gap: 4px; }
         .list-item:hover .list-actions { opacity: 1; pointer-events: auto; }
-
         .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
         .settings-section-title { font-size: 12px; text-transform: uppercase; color: #5e6c84; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #dfe1e6; padding-bottom: 4px; margin-top: 24px; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <div class="title-container" style="display: flex; align-items: center; position: relative;">
-            <h1 id="app-title" style="margin: 0;">Loading...</h1>
-            <button class="gear-btn" onclick="toggleWorkspaceMenu(event)" title="Workspace Options" style="font-weight: bold; margin-left: 8px; font-size: 24px; padding: 0 8px;">⋮</button>
+    <div id="sign-in-container" style="display: none; height: 100vh; justify-content: center; align-items: center; background: #f4f5f7;">
+        <div id="sign-in"></div>
+    </div>
+
+    <div id="app-container" style="display: none;">
+        <div class="header">
+            <div class="title-container" style="display: flex; align-items: center; position: relative;">
+                <h1 id="app-title" style="margin: 0;">Loading...</h1>
+                <button class="gear-btn" onclick="toggleWorkspaceMenu(event)" title="Workspace Options" style="font-weight: bold; margin-left: 8px; font-size: 24px; padding: 0 8px;">⋮</button>
+                
+                <div id="workspace-context-menu" class="custom-context-menu" style="position: absolute; top: 100%; left: 0; margin-top: 8px;">
+                    <div id="workspace-list-menu"></div>
+                    <hr style="margin: 4px 0; border: none; border-top: 1px solid #dfe1e6;">
+                    <button onclick="openCreateWorkspaceModal()">+ Create Workspace</button>
+                    <button onclick="editCurrentWorkspace()">✎ Edit Current Workspace</button>
+                    <button onclick="deleteCurrentWorkspace(event)" class="danger-text">✕ Delete Current Workspace</button>
+                </div>
+            </div>
             
-            <div id="workspace-context-menu" class="custom-context-menu" style="position: absolute; top: 100%; left: 0; margin-top: 8px;">
-                <div id="workspace-list-menu"></div>
-                <hr style="margin: 4px 0; border: none; border-top: 1px solid #dfe1e6;">
-                <button onclick="openCreateWorkspaceModal()">+ Create Workspace</button>
-                <button onclick="editCurrentWorkspace()">✎ Edit Current Workspace</button>
-                <button onclick="deleteCurrentWorkspace(event)" class="danger-text">✕ Delete Current Workspace</button>
+            <div class="header-controls">
+                <div id="user-button"></div> <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
+                <button onclick="openModal('todo')">+ Add New Task</button>
             </div>
         </div>
-        
-        <div class="header-controls">
-            <div class="user-simulator" title="Switch active workspace user">
-                👤 <select id="active-user-name" onchange="handleUserChange()"></select>
+
+        <div class="project-tabs" id="project-tabs"></div>
+
+        <div class="tools-row">
+            <div class="view-toggles">
+                <button class="view-toggle active" id="btn-view-active" onclick="switchView('active')">📊 Active Board</button>
+                <button class="view-toggle" id="btn-view-future" onclick="switchView('future')">⏳ Future</button>
+                <button class="view-toggle" id="btn-view-archive" onclick="switchView('archive')">🗄️ Archive</button>
             </div>
-            <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
-            <button onclick="openModal('todo')">+ Add New Task</button>
-        </div>
-    </div>
 
-    <div class="project-tabs" id="project-tabs"></div>
-
-    <div class="tools-row">
-        <div class="view-toggles">
-            <button class="view-toggle active" id="btn-view-active" onclick="switchView('active')">📊 Active Board</button>
-            <button class="view-toggle" id="btn-view-future" onclick="switchView('future')">⏳ Future</button>
-            <button class="view-toggle" id="btn-view-archive" onclick="switchView('archive')">🗄️ Archive</button>
+            <div class="filters-bar">
+                <input type="text" id="filter-search" placeholder="Search tasks..." oninput="renderBoard()">
+                <select id="filter-assignee" onchange="renderBoard()"><option value="All">All Assignees</option></select>
+                <select id="filter-urgency" onchange="renderBoard()"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+            </div>
         </div>
 
-        <div class="filters-bar">
-            <input type="text" id="filter-search" placeholder="Search tasks..." oninput="renderBoard()">
-            <select id="filter-assignee" onchange="renderBoard()">
-                <option value="All">All Assignees</option>
-            </select>
-            <select id="filter-urgency" onchange="renderBoard()">
-                <option value="All">All Urgencies</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-            </select>
-        </div>
-    </div>
-
-    <div id="master-board-wrapper" class="board-container size-big">
-        <div class="board" id="view-active">
-            <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'todo')">
-                <div class="column-header">
-                    <h2>To Do</h2>
-                    <button class="add-icon" onclick="openModal('todo')" title="Add To Do">+</button>
+        <div id="master-board-wrapper" class="board-container size-big">
+            <div class="board" id="view-active">
+                <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'todo')">
+                    <div class="column-header"><h2>To Do</h2><button class="add-icon" onclick="openModal('todo')" title="Add To Do">+</button></div>
+                    <div id="todo-list" class="task-list"></div>
                 </div>
-                <div id="todo-list" class="task-list"></div>
-            </div>
-            <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'doing')">
-                <div class="column-header">
-                    <h2>Doing</h2>
-                    <button class="add-icon" onclick="openModal('doing')" title="Add Doing">+</button>
+                <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'doing')">
+                    <div class="column-header"><h2>Doing</h2><button class="add-icon" onclick="openModal('doing')" title="Add Doing">+</button></div>
+                    <div id="doing-list" class="task-list"></div>
                 </div>
-                <div id="doing-list" class="task-list"></div>
-            </div>
-            <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'done')">
-                <div class="column-header">
-                    <h2>Done</h2>
-                    <button class="add-icon" onclick="openModal('done')" title="Add Done">+</button>
+                <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'done')">
+                    <div class="column-header"><h2>Done</h2><button class="add-icon" onclick="openModal('done')" title="Add Done">+</button></div>
+                    <div id="done-list" class="task-list"></div>
                 </div>
-                <div id="done-list" class="task-list"></div>
             </div>
-        </div>
 
-        <div class="single-column-board" id="view-future">
-            <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'future')">
-                <div class="column-header">
-                    <h2>Future Tasks</h2>
-                    <button class="add-icon" onclick="openModal('future')" title="Add Future Task">+</button>
+            <div class="single-column-board" id="view-future">
+                <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'future')">
+                    <div class="column-header"><h2>Future Tasks</h2><button class="add-icon" onclick="openModal('future')" title="Add Future Task">+</button></div>
+                    <div id="future-list" class="task-list"></div>
                 </div>
-                <div id="future-list" class="task-list"></div>
             </div>
-        </div>
 
-        <div class="single-column-board" id="view-archive">
-            <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'complete')">
-                <div class="column-header">
-                    <h2>Completed (Archived)</h2>
+            <div class="single-column-board" id="view-archive">
+                <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'complete')">
+                    <div class="column-header"><h2>Completed (Archived)</h2></div>
+                    <div id="complete-list" class="task-list"></div>
                 </div>
-                <div id="complete-list" class="task-list"></div>
             </div>
         </div>
     </div>
@@ -265,13 +225,11 @@
         <button onclick="contextActionArchiveMain()" class="success-text">✓ Archive Task</button>
         <button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>
     </div>
-
     <div id="future-context-menu" class="custom-context-menu">
         <button onclick="contextActionStartMain()" style="color:#0052cc;">🚀 Move to "To Do"</button>
         <button onclick="contextActionEditMain()">✎ Edit Task</button>
         <button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>
     </div>
-
     <div id="archive-context-menu" class="custom-context-menu">
         <button onclick="contextActionRestoreMain()" style="color:#ff991f;">⏪ Restore to Board</button>
         <button onclick="contextActionEditMain()">✎ Edit Task</button>
@@ -423,60 +381,92 @@
                     </div>
                 </div>
             </div>
-
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeModal()">Cancel</button><button type="submit" id="save-task-btn">Save Task</button></div>
         </form>
     </dialog>
 
+    <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_YnJpZWYtc2F3ZmlzaC02MS5jbGVyay5hY2NvdW50cy5kZXYk" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@4/dist/clerk.browser.js"></script>
+
     <script>
-        // --- 0. SECURITY SANITIZATION ---
+        // --- 0. UTILS ---
         function sanitize(str) {
             if (!str) return '';
             return String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
         }
 
+        // POSTGRES UUID GENERATOR
+        function generateUUID() {
+            if (crypto && crypto.randomUUID) return crypto.randomUUID();
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
         // --- 1. API CONFIGURATION & STATE ---
         const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
 
-        // Global State
-        let workspaces = [];
-        let workspaceUsers = [];
-        let projects = [];
-        let tasks = [];
-
-        // Local UI State
+        let workspaces = []; let workspaceUsers = []; let projects = []; let tasks = [];
         let currentWorkspaceId = localStorage.getItem('currentWorkspaceId');
         let currentProjectId = localStorage.getItem('currentProjectId');
-        let activeUser = localStorage.getItem('activeUser') || 'Admin';
         
-        // Settings
+        let activeUserEmail = null;
+        let activeUserName = null;
+        
         let uiSize = 'auto'; 
         let displayConfig = { showDate: true, showUrgency: true, showDesc: true, showAssignee: true };
 
-        let currentView = 'active'; 
-        let draftTask = null;
-        let draftSubtasks = []; 
-        let pendingConfirmAction = null; 
-
-        // Target Memory
-        let contextTargetMainId = null;
-        let contextTargetSubtaskId = null;
-        let oldAssigneeNameTarget = null;
+        let currentView = 'active'; let draftTask = null; let draftSubtasks = []; let pendingConfirmAction = null; 
+        let contextTargetMainId = null; let contextTargetSubtaskId = null; let oldAssigneeNameTarget = null;
 
         const lists = { future: document.getElementById('future-list'), todo: document.getElementById('todo-list'), doing: document.getElementById('doing-list'), done: document.getElementById('done-list'), complete: document.getElementById('complete-list') };
-        const workspaceContextMenu = document.getElementById('workspace-context-menu');
-        const activeContextMenu = document.getElementById('active-context-menu');
-        const futureContextMenu = document.getElementById('future-context-menu');
-        const archiveContextMenu = document.getElementById('archive-context-menu');
-        const subtaskContextMenu = document.getElementById('subtask-context-menu');
+        const workspaceContextMenu = document.getElementById('workspace-context-menu'); const activeContextMenu = document.getElementById('active-context-menu'); const futureContextMenu = document.getElementById('future-context-menu'); const archiveContextMenu = document.getElementById('archive-context-menu'); const subtaskContextMenu = document.getElementById('subtask-context-menu');
+
+        // --- CLERK BOOTSTRAP ---
+        window.addEventListener('load', async function () {
+            await Clerk.load();
+
+            if (Clerk.user) {
+                // User is authenticated
+                document.getElementById('app-container').style.display = 'block';
+                Clerk.mountUserButton(document.getElementById('user-button'));
+                
+                activeUserEmail = Clerk.user.primaryEmailAddress.emailAddress;
+                activeUserName = Clerk.user.fullName || activeUserEmail.split('@')[0];
+                
+                await loadDataFromDB(); 
+                
+                // Bootstrap New User (If they don't exist in our DB yet)
+                let myUser = workspaceUsers.find(u => u.email === activeUserEmail);
+                if (!myUser) {
+                    const newUserId = generateUUID();
+                    let wsId = currentWorkspaceId;
+                    
+                    // If no workspaces exist at all, create a default one
+                    if (workspaces.length === 0) {
+                        wsId = generateUUID();
+                        await apiCall('/workspaces', 'POST', { id: wsId, name: 'Personal Workspace', userId: null });
+                    } else if (!wsId || !workspaces.find(w => w.id === wsId)) {
+                        wsId = workspaces[0].id;
+                    }
+                    
+                    await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
+                    await loadDataFromDB();
+                }
+
+                renderAll();
+            } else {
+                // Show Login Screen
+                document.getElementById('sign-in-container').style.display = 'flex';
+                Clerk.mountSignIn(document.getElementById('sign-in'));
+            }
+        });
+
 
         // --- 2. ASYNC DATA ENGINE ---
-        
         async function loadDataFromDB() {
             try {
-                // Optimistically render UI placeholders
                 document.getElementById('app-title').innerText = "Loading...";
-
                 const response = await fetch(`${API_URL}/data`);
                 if (!response.ok) throw new Error("API not ready");
                 const data = await response.json();
@@ -487,18 +477,7 @@
                 tasks = data.tasks || [];
                 
                 initValidation();
-                renderAll();
-            } catch (error) {
-                console.error("Database connection failed. Is the API running?", error);
-                // Fallback for visual testing before DB is wired up perfectly
-                if(workspaces.length === 0) {
-                    workspaces = [{id: 'ws_demo', name: 'Demo Workspace'}];
-                    projects = [{id: 'p_demo', workspace_id: 'ws_demo', name: 'Demo Board'}];
-                    workspaceUsers = [{id: 'u_demo', name: 'Admin', workspace_ids: ['ws_demo'], preferences: { projectOrder: [], uiSize: 'auto', displayConfig: displayConfig }}];
-                    initValidation();
-                    renderAll();
-                }
-            }
+            } catch (error) { console.error("Database connection failed.", error); }
         }
 
         function initValidation() {
@@ -509,25 +488,16 @@
             if (activeWorkspaceProjects.length > 0 && (!currentProjectId || !activeWorkspaceProjects.find(p => p.id === currentProjectId))) {
                 currentProjectId = activeWorkspaceProjects[0].id; localStorage.setItem('currentProjectId', currentProjectId);
             }
-            if (!activeUser || !workspaceUsers.find(u => u.name === activeUser)) {
-                activeUser = workspaceUsers.length > 0 ? workspaceUsers[0].name : 'Admin'; localStorage.setItem('activeUser', activeUser);
-            }
         }
 
         function renderAll() {
-            renderWorkspaceMenu();
-            renderWorkspaceUsers();
-            renderProjects();
-            updateAssigneeFilterOptions();
-            renderBoard();
+            renderWorkspaceMenu(); renderWorkspaceUsers(); renderProjects(); updateAssigneeFilterOptions(); renderBoard();
         }
 
-        function getActiveUserObj() { return workspaceUsers.find(u => u.name === activeUser) || { preferences: { projectOrder: [], uiSize: 'auto', displayConfig: displayConfig } }; }
+        function getActiveUserObj() { return workspaceUsers.find(u => u.email === activeUserEmail) || { preferences: { projectOrder: [], uiSize: 'auto', displayConfig: displayConfig } }; }
         function getVisibleUsers() { return workspaceUsers.filter(u => u.workspace_ids && u.workspace_ids.includes(currentWorkspaceId)); }
 
         // --- 3. API WRITE WRAPPERS ---
-        // These update the local arrays instantly for snappy UI, then sync with the database in the background.
-
         async function apiCall(endpoint, method, body = null) {
             try {
                 const options = { method, headers: { 'Content-Type': 'application/json' } };
@@ -545,27 +515,22 @@
 
         async function deleteTaskDB(id) {
             tasks = tasks.filter(t => t.id !== id && t.parent_task_id !== id);
-            renderBoard();
-            await apiCall(`/tasks/${id}`, 'DELETE');
+            renderBoard(); await apiCall(`/tasks/${id}`, 'DELETE');
         }
 
         async function saveProjectDB(p) {
             const idx = projects.findIndex(x => x.id === p.id);
             if (idx > -1) projects[idx] = p; else projects.push(p);
-            renderProjects();
-            await apiCall('/projects', 'POST', p);
+            renderProjects(); await apiCall('/projects', 'POST', p);
         }
 
         async function deleteProjectDB(id) {
-            projects = projects.filter(p => p.id !== id);
-            tasks = tasks.filter(t => t.project_id !== id);
+            projects = projects.filter(p => p.id !== id); tasks = tasks.filter(t => t.project_id !== id);
             if (currentProjectId === id) currentProjectId = projects.filter(p => p.workspace_id === currentWorkspaceId)[0]?.id;
-            renderAll();
-            await apiCall(`/projects/${id}`, 'DELETE');
+            renderAll(); await apiCall(`/projects/${id}`, 'DELETE');
         }
 
         // --- 4. UI RENDERERS ---
-
         function renderWorkspaceMenu() {
             const list = document.getElementById('workspace-list-menu'); list.innerHTML = '';
             workspaces.forEach(ws => {
@@ -579,11 +544,6 @@
         }
 
         function renderWorkspaceUsers() {
-            const selectEl = document.getElementById('active-user-name'); selectEl.innerHTML = '';
-            getVisibleUsers().forEach(u => {
-                const opt = document.createElement('option'); opt.value = u.name; opt.innerText = sanitize(u.name);
-                if (u.name === activeUser) opt.selected = true; selectEl.appendChild(opt);
-            });
             const settingsList = document.getElementById('settings-user-list'); settingsList.innerHTML = '';
             getVisibleUsers().forEach(u => {
                 const div = document.createElement('div'); div.className = 'list-item';
@@ -596,7 +556,8 @@
         function renderProjects() {
             const tabsContainer = document.getElementById('project-tabs'); tabsContainer.innerHTML = '';
             const userPrefs = getActiveUserObj().preferences || { projectOrder: [] };
-            let visible = projects.filter(p => p.workspace_id === currentWorkspaceId && (!p.isSecret || p.owner_id === activeUser));
+            const myId = getActiveUserObj().id;
+            let visible = projects.filter(p => p.workspace_id === currentWorkspaceId && (!p.isSecret || p.owner_id === myId));
             visible.sort((a, b) => {
                 let idxA = userPrefs.projectOrder.indexOf(a.id); let idxB = userPrefs.projectOrder.indexOf(b.id);
                 if (idxA === -1) idxA = 99999; if (idxB === -1) idxB = 99999; return idxA - idxB;
@@ -667,7 +628,6 @@
         }
 
         // --- 5. INTERACTION LOGIC ---
-
         function switchView(v) {
             currentView = v;
             document.getElementById('btn-view-active').classList.toggle('active', v === 'active'); document.getElementById('btn-view-future').classList.toggle('active', v === 'future'); document.getElementById('btn-view-archive').classList.toggle('active', v === 'archive');
@@ -675,10 +635,7 @@
             renderBoard();
         }
 
-        function toggleWorkspaceMenu(e) {
-            e.preventDefault(); e.stopPropagation(); closeMenus();
-            workspaceContextMenu.style.display = workspaceContextMenu.style.display === 'block' ? 'none' : 'block';
-        }
+        function toggleWorkspaceMenu(e) { e.preventDefault(); e.stopPropagation(); closeMenus(); workspaceContextMenu.style.display = workspaceContextMenu.style.display === 'block' ? 'none' : 'block'; }
         function closeMenus() { activeContextMenu.style.display = 'none'; futureContextMenu.style.display = 'none'; archiveContextMenu.style.display = 'none'; subtaskContextMenu.style.display = 'none'; workspaceContextMenu.style.display = 'none'; }
         document.addEventListener('click', closeMenus);
 
@@ -694,7 +651,7 @@
             e.preventDefault(); const draggedId = e.dataTransfer.getData("projectId"); if (!draggedId || draggedId === targetId) return;
             const user = getActiveUserObj(); let currentOrder = projects.filter(p => p.workspace_id === currentWorkspaceId).map(p => p.id);
             const fromIdx = currentOrder.indexOf(draggedId); const toIdx = currentOrder.indexOf(targetId);
-            if (fromIdx > -1 && toIdx > -1) { const [movedId] = currentOrder.splice(fromIdx, 1); currentOrder.splice(toIdx, 0, movedId); user.preferences.projectOrder = [...new Set([...currentOrder, ...user.preferences.projectOrder])]; renderProjects(); /* Sync Prefs logic goes here if desired */ }
+            if (fromIdx > -1 && toIdx > -1) { const [movedId] = currentOrder.splice(fromIdx, 1); currentOrder.splice(toIdx, 0, movedId); user.preferences.projectOrder = [...new Set([...currentOrder, ...user.preferences.projectOrder])]; renderProjects(); }
         }
 
         function dragStart(e, id) { e.dataTransfer.setData("taskId", id); setTimeout(() => e.target.classList.add('dragging'), 0); }
@@ -706,9 +663,8 @@
         function allowDrop(e, status) { e.preventDefault(); const list = document.getElementById(status + '-list'); const dragEl = document.querySelector('.dragging'); if (!dragEl) return; const afterEl = [...list.querySelectorAll('.card:not(.dragging)')].reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = e.clientY - box.top - box.height / 2; return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest; }, { offset: Number.NEGATIVE_INFINITY }).element; if (afterEl == null) list.appendChild(dragEl); else list.insertBefore(dragEl, afterEl); }
 
         // --- 6. FORMS & MODALS ---
-
         function openModal(defaultStatus = 'todo') {
-            draftTask = { id: 'temp_' + Date.now().toString(), title: '', description: '', assignees: [], due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null };
+            draftTask = { id: 'temp_' + generateUUID(), title: '', description: '', assignees: [], due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null };
             draftSubtasks = []; draftSubtaskId = null; document.getElementById('task-form').reset(); updateFormUI(); document.getElementById('task-modal').showModal();
         }
         function editTask(id) {
@@ -732,14 +688,16 @@
         }
 
         document.getElementById('task-form').addEventListener('submit', async function(e) {
-            e.preventDefault(); syncFormToDraft(); const isNew = draftTask.id.includes('temp'); if (isNew) draftTask.id = 't_' + Date.now().toString();
+            e.preventDefault(); syncFormToDraft(); 
+            const isNew = draftTask.id.includes('temp'); 
+            if (isNew) draftTask.id = generateUUID();
             await saveTaskDB(draftTask);
-            for (const st of draftSubtasks) { if (st.id.includes('sub_')) st.id = 't_' + Math.random().toString(36).substr(2, 9); st.parent_task_id = draftTask.id; await saveTaskDB(st); }
+            for (const st of draftSubtasks) { if (st.id.includes('sub_') || st.id.includes('temp')) st.id = generateUUID(); st.parent_task_id = draftTask.id; await saveTaskDB(st); }
             closeModal();
         });
 
         function openSubtaskPromptModal() { document.getElementById('new-subtask-name').value = ''; document.getElementById('subtask-prompt-modal').showModal(); } function closeSubtaskPromptModal() { document.getElementById('subtask-prompt-modal').close(); }
-        document.getElementById('subtask-prompt-form').addEventListener('submit', function(e) { e.preventDefault(); const title = document.getElementById('new-subtask-name').value.trim(); if(title && draftTask) { draftSubtasks.push({ id: 'sub_' + Date.now().toString(), project_id: currentProjectId, parent_task_id: draftTask.id, title: title, status: 'todo', description: '', assignees: [], due_date: '', urgency: 'low' }); renderSubtasks(); } closeSubtaskPromptModal(); });
+        document.getElementById('subtask-prompt-form').addEventListener('submit', function(e) { e.preventDefault(); const title = document.getElementById('new-subtask-name').value.trim(); if(title && draftTask) { draftSubtasks.push({ id: 'sub_' + generateUUID(), project_id: currentProjectId, parent_task_id: draftTask.id, title: title, status: 'todo', description: '', assignees: [], due_date: '', urgency: 'low' }); renderSubtasks(); } closeSubtaskPromptModal(); });
         function openSubtaskDetails(id) { syncFormToDraft(); draftSubtaskId = id; updateFormUI(); } function backToParentTask() { syncFormToDraft(); draftSubtaskId = null; updateFormUI(); }
         function toggleSubtask(id) { const st = draftSubtasks.find(s => s.id === id); if(st) st.status = (st.status === 'complete') ? 'todo' : 'complete'; renderSubtasks(); } function removeSubtask(id) { draftSubtasks = draftSubtasks.filter(s => s.id !== id); renderSubtasks(); }
         function renderSubtasks() {
@@ -760,65 +718,40 @@
 
         document.getElementById('prompt-form').addEventListener('submit', async function(e) {
             e.preventDefault(); const name = document.getElementById('new-project-name').value.trim();
-            if (name) { const newId = 'p_' + Date.now().toString(); currentProjectId = newId; await saveProjectDB({ id: newId, name: name, isSecret: document.getElementById('new-project-secret').checked, workspace_id: currentWorkspaceId, owner_id: activeUser }); }
+            if (name) { const newId = generateUUID(); currentProjectId = newId; await saveProjectDB({ id: newId, name: name, isSecret: document.getElementById('new-project-secret').checked, workspace_id: currentWorkspaceId, owner_id: getActiveUserObj().id }); }
             document.getElementById('prompt-modal').close();
         });
 
-       // --- UPDATED FRONTEND CALLS ---
-
-        // Create Workspace
+        // --- UPDATED FRONTEND CALLS ---
         document.getElementById('create-workspace-form').addEventListener('submit', async function(e) {
-            e.preventDefault(); 
-            const name = document.getElementById('create-workspace-name').value.trim();
+            e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
             if (name) { 
-                const newId = 'ws_' + Date.now(); 
-                currentWorkspaceId = newId; 
-                currentProjectId = null; 
+                const newId = generateUUID(); currentWorkspaceId = newId; currentProjectId = null; 
                 const currentUserObj = getActiveUserObj();
-                
-                // Save to DB and link the current user
                 await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj ? currentUserObj.id : null }); 
                 await loadDataFromDB(); 
             }
             document.getElementById('create-workspace-modal').close();
         });
 
-        // Add User
         document.getElementById('add-user-form').addEventListener('submit', async function(e) {
             e.preventDefault();
-            const name = document.getElementById('new-ws-user-name').value.trim(); 
-            const email = document.getElementById('new-ws-user-email').value.trim(); 
-            const role = document.getElementById('new-ws-user-role').value;
-            
-            if (name) {
-                const newUserId = 'u_' + Date.now();
-                await apiCall('/users', 'POST', { id: newUserId, name, email, role, workspace_id: currentWorkspaceId });
-                await loadDataFromDB();
-            }
+            const name = document.getElementById('new-ws-user-name').value.trim(); const email = document.getElementById('new-ws-user-email').value.trim(); const role = document.getElementById('new-ws-user-role').value;
+            if (name) { const newUserId = generateUUID(); await apiCall('/users', 'POST', { id: newUserId, name, email, role, workspace_id: currentWorkspaceId }); await loadDataFromDB(); }
             closeAddUserModal();
         });
 
-        // Delete User from Workspace
         function deleteWorkspaceUser(id, name) {
             if (getVisibleUsers().length <= 1) { alert("You must have at least one user in the workspace."); return; }
-            document.getElementById('confirm-message').innerHTML = `Are you sure you want to remove <strong>${sanitize(name)}</strong> from this workspace?`;
-            document.getElementById('confirm-execute-btn').className = "danger-solid";
-            
-            pendingConfirmAction = async () => {
-                await apiCall(`/users/${id}/${currentWorkspaceId}`, 'DELETE');
-                await loadDataFromDB();
-            };
-            document.getElementById('confirm-modal').showModal();
+            document.getElementById('confirm-message').innerHTML = `Are you sure you want to remove <strong>${sanitize(name)}</strong> from this workspace?`; document.getElementById('confirm-execute-btn').className = "danger-solid";
+            pendingConfirmAction = async () => { await apiCall(`/users/${id}/${currentWorkspaceId}`, 'DELETE'); await loadDataFromDB(); }; document.getElementById('confirm-modal').showModal();
         }
 
-        // Setup Delete Triggers
         function triggerDeleteTask(id) { document.getElementById('confirm-message').innerHTML = "Delete this task?<br>This cannot be undone."; document.getElementById('confirm-execute-btn').className = "danger-solid"; pendingConfirmAction = () => deleteTaskDB(id); document.getElementById('confirm-modal').showModal(); }
         function triggerDeleteProject(e, id) { e.stopPropagation(); if (projects.filter(p => p.workspace_id === currentWorkspaceId).length <= 1) { alert("Cannot delete your only project."); return; } document.getElementById('confirm-message').innerHTML = "Delete this project and all its tasks?<br>This cannot be undone."; document.getElementById('confirm-execute-btn').className = "danger-solid"; pendingConfirmAction = () => deleteProjectDB(id); document.getElementById('confirm-modal').showModal(); }
         function executeConfirm() { if (pendingConfirmAction) pendingConfirmAction(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; }
         function closeConfirmModal() { document.getElementById('confirm-modal').close(); pendingConfirmAction = null; }
-        
-        // Finalize Boot
-        window.onload = loadDataFromDB;
+
     </script>
 </body>
 </html>
