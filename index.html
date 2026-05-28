@@ -30,13 +30,12 @@
         .gear-btn { background: transparent; color: #5e6c84; font-size: 20px; padding: 4px 8px; line-height: 1; }
         .gear-btn:hover { background: #ebecf0; color: #172b4d; }
 
-        .project-tabs { display: flex; gap: 8px; margin-bottom: 15px; border-bottom: 2px solid #dfe1e6; padding-bottom: 12px; overflow-x: auto; }
+        .project-tabs { display: flex; gap: 8px; margin-bottom: 15px; border-bottom: 2px solid #dfe1e6; padding-bottom: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .tab { display: flex; align-items: center; gap: 8px; background: transparent; color: #5e6c84; border: none; padding: 8px 16px; border-radius: 4px; cursor: grab; font-weight: bold; font-size: 14px; transition: opacity 0.2s ease; white-space: nowrap; }
         .tab:active { cursor: grabbing; }
         .tab:hover { background: #ebecf0; }
         .tab.active { background: #0052cc; color: white; }
         .tab.add-new { color: #0052cc; border: 1px dashed #0052cc; cursor: pointer; }
-        .tab.add-new:active { cursor: pointer; }
         .tab.add-new:hover { background: #e6fcff; }
         .tab.dragging-tab { opacity: 0.4; transform: scale(0.98); } 
         .delete-project { background: rgba(255,255,255,0.2); border-radius: 50%; width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; font-size: 14px; line-height: 1; padding: 0; margin-left: 5px; cursor: pointer;}
@@ -80,9 +79,9 @@
         .card p { color: #42526e; line-height: 1.4; margin: 0; pointer-events: none; word-break: break-word; }
         .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; pointer-events: none; }
         .meta-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; pointer-events: none; }
-        .card .actions { opacity: 0; pointer-events: none; transition: opacity 0.2s ease; display: flex; gap: 2px; }
-        .card:hover .actions { opacity: 1; pointer-events: auto; }
-        @media (hover: none) { .card .actions, .list-item .list-actions { opacity: 1; pointer-events: auto; } }
+        
+        .card .actions { opacity: 0; transition: opacity 0.2s ease; display: flex; gap: 2px; }
+        .card:hover .actions { opacity: 1; }
 
         /* SIZES */
         .board-container.size-big .card { padding: 16px; gap: 12px; }
@@ -90,10 +89,12 @@
         .board-container.size-big .card p { font-size: 14px; }
         .board-container.size-big .badge { font-size: 12px; padding: 4px 8px; }
         .board-container.size-big .card-footer { border-top: 1px solid #ebecf0; padding-top: 12px; }
+        
         .board-container.size-medium .card { padding: 12px; gap: 8px; }
         .board-container.size-medium .card h3 { font-size: 14px; pointer-events: none; }
         .board-container.size-medium .card p { font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .board-container.size-medium .badge { font-size: 11px; padding: 3px 6px; }
+        
         .board-container.size-small .card { padding: 8px 12px; gap: 6px; }
         .board-container.size-small .card h3 { font-size: 13px; pointer-events: none;}
         .board-container.size-small .card p { display: none; } 
@@ -103,9 +104,7 @@
         .custom-context-menu button { display: block; width: 100%; text-align: left; background: transparent; color: #172b4d; border: none; padding: 8px 16px; font-size: 14px; border-radius: 0; cursor: pointer; font-weight: normal; }
         .custom-context-menu button:hover { background: #ebecf0; }
         .custom-context-menu button.danger-text { color: #de350b; }
-        .custom-context-menu button.danger-text:hover { background: #ffebe6; }
         .custom-context-menu button.success-text { color: #36b37e; }
-        .custom-context-menu button.success-text:hover { background: #e3fcef; }
 
         /* Modals / Forms */
         dialog { border: none; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); padding: 24px; width: 100%; max-width: 380px; box-sizing: border-box; }
@@ -120,15 +119,67 @@
         .checkbox-group input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; margin: 0; }
         .list-container { border: 1px solid #dfe1e6; border-radius: 4px; padding: 8px; background: #fafbfc; max-height: 140px; overflow-y: auto; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
         .list-item { display: flex; align-items: center; gap: 6px; font-size: 13px; background: white; padding: 6px; border: 1px solid #ebecf0; border-radius: 4px; cursor: pointer; transition: all 0.2s ease; }
-        .list-item:hover { border-color: #4c9aff; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         .list-item input[type="checkbox"] { cursor: pointer; margin: 0; }
         .list-item .title { flex: 1; word-break: break-word; pointer-events: none; }
         .list-item .meta { font-size: 11px; color: #5e6c84; font-weight: normal; margin-left: 6px; }
-        .list-item.completed .title { text-decoration: line-through; color: #8993a4; }
-        .list-actions { opacity: 0; pointer-events: none; transition: opacity 0.2s ease; display: flex; gap: 4px; }
-        .list-item:hover .list-actions { opacity: 1; pointer-events: auto; }
+        .list-actions { opacity: 0; transition: opacity 0.2s ease; display: flex; gap: 4px; }
+        .list-item:hover .list-actions { opacity: 1; }
         .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
         .settings-section-title { font-size: 12px; text-transform: uppercase; color: #5e6c84; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #dfe1e6; padding-bottom: 4px; margin-top: 24px; }
+
+        /* --- MOBILE OPTIMIZATIONS --- */
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .header { flex-direction: column; align-items: stretch; gap: 15px; }
+            .header-controls { justify-content: space-between; width: 100%; flex-wrap: nowrap; }
+            .tools-row { flex-direction: column; align-items: stretch; gap: 10px; }
+            .filters-bar { flex-direction: column; width: 100%; align-items: stretch;}
+            .filters-bar input, .filters-bar select { width: 100%; box-sizing: border-box; }
+            
+            /* Swipeable Carousel for Columns */
+            .board { 
+                scroll-snap-type: x mandatory; 
+                padding-bottom: 20px; 
+                margin: 0 -10px; 
+                padding: 0 10px 20px 10px;
+                scroll-behavior: smooth;
+                -webkit-overflow-scrolling: touch;
+            }
+            .column { 
+                min-width: 88vw; 
+                scroll-snap-align: center; 
+                margin-right: 10px;
+            }
+            .board::after { content: ''; padding-right: 2vw; } /* Right margin pad */
+            
+            /* Persistent Actions on Mobile */
+            .card .actions, .list-item .list-actions { opacity: 1; pointer-events: auto; }
+            
+            /* Bottom Sheet Context Menus */
+            .custom-context-menu {
+                position: fixed !important;
+                bottom: 0 !important; top: auto !important; left: 0 !important;
+                width: 100% !important;
+                border-radius: 16px 16px 0 0;
+                box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
+                padding: 10px 0 30px 0;
+                animation: slideUp 0.2s ease-out;
+            }
+            .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
+            
+            /* Bottom Sheet Modals */
+            dialog { 
+                margin: auto 0 0 0; max-width: 100%; width: 100%; 
+                border-radius: 16px 16px 0 0; 
+                animation: slideUp 0.3s ease-out;
+                padding-bottom: 40px; /* Safe area */
+            }
+            
+            @keyframes slideUp {
+                from { transform: translateY(100%); }
+                to { transform: translateY(0); }
+            }
+        }
     </style>
 </head>
 <body>
@@ -153,7 +204,8 @@
             </div>
             
             <div class="header-controls">
-                <div id="user-button"></div> <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
+                <div id="user-button"></div>
+                <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
                 <button onclick="openModal('todo')">+ Add New Task</button>
             </div>
         </div>
@@ -447,6 +499,7 @@
                     }
                     await loadDataFromDB();
                 }
+
             } else {
                 document.getElementById('sign-in-container').style.display = 'flex';
                 Clerk.mountSignIn(document.getElementById('sign-in'));
@@ -463,7 +516,6 @@
                 
                 workspaces = data.workspaces || [];
                 
-                // Map Postgres snake_case back to JS camelCase
                 projects = (data.projects || []).map(p => { 
                     p.isSecret = p.is_secret; 
                     return p; 
@@ -614,17 +666,11 @@
                 btn.innerText = (project.isSecret ? '🔒 ' : '') + sanitize(project.name);
                 btn.onclick = () => { currentProjectId = project.id; renderBoard(); renderProjects(); updateAssigneeFilterOptions(); };
                 
-                // Add right-click listener
+                // Native Right-Click Context Menu Hook
                 btn.oncontextmenu = (e) => showContextMenuProject(e, project.id);
                 
                 btn.draggable = true; btn.ondragstart = (e) => handleTabDragStart(e, project.id); btn.ondragend = (e) => e.target.classList.remove('dragging-tab'); btn.ondragover = (e) => e.preventDefault(); btn.ondrop = (e) => handleTabDrop(e, project.id);
                 
-                if (project.id === currentProjectId) {
-                    const delBtn = document.createElement('span'); delBtn.className = 'delete-project'; delBtn.innerHTML = '&times;'; 
-                    delBtn.title = "Delete Project";
-                    delBtn.onclick = (e) => { e.stopPropagation(); triggerDeleteProject(project.id); }; 
-                    btn.appendChild(delBtn);
-                }
                 tabsContainer.appendChild(btn);
             });
             const addBtn = document.createElement('button'); addBtn.className = 'tab add-new'; addBtn.innerText = '+ Add Project'; addBtn.onclick = () => { document.getElementById('prompt-form').reset(); document.getElementById('prompt-modal').showModal(); }; tabsContainer.appendChild(addBtn);
@@ -663,10 +709,23 @@
             document.getElementById('master-board-wrapper').className = `board-container size-${activeSize}`;
             
             allMatches.forEach(task => {
+                // Mobile-friendly Arrow Actions included in the hover overlay!
                 let hoverActionsHtml = '';
-                if (['todo', 'doing', 'done'].includes(task.status)) { hoverActionsHtml = `<button type="button" class="action-success" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'complete')" title="Archive">✓</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; } 
-                else if (task.status === 'future') { hoverActionsHtml = `<button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'todo')" title="Move to Active Board">🚀</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; } 
-                else if (task.status === 'complete') { hoverActionsHtml = `<button type="button" class="action-warning" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'done')" title="Restore to Board">⏪</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; }
+                if (task.status === 'todo') { 
+                    hoverActionsHtml = `<button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'doing')" title="Move to Doing">→</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; 
+                } 
+                else if (task.status === 'doing') { 
+                    hoverActionsHtml = `<button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'todo')" title="Move to To Do">←</button> <button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'done')" title="Move to Done">→</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; 
+                } 
+                else if (task.status === 'done') { 
+                    hoverActionsHtml = `<button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'doing')" title="Move to Doing">←</button> <button type="button" class="action-success" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'complete')" title="Archive">✓</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; 
+                }
+                else if (task.status === 'future') { 
+                    hoverActionsHtml = `<button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'todo')" title="Move to Active Board">🚀</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; 
+                } 
+                else if (task.status === 'complete') { 
+                    hoverActionsHtml = `<button type="button" class="action-warning" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'done')" title="Restore to Board">⏪</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; 
+                }
                 
                 const card = document.createElement('div'); card.className = 'card'; card.setAttribute('data-id', task.id); card.draggable = true;
                 card.ondragstart = (e) => dragStart(e, task.id); card.ondragend = (e) => dragEnd(e); card.setAttribute('onclick', `editTask('${task.id}')`); card.setAttribute('oncontextmenu', `showContextMenuMain(event, '${task.id}')`);
@@ -735,13 +794,10 @@
         function showContextMenuMain(e, id) { e.preventDefault(); e.stopPropagation(); closeMenus(); contextTargetMainId = id; let target = (currentView === 'active') ? activeContextMenu : (currentView === 'future') ? futureContextMenu : archiveContextMenu; target.style.display = 'block'; target.style.left = (e.currentTarget.getBoundingClientRect().right - target.offsetWidth - 5) + 'px'; target.style.top = (e.currentTarget.getBoundingClientRect().top + 5) + 'px'; }
         function showContextMenuSubtask(e, id) { e.preventDefault(); e.stopPropagation(); closeMenus(); contextTargetSubtaskId = id; subtaskContextMenu.style.display = 'block'; subtaskContextMenu.style.left = (e.currentTarget.getBoundingClientRect().right - subtaskContextMenu.offsetWidth - 5) + 'px'; subtaskContextMenu.style.top = (e.currentTarget.getBoundingClientRect().top + 5) + 'px'; }
         
-        // --- NEW PROJECT RIGHT CLICK LOGIC ---
         function showContextMenuProject(e, id) { 
             e.preventDefault(); e.stopPropagation(); closeMenus(); 
-            contextTargetProjectId = id; 
-            projectContextMenu.style.display = 'block'; 
-            projectContextMenu.style.left = e.pageX + 'px'; 
-            projectContextMenu.style.top = e.pageY + 'px'; 
+            contextTargetProjectId = id; projectContextMenu.style.display = 'block'; 
+            projectContextMenu.style.left = e.pageX + 'px'; projectContextMenu.style.top = e.pageY + 'px'; 
         }
         function contextActionEditProject() { openEditProjectModal(contextTargetProjectId); closeMenus(); }
         function contextActionDeleteProject() { triggerDeleteProject(contextTargetProjectId); closeMenus(); }
@@ -829,11 +885,9 @@
         document.getElementById('prompt-form').addEventListener('submit', async function(e) {
             e.preventDefault(); const name = document.getElementById('new-project-name').value.trim();
             if (name) { 
-                const newId = generateUUID(); 
-                currentProjectId = newId; 
-                localStorage.setItem('currentProjectId', newId); // Remember the active project
+                const newId = generateUUID(); currentProjectId = newId; localStorage.setItem('currentProjectId', newId); 
                 await saveProjectDB({ id: newId, name: name, isSecret: document.getElementById('new-project-secret').checked, workspace_id: currentWorkspaceId, owner_id: getActiveUserObj().id }); 
-                renderAll(); // Force the board to clear out old tasks and show the new project
+                renderAll(); 
             }
             closePromptModal();
         });
@@ -851,15 +905,7 @@
             e.preventDefault(); 
             const name = document.getElementById('edit-project-name').value.trim();
             const isSecret = document.getElementById('edit-project-secret').checked;
-            
-            if (name) {
-                const p = projects.find(x => x.id === contextTargetProjectId);
-                if (p) {
-                    p.name = name;
-                    p.isSecret = isSecret;
-                    await saveProjectDB(p);
-                }
-            }
+            if (name) { const p = projects.find(x => x.id === contextTargetProjectId); if (p) { p.name = name; p.isSecret = isSecret; await saveProjectDB(p); } }
             closeEditProjectModal();
         });
 
@@ -867,9 +913,7 @@
         document.getElementById('create-workspace-form').addEventListener('submit', async function(e) {
             e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
             if (name) { 
-                const newId = generateUUID(); 
-                const currentUserObj = getActiveUserObj();
-                // Pass the user ID so the backend automatically spins up the default "Me" project
+                const newId = generateUUID(); const currentUserObj = getActiveUserObj();
                 await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj.id }); 
                 currentWorkspaceId = newId; localStorage.setItem('currentWorkspaceId', newId); currentProjectId = null; 
                 await loadDataFromDB(); 
@@ -898,32 +942,20 @@
             const ws = workspaces.find(w => w.id === currentWorkspaceId);
             document.getElementById('confirm-message').innerHTML = `Are you sure you want to delete workspace <strong>"${sanitize(ws.name)}"</strong> and all its projects and tasks?<br>This cannot be undone.`; 
             document.getElementById('confirm-execute-btn').className = "danger-solid";
-            
-            pendingConfirmAction = async () => { 
-                await apiCall(`/workspaces/${currentWorkspaceId}`, 'DELETE'); 
-                currentWorkspaceId = null; localStorage.removeItem('currentWorkspaceId');
-                await loadDataFromDB(); 
-            }; 
+            pendingConfirmAction = async () => { await apiCall(`/workspaces/${currentWorkspaceId}`, 'DELETE'); currentWorkspaceId = null; localStorage.removeItem('currentWorkspaceId'); await loadDataFromDB(); }; 
             document.getElementById('confirm-modal').showModal();
         }
 
         document.getElementById('add-user-form').addEventListener('submit', async function(e) {
             e.preventDefault();
-            const name = document.getElementById('new-ws-user-name').value.trim(); 
-            const email = document.getElementById('new-ws-user-email').value.trim(); 
-            const role = document.getElementById('new-ws-user-role').value;
-            
+            const name = document.getElementById('new-ws-user-name').value.trim(); const email = document.getElementById('new-ws-user-email').value.trim(); const role = document.getElementById('new-ws-user-role').value;
             if (name && email) { 
                 const newUserId = generateUUID(); 
                 const inviterName = activeUserName;
                 const wsObj = workspaces.find(w => w.id === currentWorkspaceId);
                 const workspaceName = wsObj ? wsObj.name : 'TaskBoard';
                 const inviteLink = window.location.origin; 
-                
-                await apiCall('/users', 'POST', { 
-                    id: newUserId, name, email, role, workspace_id: currentWorkspaceId,
-                    inviter_name: inviterName, workspace_name: workspaceName, invite_link: inviteLink
-                }); 
+                await apiCall('/users', 'POST', { id: newUserId, name, email, role, workspace_id: currentWorkspaceId, inviter_name: inviterName, workspace_name: workspaceName, invite_link: inviteLink }); 
                 await loadDataFromDB(); 
             }
             closeAddUserModal();
