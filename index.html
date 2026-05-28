@@ -495,28 +495,6 @@
             } catch (error) { if (!silent) console.error("Database connection failed.", error); }
         }
 
-        // --- BACKGROUND SYNCING (Short Polling) ---
-        setInterval(async () => {
-            // Only sync if the user is NOT actively typing in a modal or dragging a card
-            const hasOpenModals = document.querySelectorAll('dialog[open]').length > 0;
-            const isDragging = document.querySelector('.dragging') !== null;
-            
-            if (!hasOpenModals && !isDragging && Clerk.user) {
-                await loadDataFromDB(true); // Pass 'true' for a silent background sync
-            }
-        }, 10000); // Checks for new tasks every 10 seconds
-        function getActiveUserObj() { 
-            let u = workspaceUsers.find(u => u.email === activeUserEmail);
-            if (!u) u = { id: null, workspace_ids: [] };
-            
-            if (!u.preferences) u.preferences = {};
-            if (!u.preferences.projectOrder) u.preferences.projectOrder = [];
-            if (!u.preferences.uiSize) u.preferences.uiSize = 'auto';
-            if (!u.preferences.displayConfig) u.preferences.displayConfig = { showDate: true, showUrgency: true, showDesc: true, showAssignee: true };
-            
-            return u;
-        }
-
         function initValidation() {
             const me = getActiveUserObj();
             const myWorkspaces = workspaces.filter(ws => me.workspace_ids && me.workspace_ids.includes(ws.id));
