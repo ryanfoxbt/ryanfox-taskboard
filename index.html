@@ -114,7 +114,7 @@
         .modal-header-row h2 { margin: 0; flex: 1; font-size: 18px; }
         .form-group { margin-bottom: 16px; }
         .form-group label { display: block; margin-bottom: 6px; font-weight: bold; font-size: 14px; }
-        .form-group input[type="text"], .form-group input[type="date"], .form-group textarea, .form-group select { width: 100%; padding: 8px; border: 2px solid #dfe1e6; border-radius: 4px; box-sizing: border-box; font-family: inherit; }
+        .form-group input[type="text"], .form-group input[type="date"], .form-group input[type="email"], .form-group textarea, .form-group select { width: 100%; padding: 8px; border: 2px solid #dfe1e6; border-radius: 4px; box-sizing: border-box; font-family: inherit; }
         .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: #4c9aff; outline: none; }
         .checkbox-group { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 14px; }
         .checkbox-group input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; margin: 0; }
@@ -255,7 +255,7 @@
         <h2 style="margin-top:0;">Invite User</h2>
         <form id="add-user-form">
             <div class="form-group"><label>Name</label><input type="text" id="new-ws-user-name" required placeholder="E.g., Sarah" autocomplete="off"></div>
-            <div class="form-group"><label>Email</label><input type="text" id="new-ws-user-email" required placeholder="sarah@example.com" autocomplete="off"></div>
+            <div class="form-group"><label>Email</label><input type="email" id="new-ws-user-email" required placeholder="sarah@example.com" autocomplete="off"></div>
             <div class="form-group"><label>Role</label><select id="new-ws-user-role"><option value="Member">Member</option><option value="Admin">Admin</option></select></div>
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeAddUserModal()">Cancel</button><button type="submit">Add User</button></div>
         </form>
@@ -378,7 +378,6 @@
             });
         }
 
-        // Restored Modal Toggles
         function openCreateWorkspaceModal() { document.getElementById('create-workspace-form').reset(); document.getElementById('create-workspace-modal').showModal(); }
         function closeCreateWorkspaceModal() { document.getElementById('create-workspace-modal').close(); }
         function openAddUserModal() { document.getElementById('add-user-form').reset(); document.getElementById('add-user-modal').showModal(); }
@@ -423,12 +422,18 @@
                     
                     if (workspaces.length === 0) {
                         wsId = generateUUID();
+                        // 1. Create a "dummy" workspace just so it exists in DB
                         await apiCall('/workspaces', 'POST', { id: wsId, name: 'Personal Workspace', userId: null });
-                    } else if (!wsId || !workspaces.find(w => w.id === wsId)) {
-                        wsId = workspaces[0].id;
+                        
+                        // 2. Insert User and link to that workspace
+                        await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
+                        
+                        // 3. Create the "Me" project explicitly
+                        await apiCall('/projects', 'POST', { id: generateUUID(), workspace_id: wsId, name: 'Me', isSecret: false, owner_id: newUserId });
+                    } else {
+                        if (!wsId || !workspaces.find(w => w.id === wsId)) wsId = workspaces[0].id;
+                        await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
                     }
-                    
-                    await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
                     await loadDataFromDB();
                 }
 
@@ -467,8 +472,6 @@
                 });
 
                 initValidation();
-                
-                // CRITICAL FIX: The app must explicitly render the UI after data finishes loading!
                 renderAll(); 
 
             } catch (error) { console.error("Database connection failed.", error); }
@@ -478,7 +481,6 @@
             let u = workspaceUsers.find(u => u.email === activeUserEmail);
             if (!u) u = { id: null, workspace_ids: [] };
             
-            // Safe Defaults to prevent UI crashes
             if (!u.preferences) u.preferences = {};
             if (!u.preferences.projectOrder) u.preferences.projectOrder = [];
             if (!u.preferences.uiSize) u.preferences.uiSize = 'auto';
@@ -509,7 +511,7 @@
 
         function renderAll() {
             renderWorkspaceMenu(); 
-            renderWorkspaceUsers(); // Restored to keep settings modal updated!
+            renderWorkspaceUsers(); 
             renderProjects(); 
             updateAssigneeFilterOptions(); 
             renderBoard();
@@ -800,7 +802,8 @@
             if (name) { 
                 const newId = generateUUID(); 
                 const currentUserObj = getActiveUserObj();
-                await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj ? currentUserObj.id : null }); 
+                // Pass the user ID so the backend automatically spins up the default "Me" project
+                await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj.id }); 
                 currentWorkspaceId = newId; localStorage.setItem('currentWorkspaceId', newId); currentProjectId = null; 
                 await loadDataFromDB(); 
             }
@@ -839,8 +842,25 @@
 
         document.getElementById('add-user-form').addEventListener('submit', async function(e) {
             e.preventDefault();
-            const name = document.getElementById('new-ws-user-name').value.trim(); const email = document.getElementById('new-ws-user-email').value.trim(); const role = document.getElementById('new-ws-user-role').value;
-            if (name) { const newUserId = generateUUID(); await apiCall('/users', 'POST', { id: newUserId, name, email, role, workspace_id: currentWorkspaceId }); await loadDataFromDB(); }
+            const name = document.getElementById('new-ws-user-name').value.trim(); 
+            const email = document.getElementById('new-ws-user-email').value.trim(); 
+            const role = document.getElementById('new-ws-user-role').value;
+            
+            if (name && email) { 
+                const newUserId = generateUUID(); 
+                
+                // Details needed for the Resend Email payload
+                const inviterName = activeUserName;
+                const wsObj = workspaces.find(w => w.id === currentWorkspaceId);
+                const workspaceName = wsObj ? wsObj.name : 'TaskBoard';
+                const inviteLink = window.location.origin; // Dynamically uses your Vercel URL
+                
+                await apiCall('/users', 'POST', { 
+                    id: newUserId, name, email, role, workspace_id: currentWorkspaceId,
+                    inviter_name: inviterName, workspace_name: workspaceName, invite_link: inviteLink
+                }); 
+                await loadDataFromDB(); 
+            }
             closeAddUserModal();
         });
 
