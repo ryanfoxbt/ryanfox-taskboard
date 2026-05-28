@@ -41,6 +41,9 @@
         .tab.dragging-tab { opacity: 0.4; transform: scale(0.98); } 
         .delete-project { background: rgba(255,255,255,0.2); border-radius: 50%; width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; font-size: 14px; line-height: 1; padding: 0; margin-left: 5px; cursor: pointer;}
         .delete-project:hover { background: #de350b; color: white; }
+        .edit-project { background: rgba(255,255,255,0.2); border-radius: 50%; width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; font-size: 12px; line-height: 1; padding: 0; margin-left: 8px; cursor: pointer; }
+        .edit-project:hover { background: #ebecf0; color: #172b4d; }
+        
 
         .tools-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
         .view-toggles { display: flex; background: #dfe1e6; border-radius: 6px; padding: 4px; flex-wrap: wrap; gap: 2px; }
@@ -285,6 +288,17 @@
                 <input type="checkbox" id="new-project-secret"><label for="new-project-secret" style="margin:0; font-weight:bold; color: #006644;">🔒 Make Secret (Only visible to me)</label>
             </div>
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closePromptModal()">Cancel</button><button type="submit">Create</button></div>
+        </form>
+    </dialog>
+
+    <dialog id="edit-project-modal">
+        <h2 style="margin-top:0;">Edit Project</h2>
+        <form id="edit-project-form">
+            <div class="form-group"><label>Project Name</label><input type="text" id="edit-project-name" required autocomplete="off"></div>
+            <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;">
+                <input type="checkbox" id="edit-project-secret"><label for="edit-project-secret" style="margin:0; font-weight:bold; color: #006644;">🔒 Make Secret (Only visible to me)</label>
+            </div>
+            <div class="dialog-actions"><button type="button" class="secondary" onclick="closeEditProjectModal()">Cancel</button><button type="submit">Save Changes</button></div>
         </form>
     </dialog>
 
