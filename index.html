@@ -150,7 +150,7 @@
                 scroll-snap-align: center; 
                 margin-right: 10px;
             }
-            .board::after { content: ''; padding-right: 2vw; } /* Right margin pad */
+            .board::after { content: ''; padding-right: 2vw; }
             
             /* Persistent Actions on Mobile */
             .card .actions, .list-item .list-actions { opacity: 1; pointer-events: auto; }
@@ -167,12 +167,16 @@
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
-            /* Bottom Sheet Modals */
+            /* Fixed Bottom Sheet Modals to prevent taking up full screen */
             dialog { 
-                margin: auto 0 0 0; max-width: 100%; width: 100%; 
+                margin: auto 0 0 0; 
+                max-width: 100%; width: 100%; 
+                max-height: 85vh; /* <--- This forces it to stop growing and enables scrolling */
+                overflow-y: auto; /* <--- This adds the scrollbar for long contents */
                 border-radius: 16px 16px 0 0; 
                 animation: slideUp 0.3s ease-out;
-                padding-bottom: 40px; /* Safe area */
+                padding-bottom: 40px; 
+                box-sizing: border-box;
             }
             
             @keyframes slideUp {
@@ -204,8 +208,7 @@
             </div>
             
             <div class="header-controls">
-                <div id="user-button"></div>
-                <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
+                <div id="user-button"></div> <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
                 <button onclick="openModal('todo')">+ Add New Task</button>
             </div>
         </div>
@@ -666,11 +669,17 @@
                 btn.innerText = (project.isSecret ? '🔒 ' : '') + sanitize(project.name);
                 btn.onclick = () => { currentProjectId = project.id; renderBoard(); renderProjects(); updateAssigneeFilterOptions(); };
                 
-                // Native Right-Click Context Menu Hook
+                // Add right-click listener
                 btn.oncontextmenu = (e) => showContextMenuProject(e, project.id);
                 
                 btn.draggable = true; btn.ondragstart = (e) => handleTabDragStart(e, project.id); btn.ondragend = (e) => e.target.classList.remove('dragging-tab'); btn.ondragover = (e) => e.preventDefault(); btn.ondrop = (e) => handleTabDrop(e, project.id);
                 
+                if (project.id === currentProjectId) {
+                    const delBtn = document.createElement('span'); delBtn.className = 'delete-project'; delBtn.innerHTML = '&times;'; 
+                    delBtn.title = "Delete Project";
+                    delBtn.onclick = (e) => { e.stopPropagation(); triggerDeleteProject(project.id); }; 
+                    btn.appendChild(delBtn);
+                }
                 tabsContainer.appendChild(btn);
             });
             const addBtn = document.createElement('button'); addBtn.className = 'tab add-new'; addBtn.innerText = '+ Add Project'; addBtn.onclick = () => { document.getElementById('prompt-form').reset(); document.getElementById('prompt-modal').showModal(); }; tabsContainer.appendChild(addBtn);
@@ -744,6 +753,19 @@
                 card.innerHTML = `<h3>${urgencyHtml} ${sanitize(task.title)}</h3>${descHtml}<div class="card-footer"><div class="meta-group">${assigneesHtml}${dateHtml}${subtaskHtml}</div><div class="actions">${hoverActionsHtml}</div></div>`; 
                 (lists[task.status] || lists.todo).appendChild(card);
             });
+
+            // --- MOBILE AUTO-SNAP TO SEARCH RESULTS ---
+            if (window.innerWidth <= 768 && (searchQ || assigneeQ !== 'All' || urgencyQ !== 'All') && currentView === 'active') {
+                const firstPopulated = [
+                    { list: lists.todo, col: lists.todo.parentElement },
+                    { list: lists.doing, col: lists.doing.parentElement },
+                    { list: lists.done, col: lists.done.parentElement }
+                ].find(item => item.list.children.length > 0);
+
+                if (firstPopulated) {
+                    firstPopulated.col.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+                }
+            }
         }
 
         // --- 5. SETTINGS ---
@@ -914,6 +936,7 @@
             e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
             if (name) { 
                 const newId = generateUUID(); const currentUserObj = getActiveUserObj();
+                // Pass the user ID so the backend automatically spins up the default "Me" project
                 await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj.id }); 
                 currentWorkspaceId = newId; localStorage.setItem('currentWorkspaceId', newId); currentProjectId = null; 
                 await loadDataFromDB(); 
@@ -942,7 +965,12 @@
             const ws = workspaces.find(w => w.id === currentWorkspaceId);
             document.getElementById('confirm-message').innerHTML = `Are you sure you want to delete workspace <strong>"${sanitize(ws.name)}"</strong> and all its projects and tasks?<br>This cannot be undone.`; 
             document.getElementById('confirm-execute-btn').className = "danger-solid";
-            pendingConfirmAction = async () => { await apiCall(`/workspaces/${currentWorkspaceId}`, 'DELETE'); currentWorkspaceId = null; localStorage.removeItem('currentWorkspaceId'); await loadDataFromDB(); }; 
+            
+            pendingConfirmAction = async () => { 
+                await apiCall(`/workspaces/${currentWorkspaceId}`, 'DELETE'); 
+                currentWorkspaceId = null; localStorage.removeItem('currentWorkspaceId');
+                await loadDataFromDB(); 
+            }; 
             document.getElementById('confirm-modal').showModal();
         }
 
