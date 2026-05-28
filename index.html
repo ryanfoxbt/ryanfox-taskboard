@@ -41,9 +41,6 @@
         .tab.dragging-tab { opacity: 0.4; transform: scale(0.98); } 
         .delete-project { background: rgba(255,255,255,0.2); border-radius: 50%; width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; font-size: 14px; line-height: 1; padding: 0; margin-left: 5px; cursor: pointer;}
         .delete-project:hover { background: #de350b; color: white; }
-        .edit-project { background: rgba(255,255,255,0.2); border-radius: 50%; width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; font-size: 12px; line-height: 1; padding: 0; margin-left: 8px; cursor: pointer; }
-        .edit-project:hover { background: #ebecf0; color: #172b4d; }
-        
 
         .tools-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
         .view-toggles { display: flex; background: #dfe1e6; border-radius: 6px; padding: 4px; flex-wrap: wrap; gap: 2px; }
@@ -215,10 +212,6 @@
         <button onclick="contextActionArchiveMain()" class="success-text">✓ Archive Task</button>
         <button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>
     </div>
-    <div id="project-context-menu" class="custom-context-menu">
-        <button onclick="contextActionEditProject()">✎ Edit Project</button>
-        <button onclick="contextActionDeleteProject()" class="danger-text">✕ Delete Project</button>
-    </div>
     <div id="future-context-menu" class="custom-context-menu">
         <button onclick="contextActionStartMain()" style="color:#0052cc;">🚀 Move to "To Do"</button>
         <button onclick="contextActionEditMain()">✎ Edit Task</button>
@@ -228,6 +221,10 @@
         <button onclick="contextActionRestoreMain()" style="color:#ff991f;">⏪ Restore to Board</button>
         <button onclick="contextActionEditMain()">✎ Edit Task</button>
         <button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>
+    </div>
+    <div id="project-context-menu" class="custom-context-menu">
+        <button onclick="contextActionEditProject()">✎ Edit Project</button>
+        <button onclick="contextActionDeleteProject()" class="danger-text">✕ Delete Project</button>
     </div>
 
     <dialog id="settings-modal">
@@ -415,7 +412,7 @@
         let displayConfig = { showDate: true, showUrgency: true, showDesc: true, showAssignee: true };
 
         let currentView = 'active'; let draftTask = null; let draftSubtasks = []; let pendingConfirmAction = null; 
-       let contextTargetMainId = null; let contextTargetSubtaskId = null; let contextTargetProjectId = null;
+        let contextTargetMainId = null; let contextTargetSubtaskId = null; let contextTargetProjectId = null;
 
         const lists = { future: document.getElementById('future-list'), todo: document.getElementById('todo-list'), doing: document.getElementById('doing-list'), done: document.getElementById('done-list'), complete: document.getElementById('complete-list') };
         const workspaceContextMenu = document.getElementById('workspace-context-menu'); const activeContextMenu = document.getElementById('active-context-menu'); const futureContextMenu = document.getElementById('future-context-menu'); const archiveContextMenu = document.getElementById('archive-context-menu'); const subtaskContextMenu = document.getElementById('subtask-context-menu');
@@ -441,13 +438,8 @@
                     
                     if (workspaces.length === 0) {
                         wsId = generateUUID();
-                        // 1. Create a "dummy" workspace just so it exists in DB
                         await apiCall('/workspaces', 'POST', { id: wsId, name: 'Personal Workspace', userId: null });
-                        
-                        // 2. Insert User and link to that workspace
                         await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
-                        
-                        // 3. Create the "Me" project explicitly
                         await apiCall('/projects', 'POST', { id: generateUUID(), workspace_id: wsId, name: 'Me', isSecret: false, owner_id: newUserId });
                     } else {
                         if (!wsId || !workspaces.find(w => w.id === wsId)) wsId = workspaces[0].id;
@@ -455,31 +447,36 @@
                     }
                     await loadDataFromDB();
                 }
-
             } else {
                 document.getElementById('sign-in-container').style.display = 'flex';
                 Clerk.mountSignIn(document.getElementById('sign-in'));
             }
         });
-        
-// --- 2. ASYNC DATA ENGINE ---
-        async function loadDataFromDB(silent = false) {
+
+        // --- 2. ASYNC DATA ENGINE ---
+        async function loadDataFromDB() {
             try {
-                if (!silent) document.getElementById('app-title').innerText = "Loading...";
-                
+                document.getElementById('app-title').innerText = "Loading...";
                 const response = await fetch(`${API_URL}/data`);
                 if (!response.ok) throw new Error("API not ready");
                 const data = await response.json();
                 
                 workspaces = data.workspaces || [];
+                
                 // Map Postgres snake_case back to JS camelCase
-                projects = (data.projects || []).map(p => { p.isSecret = p.is_secret; return p; });
+                projects = (data.projects || []).map(p => { 
+                    p.isSecret = p.is_secret; 
+                    return p; 
+                });
                 
                 workspaceUsers = (data.users || []).map(u => {
                     const memberships = (data.workspace_members || []).filter(wm => wm.user_id === u.id);
                     u.workspace_ids = memberships.map(wm => wm.workspace_id);
                     const curr = memberships.find(wm => wm.workspace_id === currentWorkspaceId);
-                    if (curr) { u.role = curr.role; u.preferences = curr.preferences || {}; }
+                    if (curr) {
+                        u.role = curr.role;
+                        u.preferences = curr.preferences || {};
+                    }
                     return u;
                 });
 
@@ -490,14 +487,22 @@
                 });
 
                 initValidation();
-                
-                if (!silent) {
-                    renderAll(); 
-                } else {
-                    renderBoard(); // Only quietly update the task cards if silent
-                }
+                renderAll(); 
 
-            } catch (error) { if (!silent) console.error("Database connection failed.", error); }
+            } catch (error) { console.error("Database connection failed.", error); }
+        }
+
+        // --- SAFE USER PARSING LOGIC ---
+        function getActiveUserObj() { 
+            let u = workspaceUsers.find(u => u.email === activeUserEmail);
+            if (!u) u = { id: null, workspace_ids: [] };
+            
+            if (!u.preferences) u.preferences = {};
+            if (!u.preferences.projectOrder) u.preferences.projectOrder = [];
+            if (!u.preferences.uiSize) u.preferences.uiSize = 'auto';
+            if (!u.preferences.displayConfig) u.preferences.displayConfig = { showDate: true, showUrgency: true, showDesc: true, showAssignee: true };
+            
+            return u;
         }
 
         function initValidation() {
@@ -604,7 +609,7 @@
                 if (idxA === -1) idxA = 99999; if (idxB === -1) idxB = 99999; return idxA - idxB;
             });
             
-           visible.forEach(project => {
+            visible.forEach(project => {
                 const btn = document.createElement('button'); btn.className = `tab ${project.id === currentProjectId ? 'active' : ''}`;
                 btn.innerText = (project.isSecret ? '🔒 ' : '') + sanitize(project.name);
                 btn.onclick = () => { currentProjectId = project.id; renderBoard(); renderProjects(); updateAssigneeFilterOptions(); };
@@ -743,7 +748,6 @@
         
         function contextActionEditMain() { editTask(contextTargetMainId); } function contextActionDeleteMain() { triggerDeleteTask(contextTargetMainId); } function contextActionArchiveMain() { moveTaskStatus(contextTargetMainId, 'complete'); } function contextActionFutureMain() { moveTaskStatus(contextTargetMainId, 'future'); } function contextActionStartMain() { moveTaskStatus(contextTargetMainId, 'todo'); } function contextActionRestoreMain() { moveTaskStatus(contextTargetMainId, 'done'); } function contextActionEditSubtask() { openSubtaskDetails(contextTargetSubtaskId); } function contextActionDeleteSubtask() { removeSubtask(contextTargetSubtaskId); }
 
-       
         function moveTaskStatus(id, newStatus) { const t = tasks.find(t => t.id === id); if (t) { t.status = newStatus; saveTaskDB(t); } }
 
         function handleTabDragStart(e, id) { e.dataTransfer.setData("projectId", id); setTimeout(() => e.target.classList.add('dragging-tab'), 0); }
@@ -821,25 +825,43 @@
             });
         }
 
+        // --- NEW PROJECT CREATION & EDITING ---
         document.getElementById('prompt-form').addEventListener('submit', async function(e) {
-    e.preventDefault(); const name = document.getElementById('new-project-name').value.trim();
-    if (name) { 
-        const newId = generateUUID(); 
-        currentProjectId = newId; 
-        localStorage.setItem('currentProjectId', newId); // Remember the active project
-        
-        await saveProjectDB({ 
-            id: newId, 
-            name: name, 
-            isSecret: document.getElementById('new-project-secret').checked, 
-            workspace_id: currentWorkspaceId, 
-            owner_id: getActiveUserObj().id 
-        }); 
-        
-        renderAll(); // Force the board to wipe clean and show the new project
-    }
-    closePromptModal();
-});
+            e.preventDefault(); const name = document.getElementById('new-project-name').value.trim();
+            if (name) { 
+                const newId = generateUUID(); 
+                currentProjectId = newId; 
+                localStorage.setItem('currentProjectId', newId); // Remember the active project
+                await saveProjectDB({ id: newId, name: name, isSecret: document.getElementById('new-project-secret').checked, workspace_id: currentWorkspaceId, owner_id: getActiveUserObj().id }); 
+                renderAll(); // Force the board to clear out old tasks and show the new project
+            }
+            closePromptModal();
+        });
+
+        function openEditProjectModal(id) {
+            const p = projects.find(x => x.id === id);
+            if (!p) return;
+            document.getElementById('edit-project-name').value = p.name;
+            document.getElementById('edit-project-secret').checked = p.isSecret;
+            document.getElementById('edit-project-modal').showModal();
+        }
+        function closeEditProjectModal() { document.getElementById('edit-project-modal').close(); }
+
+        document.getElementById('edit-project-form').addEventListener('submit', async function(e) {
+            e.preventDefault(); 
+            const name = document.getElementById('edit-project-name').value.trim();
+            const isSecret = document.getElementById('edit-project-secret').checked;
+            
+            if (name) {
+                const p = projects.find(x => x.id === contextTargetProjectId);
+                if (p) {
+                    p.name = name;
+                    p.isSecret = isSecret;
+                    await saveProjectDB(p);
+                }
+            }
+            closeEditProjectModal();
+        });
 
         // --- WORKSPACE & USER ROUTING ---
         document.getElementById('create-workspace-form').addEventListener('submit', async function(e) {
@@ -853,31 +875,6 @@
                 await loadDataFromDB(); 
             }
             closeCreateWorkspaceModal();
-        });
-
-        // --- EDIT PROJECT LOGIC ---
-        function openEditProjectModal(id) {
-            const p = projects.find(x => x.id === id);
-            if (!p) return;
-            document.getElementById('edit-project-name').value = p.name;
-            document.getElementById('edit-project-secret').checked = p.isSecret;
-            document.getElementById('edit-project-modal').showModal();
-        }
-        
-        function closeEditProjectModal() { document.getElementById('edit-project-modal').close(); }
-
-        document.getElementById('edit-project-form').addEventListener('submit', async function(e) {
-            e.preventDefault(); 
-            const name = document.getElementById('edit-project-name').value.trim();
-            const isSecret = document.getElementById('edit-project-secret').checked;
-            
-            if (name) {
-                const p = projects.find(x => x.id === currentProjectId);
-                p.name = name;
-                p.isSecret = isSecret;
-                await saveProjectDB(p); // Saves to DB and re-renders tabs
-            }
-            closeEditProjectModal();
         });
 
         function editCurrentWorkspace() {
@@ -918,12 +915,10 @@
             
             if (name && email) { 
                 const newUserId = generateUUID(); 
-                
-                // Details needed for the Resend Email payload
                 const inviterName = activeUserName;
                 const wsObj = workspaces.find(w => w.id === currentWorkspaceId);
                 const workspaceName = wsObj ? wsObj.name : 'TaskBoard';
-                const inviteLink = window.location.origin; // Dynamically uses your Vercel URL
+                const inviteLink = window.location.origin; 
                 
                 await apiCall('/users', 'POST', { 
                     id: newUserId, name, email, role, workspace_id: currentWorkspaceId,
@@ -941,7 +936,15 @@
         }
 
         function triggerDeleteTask(id) { document.getElementById('confirm-message').innerHTML = "Delete this task?<br>This cannot be undone."; document.getElementById('confirm-execute-btn').className = "danger-solid"; pendingConfirmAction = () => deleteTaskDB(id); document.getElementById('confirm-modal').showModal(); }
-        function triggerDeleteProject(id) { if (projects.filter(p => p.workspace_id === currentWorkspaceId).length <= 1) { alert("Cannot delete your only project."); return; } document.getElementById('confirm-message').innerHTML = "Delete this project and all its tasks?<br>This cannot be undone."; document.getElementById('confirm-execute-btn').className = "danger-solid"; pendingConfirmAction = () => deleteProjectDB(id); document.getElementById('confirm-modal').showModal(); }
+        
+        function triggerDeleteProject(id) { 
+            if (projects.filter(p => p.workspace_id === currentWorkspaceId).length <= 1) { alert("Cannot delete your only project."); return; } 
+            document.getElementById('confirm-message').innerHTML = "Delete this project and all its tasks?<br>This cannot be undone."; 
+            document.getElementById('confirm-execute-btn').className = "danger-solid"; 
+            pendingConfirmAction = () => deleteProjectDB(id); 
+            document.getElementById('confirm-modal').showModal(); 
+        }
+        
         function executeConfirm() { if (pendingConfirmAction) pendingConfirmAction(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; }
         function closeConfirmModal() { document.getElementById('confirm-modal').close(); pendingConfirmAction = null; }
 
