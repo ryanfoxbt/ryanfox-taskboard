@@ -364,7 +364,7 @@
     <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_YnJpZWYtc2F3ZmlzaC02MS5jbGVyay5hY2NvdW50cy5kZXYk" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@4/dist/clerk.browser.js"></script>
 
     <script>
-        // --- 0. UTILS ---
+        // --- 0. UTILS & MISSING MODAL FUNCTIONS ---
         function sanitize(str) {
             if (!str) return '';
             return String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
@@ -377,6 +377,13 @@
                 return v.toString(16);
             });
         }
+
+        // Restored Modal Toggles
+        function openCreateWorkspaceModal() { document.getElementById('create-workspace-form').reset(); document.getElementById('create-workspace-modal').showModal(); }
+        function closeCreateWorkspaceModal() { document.getElementById('create-workspace-modal').close(); }
+        function openAddUserModal() { document.getElementById('add-user-form').reset(); document.getElementById('add-user-modal').showModal(); }
+        function closeAddUserModal() { document.getElementById('add-user-modal').close(); }
+        function closePromptModal() { document.getElementById('prompt-modal').close(); }
 
         // --- 1. API CONFIGURATION & STATE ---
         const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
@@ -425,7 +432,6 @@
                     await loadDataFromDB();
                 }
 
-                renderAll();
             } else {
                 document.getElementById('sign-in-container').style.display = 'flex';
                 Clerk.mountSignIn(document.getElementById('sign-in'));
@@ -443,7 +449,6 @@
                 workspaces = data.workspaces || [];
                 projects = data.projects || [];
                 
-                // Map Relational Tables perfectly to Frontend arrays
                 workspaceUsers = (data.users || []).map(u => {
                     const memberships = (data.workspace_members || []).filter(wm => wm.user_id === u.id);
                     u.workspace_ids = memberships.map(wm => wm.workspace_id);
@@ -462,16 +467,18 @@
                 });
 
                 initValidation();
+                
+                // CRITICAL FIX: The app must explicitly render the UI after data finishes loading!
+                renderAll(); 
+
             } catch (error) { console.error("Database connection failed.", error); }
         }
 
-        // --- SAFE USER PARSING LOGIC ---
-        // This fully prevents the Null Pointer exceptions that were breaking your UI
         function getActiveUserObj() { 
             let u = workspaceUsers.find(u => u.email === activeUserEmail);
             if (!u) u = { id: null, workspace_ids: [] };
             
-            // Apply Safe Defaults
+            // Safe Defaults to prevent UI crashes
             if (!u.preferences) u.preferences = {};
             if (!u.preferences.projectOrder) u.preferences.projectOrder = [];
             if (!u.preferences.uiSize) u.preferences.uiSize = 'auto';
@@ -487,7 +494,7 @@
             if (myWorkspaces.length > 0 && (!currentWorkspaceId || !myWorkspaces.find(w => w.id === currentWorkspaceId))) {
                 currentWorkspaceId = myWorkspaces[0].id; 
                 localStorage.setItem('currentWorkspaceId', currentWorkspaceId);
-                return; // UI will naturally reset
+                return; 
             }
             
             const activeWorkspaceProjects = projects.filter(p => p.workspace_id === currentWorkspaceId);
@@ -501,7 +508,11 @@
         }
 
         function renderAll() {
-            renderWorkspaceMenu(); renderProjects(); updateAssigneeFilterOptions(); renderBoard();
+            renderWorkspaceMenu(); 
+            renderWorkspaceUsers(); // Restored to keep settings modal updated!
+            renderProjects(); 
+            updateAssigneeFilterOptions(); 
+            renderBoard();
         }
 
         function getVisibleUsers() { return workspaceUsers.filter(u => u.workspace_ids && u.workspace_ids.includes(currentWorkspaceId)); }
@@ -549,12 +560,24 @@
                     currentWorkspaceId = ws.id; localStorage.setItem('currentWorkspaceId', ws.id);
                     currentProjectId = null; workspaceContextMenu.style.display = 'none'; 
                     await loadDataFromDB(); 
-                    renderAll(); 
                 };
                 list.appendChild(btn);
             });
             const activeWorkspace = workspaces.find(w => w.id === currentWorkspaceId);
             document.getElementById('app-title').innerText = activeWorkspace ? activeWorkspace.name : "Task Board";
+        }
+
+        function renderWorkspaceUsers() {
+            const settingsList = document.getElementById('settings-user-list'); 
+            if(settingsList) {
+                settingsList.innerHTML = '';
+                getVisibleUsers().forEach(u => {
+                    const div = document.createElement('div'); div.className = 'list-item';
+                    div.innerHTML = `<span class="title">${sanitize(u.name)} <span class="meta">(${sanitize(u.role || 'Member')})</span></span>
+                        <div class="list-actions"><button type="button" class="danger" style="padding: 2px 6px;" onclick="deleteWorkspaceUser('${u.id}', '${sanitize(u.name)}')" title="Remove User">&times;</button></div>`;
+                    settingsList.appendChild(div);
+                });
+            }
         }
 
         function renderProjects() {
@@ -647,13 +670,7 @@
             document.getElementById('setting-show-desc').checked = prefs.displayConfig.showDesc !== false;
             document.getElementById('setting-show-assignee').checked = prefs.displayConfig.showAssignee !== false;
             
-            const settingsList = document.getElementById('settings-user-list'); settingsList.innerHTML = '';
-            getVisibleUsers().forEach(u => {
-                const div = document.createElement('div'); div.className = 'list-item';
-                div.innerHTML = `<span class="title">${sanitize(u.name)} <span class="meta">(${sanitize(u.role || 'Member')})</span></span>
-                    <div class="list-actions"><button type="button" class="danger" style="padding: 2px 6px;" onclick="deleteWorkspaceUser('${u.id}', '${sanitize(u.name)}')" title="Remove User">&times;</button></div>`;
-                settingsList.appendChild(div);
-            });
+            renderWorkspaceUsers();
             document.getElementById('settings-modal').showModal();
         }
 
@@ -774,7 +791,7 @@
         document.getElementById('prompt-form').addEventListener('submit', async function(e) {
             e.preventDefault(); const name = document.getElementById('new-project-name').value.trim();
             if (name) { const newId = generateUUID(); currentProjectId = newId; await saveProjectDB({ id: newId, name: name, isSecret: document.getElementById('new-project-secret').checked, workspace_id: currentWorkspaceId, owner_id: getActiveUserObj().id }); }
-            document.getElementById('prompt-modal').close();
+            closePromptModal();
         });
 
         // --- WORKSPACE & USER ROUTING ---
@@ -787,7 +804,7 @@
                 currentWorkspaceId = newId; localStorage.setItem('currentWorkspaceId', newId); currentProjectId = null; 
                 await loadDataFromDB(); 
             }
-            document.getElementById('create-workspace-modal').close();
+            closeCreateWorkspaceModal();
         });
 
         function editCurrentWorkspace() {
@@ -824,7 +841,7 @@
             e.preventDefault();
             const name = document.getElementById('new-ws-user-name').value.trim(); const email = document.getElementById('new-ws-user-email').value.trim(); const role = document.getElementById('new-ws-user-role').value;
             if (name) { const newUserId = generateUUID(); await apiCall('/users', 'POST', { id: newUserId, name, email, role, workspace_id: currentWorkspaceId }); await loadDataFromDB(); }
-            document.getElementById('add-user-modal').close();
+            closeAddUserModal();
         });
 
         function deleteWorkspaceUser(id, name) {
