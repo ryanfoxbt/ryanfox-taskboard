@@ -215,6 +215,10 @@
         <button onclick="contextActionArchiveMain()" class="success-text">✓ Archive Task</button>
         <button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>
     </div>
+    <div id="project-context-menu" class="custom-context-menu">
+        <button onclick="contextActionEditProject()">✎ Edit Project</button>
+        <button onclick="contextActionDeleteProject()" class="danger-text">✕ Delete Project</button>
+    </div>
     <div id="future-context-menu" class="custom-context-menu">
         <button onclick="contextActionStartMain()" style="color:#0052cc;">🚀 Move to "To Do"</button>
         <button onclick="contextActionEditMain()">✎ Edit Task</button>
@@ -411,10 +415,11 @@
         let displayConfig = { showDate: true, showUrgency: true, showDesc: true, showAssignee: true };
 
         let currentView = 'active'; let draftTask = null; let draftSubtasks = []; let pendingConfirmAction = null; 
-        let contextTargetMainId = null; let contextTargetSubtaskId = null;
+       let contextTargetMainId = null; let contextTargetSubtaskId = null; let contextTargetProjectId = null;
 
         const lists = { future: document.getElementById('future-list'), todo: document.getElementById('todo-list'), doing: document.getElementById('doing-list'), done: document.getElementById('done-list'), complete: document.getElementById('complete-list') };
         const workspaceContextMenu = document.getElementById('workspace-context-menu'); const activeContextMenu = document.getElementById('active-context-menu'); const futureContextMenu = document.getElementById('future-context-menu'); const archiveContextMenu = document.getElementById('archive-context-menu'); const subtaskContextMenu = document.getElementById('subtask-context-menu');
+        const projectContextMenu = document.getElementById('project-context-menu');
 
         // --- CLERK BOOTSTRAP ---
         window.addEventListener('load', async function () {
@@ -599,19 +604,21 @@
                 if (idxA === -1) idxA = 99999; if (idxB === -1) idxB = 99999; return idxA - idxB;
             });
             
-            visible.forEach(project => {
+           visible.forEach(project => {
                 const btn = document.createElement('button'); btn.className = `tab ${project.id === currentProjectId ? 'active' : ''}`;
                 btn.innerText = (project.isSecret ? '🔒 ' : '') + sanitize(project.name);
                 btn.onclick = () => { currentProjectId = project.id; renderBoard(); renderProjects(); updateAssigneeFilterOptions(); };
+                
+                // Add right-click listener
+                btn.oncontextmenu = (e) => showContextMenuProject(e, project.id);
+                
                 btn.draggable = true; btn.ondragstart = (e) => handleTabDragStart(e, project.id); btn.ondragend = (e) => e.target.classList.remove('dragging-tab'); btn.ondragover = (e) => e.preventDefault(); btn.ondrop = (e) => handleTabDrop(e, project.id);
+                
                 if (project.id === currentProjectId) {
-                    // Add Edit Pencil
-                    const editBtn = document.createElement('span'); editBtn.className = 'edit-project'; editBtn.innerHTML = '✎'; editBtn.title = "Edit Project";
-                    editBtn.onclick = (e) => { e.stopPropagation(); openEditProjectModal(project.id); }; btn.appendChild(editBtn);
-                    
-                    // Add Delete X
-                    const delBtn = document.createElement('span'); delBtn.className = 'delete-project'; delBtn.innerHTML = '&times;'; delBtn.title = "Delete Project";
-                    delBtn.onclick = (e) => triggerDeleteProject(e, project.id); btn.appendChild(delBtn);
+                    const delBtn = document.createElement('span'); delBtn.className = 'delete-project'; delBtn.innerHTML = '&times;'; 
+                    delBtn.title = "Delete Project";
+                    delBtn.onclick = (e) => { e.stopPropagation(); triggerDeleteProject(project.id); }; 
+                    btn.appendChild(delBtn);
                 }
                 tabsContainer.appendChild(btn);
             });
@@ -717,14 +724,26 @@
         }
 
         function toggleWorkspaceMenu(e) { e.preventDefault(); e.stopPropagation(); closeMenus(); workspaceContextMenu.style.display = workspaceContextMenu.style.display === 'block' ? 'none' : 'block'; }
-        function closeMenus() { activeContextMenu.style.display = 'none'; futureContextMenu.style.display = 'none'; archiveContextMenu.style.display = 'none'; subtaskContextMenu.style.display = 'none'; workspaceContextMenu.style.display = 'none'; }
+        function closeMenus() { activeContextMenu.style.display = 'none'; futureContextMenu.style.display = 'none'; archiveContextMenu.style.display = 'none'; subtaskContextMenu.style.display = 'none'; workspaceContextMenu.style.display = 'none'; if(projectContextMenu) projectContextMenu.style.display = 'none'; }
         document.addEventListener('click', closeMenus);
 
         function showContextMenuMain(e, id) { e.preventDefault(); e.stopPropagation(); closeMenus(); contextTargetMainId = id; let target = (currentView === 'active') ? activeContextMenu : (currentView === 'future') ? futureContextMenu : archiveContextMenu; target.style.display = 'block'; target.style.left = (e.currentTarget.getBoundingClientRect().right - target.offsetWidth - 5) + 'px'; target.style.top = (e.currentTarget.getBoundingClientRect().top + 5) + 'px'; }
         function showContextMenuSubtask(e, id) { e.preventDefault(); e.stopPropagation(); closeMenus(); contextTargetSubtaskId = id; subtaskContextMenu.style.display = 'block'; subtaskContextMenu.style.left = (e.currentTarget.getBoundingClientRect().right - subtaskContextMenu.offsetWidth - 5) + 'px'; subtaskContextMenu.style.top = (e.currentTarget.getBoundingClientRect().top + 5) + 'px'; }
         
+        // --- NEW PROJECT RIGHT CLICK LOGIC ---
+        function showContextMenuProject(e, id) { 
+            e.preventDefault(); e.stopPropagation(); closeMenus(); 
+            contextTargetProjectId = id; 
+            projectContextMenu.style.display = 'block'; 
+            projectContextMenu.style.left = e.pageX + 'px'; 
+            projectContextMenu.style.top = e.pageY + 'px'; 
+        }
+        function contextActionEditProject() { openEditProjectModal(contextTargetProjectId); closeMenus(); }
+        function contextActionDeleteProject() { triggerDeleteProject(contextTargetProjectId); closeMenus(); }
+        
         function contextActionEditMain() { editTask(contextTargetMainId); } function contextActionDeleteMain() { triggerDeleteTask(contextTargetMainId); } function contextActionArchiveMain() { moveTaskStatus(contextTargetMainId, 'complete'); } function contextActionFutureMain() { moveTaskStatus(contextTargetMainId, 'future'); } function contextActionStartMain() { moveTaskStatus(contextTargetMainId, 'todo'); } function contextActionRestoreMain() { moveTaskStatus(contextTargetMainId, 'done'); } function contextActionEditSubtask() { openSubtaskDetails(contextTargetSubtaskId); } function contextActionDeleteSubtask() { removeSubtask(contextTargetSubtaskId); }
 
+       
         function moveTaskStatus(id, newStatus) { const t = tasks.find(t => t.id === id); if (t) { t.status = newStatus; saveTaskDB(t); } }
 
         function handleTabDragStart(e, id) { e.dataTransfer.setData("projectId", id); setTimeout(() => e.target.classList.add('dragging-tab'), 0); }
