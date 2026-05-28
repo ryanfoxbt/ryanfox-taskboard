@@ -794,10 +794,24 @@
         }
 
         document.getElementById('prompt-form').addEventListener('submit', async function(e) {
-            e.preventDefault(); const name = document.getElementById('new-project-name').value.trim();
-            if (name) { const newId = generateUUID(); currentProjectId = newId; await saveProjectDB({ id: newId, name: name, isSecret: document.getElementById('new-project-secret').checked, workspace_id: currentWorkspaceId, owner_id: getActiveUserObj().id }); }
-            closePromptModal();
-        });
+    e.preventDefault(); const name = document.getElementById('new-project-name').value.trim();
+    if (name) { 
+        const newId = generateUUID(); 
+        currentProjectId = newId; 
+        localStorage.setItem('currentProjectId', newId); // Remember the active project
+        
+        await saveProjectDB({ 
+            id: newId, 
+            name: name, 
+            isSecret: document.getElementById('new-project-secret').checked, 
+            workspace_id: currentWorkspaceId, 
+            owner_id: getActiveUserObj().id 
+        }); 
+        
+        renderAll(); // Force the board to wipe clean and show the new project
+    }
+    closePromptModal();
+});
 
         // --- WORKSPACE & USER ROUTING ---
         document.getElementById('create-workspace-form').addEventListener('submit', async function(e) {
