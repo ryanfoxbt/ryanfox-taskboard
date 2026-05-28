@@ -941,7 +941,7 @@
         }
 
         function triggerDeleteTask(id) { document.getElementById('confirm-message').innerHTML = "Delete this task?<br>This cannot be undone."; document.getElementById('confirm-execute-btn').className = "danger-solid"; pendingConfirmAction = () => deleteTaskDB(id); document.getElementById('confirm-modal').showModal(); }
-        function triggerDeleteProject(e, id) { e.stopPropagation(); if (projects.filter(p => p.workspace_id === currentWorkspaceId).length <= 1) { alert("Cannot delete your only project."); return; } document.getElementById('confirm-message').innerHTML = "Delete this project and all its tasks?<br>This cannot be undone."; document.getElementById('confirm-execute-btn').className = "danger-solid"; pendingConfirmAction = () => deleteProjectDB(id); document.getElementById('confirm-modal').showModal(); }
+        function triggerDeleteProject(id) { if (projects.filter(p => p.workspace_id === currentWorkspaceId).length <= 1) { alert("Cannot delete your only project."); return; } document.getElementById('confirm-message').innerHTML = "Delete this project and all its tasks?<br>This cannot be undone."; document.getElementById('confirm-execute-btn').className = "danger-solid"; pendingConfirmAction = () => deleteProjectDB(id); document.getElementById('confirm-modal').showModal(); }
         function executeConfirm() { if (pendingConfirmAction) pendingConfirmAction(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; }
         function closeConfirmModal() { document.getElementById('confirm-modal').close(); pendingConfirmAction = null; }
 
