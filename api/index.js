@@ -129,7 +129,7 @@ app.post('/api/users', async (req, res) => {
         if (process.env.RESEND_API_KEY && inviter_name) {
             try {
                 await resend.emails.send({
-                   from: 'Can't Even <invites@ryanfox.co>',
+                  from: 'TaskBoard <invites@ryanfox.co>',
                     to: email,
                     subject: `You've been invited to ${workspace_name}`,
                     html: `
