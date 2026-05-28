@@ -152,9 +152,6 @@
             }
             .board::after { content: ''; padding-right: 2vw; }
             
-            /* Persistent Actions on Mobile */
-            .card .actions, .list-item .list-actions { opacity: 1; pointer-events: auto; }
-            
             /* Bottom Sheet Context Menus */
             .custom-context-menu {
                 position: fixed !important;
@@ -167,22 +164,60 @@
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
-            /* Fixed Bottom Sheet Modals to prevent taking up full screen */
+            /* Perfectly Bound Modal for Mobile - Stops screen stretching */
             dialog { 
                 margin: auto 0 0 0; 
                 max-width: 100%; width: 100%; 
-                max-height: 85vh; /* <--- This forces it to stop growing and enables scrolling */
-                overflow-y: auto; /* <--- This adds the scrollbar for long contents */
+                max-height: calc(100svh - 20px); /* 100svh resizes correctly when iOS keyboard pops up! */
+                overflow-y: auto; 
+                -webkit-overflow-scrolling: touch;
+                overscroll-behavior: contain;
                 border-radius: 16px 16px 0 0; 
                 animation: slideUp 0.3s ease-out;
-                padding-bottom: 40px; 
+                padding: 24px 20px 40px 20px; 
                 box-sizing: border-box;
+            }
+
+            /* Prevents iOS from aggressively zooming in on inputs */
+            .form-group input, .form-group textarea, .form-group select {
+                padding: 12px !important;
+                font-size: 16px !important; 
             }
             
             @keyframes slideUp {
                 from { transform: translateY(100%); }
                 to { transform: translateY(0); }
             }
+
+            /* Make Task Cards beautiful & fat-finger friendly */
+            .card .actions, .list-item .list-actions { opacity: 1; pointer-events: auto; }
+            
+            .board-container.size-big .card-footer, 
+            .board-container.size-medium .card-footer, 
+            .board-container.size-small .card-footer { 
+                flex-direction: column; align-items: flex-start; gap: 12px; 
+                border-top: none; padding-top: 0;
+            }
+            .meta-group { width: 100%; justify-content: flex-start; }
+            
+            /* Break action buttons to their own row and expand them */
+            .card .actions { 
+                width: 100%; 
+                justify-content: flex-end; 
+                padding-top: 12px; 
+                border-top: 1px solid #ebecf0; 
+                gap: 12px; 
+            }
+            .card .actions button { 
+                padding: 10px 16px !important; 
+                font-size: 16px !important; 
+                border-radius: 8px;
+                font-weight: bold;
+            }
+            .card .actions button.action-primary { background: #e6fcff; color: #0052cc; }
+            .card .actions button.action-success { background: #e3fcef; color: #36b37e; }
+            .card .actions button.edit { background: #ebecf0; color: #5e6c84; }
+            .card .actions button.danger { background: #ffebe6; color: #de350b; }
         }
     </style>
 </head>
@@ -936,7 +971,6 @@
             e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
             if (name) { 
                 const newId = generateUUID(); const currentUserObj = getActiveUserObj();
-                // Pass the user ID so the backend automatically spins up the default "Me" project
                 await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj.id }); 
                 currentWorkspaceId = newId; localStorage.setItem('currentWorkspaceId', newId); currentProjectId = null; 
                 await loadDataFromDB(); 
