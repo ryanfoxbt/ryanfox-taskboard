@@ -20,7 +20,6 @@
         button.danger-solid:hover { background: #bf2608; }
         button.edit { background: transparent; color: #5e6c84; padding: 4px 8px; font-size: 12px; margin: 0; }
         button.edit:hover { background: #ebecf0; }
-        
         button.action-success { background: transparent; color: #36b37e; padding: 4px 8px; font-size: 12px; margin: 0; }
         button.action-success:hover { background: #e3fcef; }
         button.action-primary { background: transparent; color: #0052cc; padding: 4px 8px; font-size: 12px; margin: 0; }
@@ -77,12 +76,10 @@
         .card { background: white; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); border: 1px solid #dfe1e6; cursor: pointer; transition: box-shadow 0.2s ease, border-color 0.2s ease; display: flex; flex-direction: column; }
         .card:hover { border-color: #b3d4ff; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
         .card.dragging { opacity: 0.4; cursor: grabbing; box-shadow: 0 8px 16px rgba(0,0,0,0.15); transform: scale(1.02); }
-        
         .card h3 { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: #172b4d; line-height: 1.2; word-break: break-word; }
         .card p { color: #42526e; line-height: 1.4; margin: 0; pointer-events: none; word-break: break-word; }
         .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; pointer-events: none; }
         .meta-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; pointer-events: none; }
-
         .card .actions { opacity: 0; pointer-events: none; transition: opacity 0.2s ease; display: flex; gap: 2px; }
         .card:hover .actions { opacity: 1; pointer-events: auto; }
         @media (hover: none) { .card .actions, .list-item .list-actions { opacity: 1; pointer-events: auto; } }
@@ -93,12 +90,10 @@
         .board-container.size-big .card p { font-size: 14px; }
         .board-container.size-big .badge { font-size: 12px; padding: 4px 8px; }
         .board-container.size-big .card-footer { border-top: 1px solid #ebecf0; padding-top: 12px; }
-
         .board-container.size-medium .card { padding: 12px; gap: 8px; }
         .board-container.size-medium .card h3 { font-size: 14px; pointer-events: none; }
         .board-container.size-medium .card p { font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .board-container.size-medium .badge { font-size: 11px; padding: 3px 6px; }
-
         .board-container.size-small .card { padding: 8px 12px; gap: 6px; }
         .board-container.size-small .card h3 { font-size: 13px; pointer-events: none;}
         .board-container.size-small .card p { display: none; } 
@@ -414,7 +409,6 @@
                 
                 await loadDataFromDB(); 
                 
-                // Bootstrap New User (If they don't exist in our DB yet)
                 let myUser = workspaceUsers.find(u => u.email === activeUserEmail);
                 if (!myUser) {
                     const newUserId = generateUUID();
@@ -456,7 +450,7 @@
                     const curr = memberships.find(wm => wm.workspace_id === currentWorkspaceId);
                     if (curr) {
                         u.role = curr.role;
-                        u.preferences = curr.preferences || { projectOrder: [], uiSize: 'auto', displayConfig: { showDate: true, showUrgency: true, showDesc: true, showAssignee: true } };
+                        u.preferences = curr.preferences || {};
                     }
                     return u;
                 });
@@ -471,6 +465,21 @@
             } catch (error) { console.error("Database connection failed.", error); }
         }
 
+        // --- SAFE USER PARSING LOGIC ---
+        // This fully prevents the Null Pointer exceptions that were breaking your UI
+        function getActiveUserObj() { 
+            let u = workspaceUsers.find(u => u.email === activeUserEmail);
+            if (!u) u = { id: null, workspace_ids: [] };
+            
+            // Apply Safe Defaults
+            if (!u.preferences) u.preferences = {};
+            if (!u.preferences.projectOrder) u.preferences.projectOrder = [];
+            if (!u.preferences.uiSize) u.preferences.uiSize = 'auto';
+            if (!u.preferences.displayConfig) u.preferences.displayConfig = { showDate: true, showUrgency: true, showDesc: true, showAssignee: true };
+            
+            return u;
+        }
+
         function initValidation() {
             const me = getActiveUserObj();
             const myWorkspaces = workspaces.filter(ws => me.workspace_ids && me.workspace_ids.includes(ws.id));
@@ -478,8 +487,7 @@
             if (myWorkspaces.length > 0 && (!currentWorkspaceId || !myWorkspaces.find(w => w.id === currentWorkspaceId))) {
                 currentWorkspaceId = myWorkspaces[0].id; 
                 localStorage.setItem('currentWorkspaceId', currentWorkspaceId);
-                loadDataFromDB(); // Restart the load to properly grab preferences
-                return; 
+                return; // UI will naturally reset
             }
             
             const activeWorkspaceProjects = projects.filter(p => p.workspace_id === currentWorkspaceId);
@@ -488,17 +496,14 @@
                 localStorage.setItem('currentProjectId', currentProjectId);
             }
 
-            if (me && me.preferences) {
-                uiSize = me.preferences.uiSize || 'auto';
-                displayConfig = me.preferences.displayConfig || { showDate: true, showUrgency: true, showDesc: true, showAssignee: true };
-            }
+            uiSize = me.preferences.uiSize;
+            displayConfig = me.preferences.displayConfig;
         }
 
         function renderAll() {
             renderWorkspaceMenu(); renderProjects(); updateAssigneeFilterOptions(); renderBoard();
         }
 
-        function getActiveUserObj() { return workspaceUsers.find(u => u.email === activeUserEmail) || { id: null, preferences: { projectOrder: [], uiSize: 'auto', displayConfig: displayConfig }, workspace_ids: [] }; }
         function getVisibleUsers() { return workspaceUsers.filter(u => u.workspace_ids && u.workspace_ids.includes(currentWorkspaceId)); }
         function getUserName(id) { const u = workspaceUsers.find(x => x.id === id); return u ? u.name : 'Unknown'; }
 
@@ -635,14 +640,13 @@
 
         // --- 5. SETTINGS ---
         function openSettings() {
-            const prefs = getActiveUserObj().preferences || { uiSize: 'auto', displayConfig: displayConfig };
-            document.getElementById('setting-task-size').value = prefs.uiSize || 'auto';
-            document.getElementById('setting-show-date').checked = prefs.displayConfig.showDate;
-            document.getElementById('setting-show-urgency').checked = prefs.displayConfig.showUrgency;
-            document.getElementById('setting-show-desc').checked = prefs.displayConfig.showDesc;
-            document.getElementById('setting-show-assignee').checked = prefs.displayConfig.showAssignee;
+            const prefs = getActiveUserObj().preferences;
+            document.getElementById('setting-task-size').value = prefs.uiSize;
+            document.getElementById('setting-show-date').checked = prefs.displayConfig.showDate !== false;
+            document.getElementById('setting-show-urgency').checked = prefs.displayConfig.showUrgency !== false;
+            document.getElementById('setting-show-desc').checked = prefs.displayConfig.showDesc !== false;
+            document.getElementById('setting-show-assignee').checked = prefs.displayConfig.showAssignee !== false;
             
-            // Populate workspace users list within settings
             const settingsList = document.getElementById('settings-user-list'); settingsList.innerHTML = '';
             getVisibleUsers().forEach(u => {
                 const div = document.createElement('div'); div.className = 'list-item';
@@ -659,7 +663,6 @@
             const user = getActiveUserObj();
             if (!user || !user.id) { closeSettings(); return; }
             
-            if (!user.preferences) user.preferences = {};
             user.preferences.uiSize = document.getElementById('setting-task-size').value;
             user.preferences.displayConfig = { 
                 showDate: document.getElementById('setting-show-date').checked, 
@@ -730,7 +733,6 @@
             if (!draftTask) return; const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask; if (!data) return;
             document.getElementById('task-title').value = data.title || ''; document.getElementById('task-desc').value = data.description || ''; document.getElementById('task-due-date').value = data.due_date || ''; document.getElementById('task-status').value = data.status || 'todo'; document.getElementById('task-urgency').value = data.urgency || 'low';
             
-            // Render checks and badges in task form
             renderAssigneeCheckboxes(data.assignees || []);
             const badgeContainer = document.getElementById('task-assignees-display'); badgeContainer.innerHTML = '';
             (data.assignees || []).forEach(id => { badgeContainer.innerHTML += `<span class="badge" style="margin-right:4px;">👤 ${sanitize(getUserName(id))}</span>`; });
@@ -742,7 +744,7 @@
         document.getElementById('task-form').addEventListener('submit', async function(e) {
             e.preventDefault(); syncFormToDraft(); 
             await saveTaskDB(draftTask);
-            for (const st of draftSubtasks) { if (st.id.includes('sub_')) st.id = generateUUID(); st.parent_task_id = draftTask.id; await saveTaskDB(st); }
+            for (const st of draftSubtasks) { if (st.id.includes('sub_') || st.id.includes('temp')) st.id = generateUUID(); st.parent_task_id = draftTask.id; await saveTaskDB(st); }
             closeModal();
         });
 
@@ -756,7 +758,6 @@
             draftSubtasks.forEach(st => { const isComplete = st.status === 'complete'; const div = document.createElement('div'); div.className = `list-item subtask-item ${isComplete ? 'completed' : ''}`; div.setAttribute('onclick', `openSubtaskDetails('${st.id}')`); div.setAttribute('oncontextmenu', `showContextMenuSubtask(event, '${st.id}')`); div.innerHTML = `<input type="checkbox" ${isComplete ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleSubtask('${st.id}')" title="Mark complete"><span class="title">${sanitize(st.title)}</span><div class="list-actions subtask-actions"><button type="button" class="edit" onclick="event.stopPropagation(); openSubtaskDetails('${st.id}')" title="Edit Subtask">✎</button><button type="button" class="danger" style="padding: 2px 6px;" onclick="event.stopPropagation(); removeSubtask('${st.id}')" title="Delete Subtask">&times;</button></div>`; container.appendChild(div); }); container.scrollTop = container.scrollHeight;
         }
 
-        // Changed to use Checkboxes for proper relational mapping
         function openAssigneePromptModal() { document.getElementById('assignee-prompt-modal').showModal(); } function closeAssigneePromptModal() { document.getElementById('assignee-prompt-modal').close(); syncFormToDraft(); updateFormUI(); }
         function renderAssigneeCheckboxes(selected = []) {
             const container = document.getElementById('assignee-checkbox-container'); container.innerHTML = '';
@@ -776,6 +777,7 @@
             document.getElementById('prompt-modal').close();
         });
 
+        // --- WORKSPACE & USER ROUTING ---
         document.getElementById('create-workspace-form').addEventListener('submit', async function(e) {
             e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
             if (name) { 
@@ -788,11 +790,41 @@
             document.getElementById('create-workspace-modal').close();
         });
 
+        function editCurrentWorkspace() {
+            workspaceContextMenu.style.display = 'none';
+            const currentWs = workspaces.find(w => w.id === currentWorkspaceId);
+            if(currentWs) { document.getElementById('edit-workspace-name').value = currentWs.name; document.getElementById('edit-workspace-modal').showModal(); }
+        }
+        function closeEditWorkspaceModal() { document.getElementById('edit-workspace-modal').close(); }
+        
+        document.getElementById('edit-workspace-form').addEventListener('submit', async function(e) {
+            e.preventDefault(); const name = document.getElementById('edit-workspace-name').value.trim();
+            if (name) { await apiCall('/workspaces', 'POST', { id: currentWorkspaceId, name: name, userId: getActiveUserObj().id }); await loadDataFromDB(); }
+            closeEditWorkspaceModal();
+        });
+
+        function deleteCurrentWorkspace(e) {
+            e.preventDefault(); e.stopPropagation(); workspaceContextMenu.style.display = 'none';
+            const myWorkspaces = workspaces.filter(ws => getActiveUserObj().workspace_ids.includes(ws.id));
+            if (myWorkspaces.length <= 1) { alert("You cannot delete your only workspace."); return; }
+            
+            const ws = workspaces.find(w => w.id === currentWorkspaceId);
+            document.getElementById('confirm-message').innerHTML = `Are you sure you want to delete workspace <strong>"${sanitize(ws.name)}"</strong> and all its projects and tasks?<br>This cannot be undone.`; 
+            document.getElementById('confirm-execute-btn').className = "danger-solid";
+            
+            pendingConfirmAction = async () => { 
+                await apiCall(`/workspaces/${currentWorkspaceId}`, 'DELETE'); 
+                currentWorkspaceId = null; localStorage.removeItem('currentWorkspaceId');
+                await loadDataFromDB(); 
+            }; 
+            document.getElementById('confirm-modal').showModal();
+        }
+
         document.getElementById('add-user-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             const name = document.getElementById('new-ws-user-name').value.trim(); const email = document.getElementById('new-ws-user-email').value.trim(); const role = document.getElementById('new-ws-user-role').value;
             if (name) { const newUserId = generateUUID(); await apiCall('/users', 'POST', { id: newUserId, name, email, role, workspace_id: currentWorkspaceId }); await loadDataFromDB(); }
-            closeAddUserModal();
+            document.getElementById('add-user-modal').close();
         });
 
         function deleteWorkspaceUser(id, name) {
