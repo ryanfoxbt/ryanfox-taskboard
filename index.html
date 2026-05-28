@@ -456,29 +456,25 @@
                 Clerk.mountSignIn(document.getElementById('sign-in'));
             }
         });
-
-        // --- 2. ASYNC DATA ENGINE ---
-        async function loadDataFromDB() {
+        
+// --- 2. ASYNC DATA ENGINE ---
+        async function loadDataFromDB(silent = false) {
             try {
-                document.getElementById('app-title').innerText = "Loading...";
+                if (!silent) document.getElementById('app-title').innerText = "Loading...";
+                
                 const response = await fetch(`${API_URL}/data`);
                 if (!response.ok) throw new Error("API not ready");
                 const data = await response.json();
                 
                 workspaces = data.workspaces || [];
-                projects = (data.projects || []).map(p => {
-                p.isSecret = p.is_secret; // Map Postgres snake_case back to JS camelCase
-                return p;
-                });
+                // Map Postgres snake_case back to JS camelCase
+                projects = (data.projects || []).map(p => { p.isSecret = p.is_secret; return p; });
                 
                 workspaceUsers = (data.users || []).map(u => {
                     const memberships = (data.workspace_members || []).filter(wm => wm.user_id === u.id);
                     u.workspace_ids = memberships.map(wm => wm.workspace_id);
                     const curr = memberships.find(wm => wm.workspace_id === currentWorkspaceId);
-                    if (curr) {
-                        u.role = curr.role;
-                        u.preferences = curr.preferences || {};
-                    }
+                    if (curr) { u.role = curr.role; u.preferences = curr.preferences || {}; }
                     return u;
                 });
 
@@ -489,11 +485,26 @@
                 });
 
                 initValidation();
-                renderAll(); 
+                
+                if (!silent) {
+                    renderAll(); 
+                } else {
+                    renderBoard(); // Only quietly update the task cards if silent
+                }
 
-            } catch (error) { console.error("Database connection failed.", error); }
+            } catch (error) { if (!silent) console.error("Database connection failed.", error); }
         }
 
+        // --- BACKGROUND SYNCING (Short Polling) ---
+        setInterval(async () => {
+            // Only sync if the user is NOT actively typing in a modal or dragging a card
+            const hasOpenModals = document.querySelectorAll('dialog[open]').length > 0;
+            const isDragging = document.querySelector('.dragging') !== null;
+            
+            if (!hasOpenModals && !isDragging && Clerk.user) {
+                await loadDataFromDB(true); // Pass 'true' for a silent background sync
+            }
+        }, 10000); // Checks for new tasks every 10 seconds
         function getActiveUserObj() { 
             let u = workspaceUsers.find(u => u.email === activeUserEmail);
             if (!u) u = { id: null, workspace_ids: [] };
@@ -616,7 +627,13 @@
                 btn.onclick = () => { currentProjectId = project.id; renderBoard(); renderProjects(); updateAssigneeFilterOptions(); };
                 btn.draggable = true; btn.ondragstart = (e) => handleTabDragStart(e, project.id); btn.ondragend = (e) => e.target.classList.remove('dragging-tab'); btn.ondragover = (e) => e.preventDefault(); btn.ondrop = (e) => handleTabDrop(e, project.id);
                 if (project.id === currentProjectId) {
-                    const delBtn = document.createElement('span'); delBtn.className = 'delete-project'; delBtn.innerHTML = '&times;'; delBtn.onclick = (e) => triggerDeleteProject(e, project.id); btn.appendChild(delBtn);
+                    // Add Edit Pencil
+                    const editBtn = document.createElement('span'); editBtn.className = 'edit-project'; editBtn.innerHTML = '✎'; editBtn.title = "Edit Project";
+                    editBtn.onclick = (e) => { e.stopPropagation(); openEditProjectModal(project.id); }; btn.appendChild(editBtn);
+                    
+                    // Add Delete X
+                    const delBtn = document.createElement('span'); delBtn.className = 'delete-project'; delBtn.innerHTML = '&times;'; delBtn.title = "Delete Project";
+                    delBtn.onclick = (e) => triggerDeleteProject(e, project.id); btn.appendChild(delBtn);
                 }
                 tabsContainer.appendChild(btn);
             });
@@ -839,6 +856,31 @@
                 await loadDataFromDB(); 
             }
             closeCreateWorkspaceModal();
+        });
+
+        // --- EDIT PROJECT LOGIC ---
+        function openEditProjectModal(id) {
+            const p = projects.find(x => x.id === id);
+            if (!p) return;
+            document.getElementById('edit-project-name').value = p.name;
+            document.getElementById('edit-project-secret').checked = p.isSecret;
+            document.getElementById('edit-project-modal').showModal();
+        }
+        
+        function closeEditProjectModal() { document.getElementById('edit-project-modal').close(); }
+
+        document.getElementById('edit-project-form').addEventListener('submit', async function(e) {
+            e.preventDefault(); 
+            const name = document.getElementById('edit-project-name').value.trim();
+            const isSecret = document.getElementById('edit-project-secret').checked;
+            
+            if (name) {
+                const p = projects.find(x => x.id === currentProjectId);
+                p.name = name;
+                p.isSecret = isSecret;
+                await saveProjectDB(p); // Saves to DB and re-renders tabs
+            }
+            closeEditProjectModal();
         });
 
         function editCurrentWorkspace() {
