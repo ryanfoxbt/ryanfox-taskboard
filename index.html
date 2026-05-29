@@ -20,6 +20,12 @@
         button.danger-solid:hover { background: #bf2608; }
         button.edit { background: transparent; color: #5e6c84; padding: 4px 8px; font-size: 12px; margin: 0; }
         button.edit:hover { background: #ebecf0; }
+        button.action-success { background: transparent; color: #36b37e; padding: 4px 8px; font-size: 12px; margin: 0; }
+        button.action-success:hover { background: #e3fcef; }
+        button.action-primary { background: transparent; color: #0052cc; padding: 4px 8px; font-size: 12px; margin: 0; }
+        button.action-primary:hover { background: #e6fcff; }
+        button.action-warning { background: transparent; color: #ff991f; padding: 4px 8px; font-size: 12px; margin: 0; }
+        button.action-warning:hover { background: #fff5e6; }
 
         .gear-btn { background: transparent; color: #5e6c84; font-size: 20px; padding: 4px 8px; line-height: 1; }
         .gear-btn:hover { background: #ebecf0; color: #172b4d; }
@@ -123,15 +129,15 @@
         .list-item:hover .list-actions { opacity: 1; }
         .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
         
-        .mobile-fab { display: none; } /* Hidden on desktop */
-        .card-menu-btn { display: none; } /* Hidden on desktop */
+        .mobile-fab { display: none; } 
+        .card-menu-btn { display: none; } 
 
         /* --- MOBILE OPTIMIZATIONS --- */
         @media (max-width: 768px) {
             body { padding: 10px; }
             .header { flex-direction: column; align-items: stretch; gap: 15px; }
             .header-controls { justify-content: space-between; width: 100%; flex-wrap: nowrap; }
-            .header-controls .desktop-add-task { display: none; } /* Hide text button */
+            .header-controls .desktop-add-task { display: none; } 
             .tools-row { flex-direction: column; align-items: stretch; gap: 10px; }
             .filters-bar { flex-direction: column; width: 100%; align-items: stretch;}
             .filters-bar input, .filters-bar select { width: 100%; box-sizing: border-box; }
@@ -147,7 +153,7 @@
             }
 
             /* Clean Cards */
-            .card .actions { display: none !important; } /* Hide clumsy arrows completely */
+            .card .actions { display: none !important; } 
             .card-menu-btn { 
                 display: flex; align-items: center; justify-content: center;
                 width: 32px; height: 32px; border-radius: 4px;
@@ -170,13 +176,30 @@
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
-            /* Fixed Bottom Sheet Modals */
+            /* Perfectly Bound Modal for Mobile - Responds perfectly to iOS Keyboard! */
             dialog { 
-                margin: auto 0 0 0; max-width: 100%; width: 100%; 
-                max-height: calc(100svh - 20px); overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
-                border-radius: 16px 16px 0 0; animation: slideUp 0.3s ease-out; padding: 24px 20px 40px 20px; box-sizing: border-box;
+                position: fixed !important; 
+                bottom: 0 !important; 
+                top: auto !important; 
+                left: 0 !important;
+                margin: 0 !important; 
+                max-width: 100% !important; 
+                width: 100% !important; 
+                max-height: 85vh; /* Safe fallback */
+                max-height: 85dvh; /* Dynamic Height: Shrinks exactly out of the way of the keyboard */
+                overflow-y: auto; 
+                -webkit-overflow-scrolling: touch; 
+                overscroll-behavior: contain;
+                border-radius: 16px 16px 0 0; 
+                animation: slideUp 0.3s ease-out; 
+                padding: 24px 20px 40px 20px; 
+                box-sizing: border-box;
             }
+            
+            /* Gives the Save Task button extra padding so it isn't hugged against the bottom edge */
+            .dialog-actions { margin-bottom: 20px; }
 
+            /* Prevents iOS from aggressively zooming in on inputs */
             .form-group input, .form-group textarea, .form-group select { padding: 12px !important; font-size: 16px !important; }
             
             @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
@@ -671,17 +694,11 @@
                 btn.innerText = (project.isSecret ? '🔒 ' : '') + sanitize(project.name);
                 btn.onclick = () => { currentProjectId = project.id; renderBoard(); renderProjects(); updateAssigneeFilterOptions(); };
                 
-                // Add right-click listener
+                // Native Right-Click Context Menu Hook
                 btn.oncontextmenu = (e) => showContextMenuProject(e, project.id);
                 
                 btn.draggable = true; btn.ondragstart = (e) => handleTabDragStart(e, project.id); btn.ondragend = (e) => e.target.classList.remove('dragging-tab'); btn.ondragover = (e) => e.preventDefault(); btn.ondrop = (e) => handleTabDrop(e, project.id);
                 
-                if (project.id === currentProjectId) {
-                    const delBtn = document.createElement('span'); delBtn.className = 'delete-project'; delBtn.innerHTML = '&times;'; 
-                    delBtn.title = "Delete Project";
-                    delBtn.onclick = (e) => { e.stopPropagation(); triggerDeleteProject(project.id); }; 
-                    btn.appendChild(delBtn);
-                }
                 tabsContainer.appendChild(btn);
             });
             const addBtn = document.createElement('button'); addBtn.className = 'tab add-new'; addBtn.innerText = '+ Add Project'; addBtn.onclick = () => { document.getElementById('prompt-form').reset(); document.getElementById('prompt-modal').showModal(); }; tabsContainer.appendChild(addBtn);
@@ -720,7 +737,6 @@
             document.getElementById('master-board-wrapper').className = `board-container size-${activeSize}`;
             
             allMatches.forEach(task => {
-                // Desktop Action Buttons
                 let desktopActions = '';
                 if (['todo', 'doing', 'done'].includes(task.status)) { desktopActions = `<button type="button" class="action-success" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'complete')" title="Archive">✓</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; } 
                 else if (task.status === 'future') { desktopActions = `<button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'todo')" title="Move to Active Board">🚀</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; } 
@@ -729,7 +745,6 @@
                 const card = document.createElement('div'); card.className = 'card'; card.setAttribute('data-id', task.id); card.draggable = true;
                 card.ondragstart = (e) => dragStart(e, task.id); card.ondragend = (e) => dragEnd(e); 
                 card.setAttribute('onclick', `editTask('${task.id}')`); 
-                // Context menu triggers on right click (desktop) OR ellipsis click (mobile)
                 card.setAttribute('oncontextmenu', `showContextMenuMain(event, '${task.id}')`);
                 
                 const urgencyHtml = displayConfig.showUrgency ? `<span class="dot ${task.urgency}" title="Urgency: ${task.urgency}"></span>` : ''; const descHtml = (displayConfig.showDesc && task.description) ? `<p>${sanitize(task.description)}</p>` : '';
@@ -743,7 +758,6 @@
                 let dateHtml = ''; if (displayConfig.showDate && task.due_date) { const d = new Date(task.due_date + 'T12:00:00'); dateHtml = `<span class="date-badge" title="Due Date">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; }
                 const childTasks = tasks.filter(t => t.parent_task_id === task.id); let subtaskHtml = ''; if (childTasks.length > 0) { subtaskHtml = `<span class="badge subtask-badge" title="Subtasks">☑ ${childTasks.filter(s => s.status === 'complete').length}/${childTasks.length}</span>`; }
                 
-                // Construct Card HTML with the new Ellipsis Icon in header
                 card.innerHTML = `
                     <div class="card-header-row">
                         <h3>${urgencyHtml} ${sanitize(task.title)}</h3>
@@ -821,7 +835,6 @@
             contextTargetMainId = id; 
             let target = (currentView === 'active') ? activeContextMenu : (currentView === 'future') ? futureContextMenu : archiveContextMenu; 
             
-            // Adjust position for Desktop vs Mobile Bottom Sheet
             target.style.display = 'block'; 
             if (window.innerWidth > 768) {
                 target.style.left = Math.min(e.pageX, window.innerWidth - target.offsetWidth - 10) + 'px'; 
@@ -848,7 +861,6 @@
         function contextActionEditProject() { openEditProjectModal(contextTargetProjectId); closeMenus(); }
         function contextActionDeleteProject() { triggerDeleteProject(contextTargetProjectId); closeMenus(); }
         
-        // Context menu actions specifically wired for mobile ease
         function contextActionMoveTo(status) { moveTaskStatus(contextTargetMainId, status); closeMenus(); }
         function contextActionEditMain() { editTask(contextTargetMainId); closeMenus(); } 
         function contextActionDeleteMain() { triggerDeleteTask(contextTargetMainId); closeMenus(); } 
@@ -969,7 +981,6 @@
             e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
             if (name) { 
                 const newId = generateUUID(); const currentUserObj = getActiveUserObj();
-                // Pass the user ID so the backend automatically spins up the default "Me" project
                 await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj.id }); 
                 currentWorkspaceId = newId; localStorage.setItem('currentWorkspaceId', newId); currentProjectId = null; 
                 await loadDataFromDB(); 
