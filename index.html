@@ -79,7 +79,7 @@
         
         .card-header-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 4px;}
         .card h3 { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: #172b4d; line-height: 1.2; word-break: break-word; flex: 1; }
-        .card p { color: #42526e; line-height: 1.4; margin: 0; pointer-events: none; word-break: break-word; }
+        .card p { color: #42526e; line-height: 1.4; margin: 0; word-break: break-word; } /* Removed pointer-events: none to allow clickable links */
         .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; pointer-events: none; }
         .meta-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; pointer-events: none; }
         
@@ -143,7 +143,6 @@
             .filters-bar { flex-direction: column; width: 100%; align-items: stretch;}
             .filters-bar input, .filters-bar select { width: 100%; box-sizing: border-box; }
             
-            /* Floating Action Button (FAB) */
             .mobile-fab {
                 display: flex; position: fixed; bottom: 24px; right: 24px;
                 width: 56px; height: 56px; border-radius: 50%;
@@ -153,7 +152,6 @@
                 z-index: 1000; cursor: pointer; border: none;
             }
 
-            /* Clean Cards */
             .card .actions { display: none !important; } 
             .card-menu-btn { 
                 display: flex; align-items: center; justify-content: center;
@@ -163,12 +161,10 @@
             }
             .card-menu-btn:active { background: #ebecf0; }
 
-            /* Swipeable Carousel for Columns */
             .board { scroll-snap-type: x mandatory; padding-bottom: 20px; margin: 0 -10px; padding: 0 10px 20px 10px; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
             .column { min-width: 88vw; scroll-snap-align: center; margin-right: 10px; }
             .board::after { content: ''; padding-right: 2vw; }
             
-            /* Bottom Sheet Context Menus */
             .custom-context-menu {
                 position: fixed !important; bottom: 0 !important; top: auto !important; left: 0 !important;
                 width: 100% !important; border-radius: 16px 16px 0 0;
@@ -196,7 +192,6 @@
                 animation: slideUp 0.2s ease-out;
             }
 
-            /* Prevents iOS from aggressively zooming in on inputs */
             .form-group input, .form-group textarea, .form-group select { padding: 12px !important; font-size: 16px !important; }
             
             @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
@@ -466,10 +461,17 @@
     <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_YnJpZWYtc2F3ZmlzaC02MS5jbGVyay5hY2NvdW50cy5kZXYk" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@4/dist/clerk.browser.js"></script>
 
     <script>
-        // --- 0. UTILS, MODAL LOCKS, & MISSING MODAL FUNCTIONS ---
+        // --- 0. UTILS, MODAL LOCKS, & URL LINKIFIER ---
         function sanitize(str) {
             if (!str) return '';
             return String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
+        }
+
+        // Detects web URLs and safely converts them to clickable links
+        function linkify(text) {
+            if (!text) return '';
+            const urlPattern = /(\b(https?):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gim;
+            return text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color: #0052cc; text-decoration: underline; pointer-events: auto;">$1</a>');
         }
 
         function generateUUID() {
@@ -552,7 +554,7 @@
         // --- 2. ASYNC DATA ENGINE ---
         async function loadDataFromDB() {
             try {
-                document.getElementById('app-title').innerText = "Loading...";
+                document.getElementById('app-title').innerHTML = "Loading...";
                 const response = await fetch(`${API_URL}/data`);
                 if (!response.ok) throw new Error("API not ready");
                 const data = await response.json();
@@ -677,7 +679,8 @@
                 list.appendChild(btn);
             });
             const activeWorkspace = workspaces.find(w => w.id === currentWorkspaceId);
-            document.getElementById('app-title').innerText = activeWorkspace ? activeWorkspace.name : "Task Board";
+            // Replaced innerText with innerHTML so special characters (like apostrophes) render correctly
+            document.getElementById('app-title').innerHTML = activeWorkspace ? sanitize(activeWorkspace.name) : "Task Board";
         }
 
         function renderWorkspaceUsers() {
@@ -706,10 +709,23 @@
             
             visible.forEach(project => {
                 const btn = document.createElement('button'); btn.className = `tab ${project.id === currentProjectId ? 'active' : ''}`;
-                btn.innerText = (project.isSecret ? '🔒 ' : '') + sanitize(project.name);
-                btn.onclick = () => { currentProjectId = project.id; renderBoard(); renderProjects(); updateAssigneeFilterOptions(); };
+                // Replaced innerText with innerHTML to safely render sanitized apostrophes
+                btn.innerHTML = (project.isSecret ? '🔒 ' : '') + sanitize(project.name);
                 
-                // Native Right-Click Context Menu Hook
+                btn.onclick = () => { 
+                    if (currentProjectId === project.id) {
+                        // Tapping the currently active tab directly opens the Edit Project Modal (Perfect for Mobile UX!)
+                        openEditProjectModal(project.id);
+                    } else {
+                        currentProjectId = project.id; 
+                        localStorage.setItem('currentProjectId', project.id);
+                        renderBoard(); 
+                        renderProjects(); 
+                        updateAssigneeFilterOptions(); 
+                    }
+                };
+                
+                // Desktop Right-Click Context Menu Hook
                 btn.oncontextmenu = (e) => showContextMenuProject(e, project.id);
                 
                 btn.draggable = true; btn.ondragstart = (e) => handleTabDragStart(e, project.id); btn.ondragend = (e) => e.target.classList.remove('dragging-tab'); btn.ondragover = (e) => e.preventDefault(); btn.ondrop = (e) => handleTabDrop(e, project.id);
@@ -728,7 +744,11 @@
         function updateAssigneeFilterOptions() {
             const filterSelect = document.getElementById('filter-assignee'); const currentSelection = filterSelect.value; filterSelect.innerHTML = '<option value="All">All Assignees</option>';
             const activeAssignees = new Set(); tasks.filter(t => t.project_id === currentProjectId).forEach(t => { if (t.assignees) t.assignees.forEach(a => activeAssignees.add(a)); });
-            Array.from(activeAssignees).sort().forEach(id => { const option = document.createElement('option'); option.value = id; option.innerText = sanitize(getUserName(id)); filterSelect.appendChild(option); });
+            Array.from(activeAssignees).sort().forEach(id => { 
+                const option = document.createElement('option'); option.value = id; 
+                option.innerHTML = sanitize(getUserName(id)); // Changed to innerHTML for safe apostrophe rendering
+                filterSelect.appendChild(option); 
+            });
             if (activeAssignees.has(currentSelection) || currentSelection === "All") filterSelect.value = currentSelection;
         }
 
@@ -768,7 +788,10 @@
                 card.setAttribute('onclick', `editTask('${task.id}')`); 
                 card.setAttribute('oncontextmenu', `showContextMenuMain(event, '${task.id}')`);
                 
-                const urgencyHtml = displayConfig.showUrgency ? `<span class="dot ${task.urgency}" title="Urgency: ${task.urgency}"></span>` : ''; const descHtml = (displayConfig.showDesc && task.description) ? `<p>${sanitize(task.description)}</p>` : '';
+                // Description string is Sanitized, and THEN injected into Linkify to generate clickable A tags safely
+                const urgencyHtml = displayConfig.showUrgency ? `<span class="dot ${task.urgency}" title="Urgency: ${task.urgency}"></span>` : ''; 
+                const descHtml = (displayConfig.showDesc && task.description) ? `<p>${linkify(sanitize(task.description))}</p>` : '';
+                
                 let assigneesHtml = ''; 
                 if (displayConfig.showAssignee) { 
                     const aList = task.assignees || []; 
@@ -792,7 +815,6 @@
                 (lists[task.status] || lists.todo).appendChild(card);
             });
 
-            // --- MOBILE AUTO-SNAP TO SEARCH RESULTS ---
             if (window.innerWidth <= 768 && (searchQ || assigneeQ !== 'All' || urgencyQ !== 'All') && currentView === 'active') {
                 const firstPopulated = [
                     { list: lists.todo, col: lists.todo.parentElement },
@@ -1035,7 +1057,6 @@
             e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
             if (name) { 
                 const newId = generateUUID(); const currentUserObj = getActiveUserObj();
-                // Pass the user ID so the backend automatically spins up the default "Me" project
                 await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj.id }); 
                 currentWorkspaceId = newId; localStorage.setItem('currentWorkspaceId', newId); currentProjectId = null; 
                 await loadDataFromDB(); 
