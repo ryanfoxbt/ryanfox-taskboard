@@ -177,7 +177,7 @@
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
-            /* Full-Screen Mobile Modals */
+            /* Full-Screen Mobile Modals to Bypass Safari Keyboard Trap */
             dialog { 
                 position: fixed !important; 
                 top: 0 !important; 
@@ -282,7 +282,9 @@
 
     <div id="active-context-menu" class="custom-context-menu">
         <button onclick="contextActionEditMain()">✎ Edit Task</button>
-        <button onclick="contextActionFutureMain()" style="color:#0052cc;">⏳ Move to Future</button>
+        <button onclick="contextActionMoveTo('doing')" style="color:#0052cc;">→ Move to Doing</button>
+        <button onclick="contextActionMoveTo('done')" style="color:#36b37e;">→ Move to Done</button>
+        <button onclick="contextActionFutureMain()" style="color:#ff991f;">⏳ Move to Future</button>
         <button onclick="contextActionArchiveMain()" class="success-text">✓ Archive Task</button>
         <button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>
     </div>
@@ -302,6 +304,7 @@
     </div>
 
     <dialog id="settings-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0; margin-bottom: 20px;">Board Settings</h2>
         <div class="settings-section-title" style="margin-top: 0;">Workspace Users</div>
         <div class="list-container" id="settings-user-list"></div>
@@ -330,6 +333,7 @@
     </dialog>
 
     <dialog id="add-user-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">Invite User</h2>
         <form id="add-user-form">
             <div class="form-group"><label>Name</label><input type="text" id="new-ws-user-name" required placeholder="E.g., Sarah" autocomplete="off"></div>
@@ -340,6 +344,7 @@
     </dialog>
 
     <dialog id="create-workspace-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">Create Workspace</h2>
         <form id="create-workspace-form">
             <div class="form-group"><label>Workspace Name</label><input type="text" id="create-workspace-name" required autocomplete="off" placeholder="e.g. Acme Corp"></div>
@@ -348,6 +353,7 @@
     </dialog>
 
     <dialog id="edit-workspace-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">Edit Workspace</h2>
         <form id="edit-workspace-form">
             <div class="form-group"><label>Workspace Name</label><input type="text" id="edit-workspace-name" required autocomplete="off"></div>
@@ -356,6 +362,7 @@
     </dialog>
 
     <dialog id="prompt-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">New Project</h2>
         <form id="prompt-form">
             <div class="form-group"><label>Project Name</label><input type="text" id="new-project-name" required placeholder="E.g., Vacation Planning" autocomplete="off"></div>
@@ -367,6 +374,7 @@
     </dialog>
 
     <dialog id="edit-project-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">Edit Project</h2>
         <form id="edit-project-form">
             <div class="form-group"><label>Project Name</label><input type="text" id="edit-project-name" required autocomplete="off"></div>
@@ -378,6 +386,7 @@
     </dialog>
 
     <dialog id="subtask-prompt-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">New Subtask</h2>
         <form id="subtask-prompt-form">
             <div class="form-group"><label>Subtask Title</label><input type="text" id="new-subtask-name" required placeholder="E.g., Buy groceries" autocomplete="off"></div>
@@ -386,6 +395,7 @@
     </dialog>
 
     <dialog id="assignee-prompt-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">Assign Users to Task</h2>
         <form id="assignee-prompt-form">
             <div class="list-container" id="assignee-checkbox-container" style="max-height: 200px;"></div>
@@ -394,6 +404,7 @@
     </dialog>
 
     <dialog id="confirm-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0; color: #de350b;">Confirm Action</h2>
         <p id="confirm-message" style="margin-bottom: 20px; color: #172b4d; line-height: 1.4;"></p>
         <div class="dialog-actions">
@@ -403,7 +414,6 @@
     </dialog>
 
     <dialog id="task-modal">
-        
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
 
         <div id="subtask-context-menu" class="custom-context-menu">
@@ -474,11 +484,14 @@
         function lockBody() { document.body.style.overflow = 'hidden'; }
         function unlockBody() { document.body.style.overflow = 'auto'; }
 
-        function openCreateWorkspaceModal() { lockBody(); document.getElementById('create-workspace-form').reset(); document.getElementById('create-workspace-modal').showModal(); }
+        // --- ALL MODALS NOW RESET SCROLLTOP ON OPEN ---
+        function openCreateWorkspaceModal() { lockBody(); document.getElementById('create-workspace-form').reset(); const m = document.getElementById('create-workspace-modal'); m.showModal(); setTimeout(() => m.scrollTop = 0, 10); }
         function closeCreateWorkspaceModal() { unlockBody(); document.getElementById('create-workspace-modal').close(); }
-        function openAddUserModal() { lockBody(); document.getElementById('add-user-form').reset(); document.getElementById('add-user-modal').showModal(); }
+        
+        function openAddUserModal() { lockBody(); document.getElementById('add-user-form').reset(); const m = document.getElementById('add-user-modal'); m.showModal(); setTimeout(() => m.scrollTop = 0, 10); }
         function closeAddUserModal() { unlockBody(); document.getElementById('add-user-modal').close(); }
-        function openPromptModal() { lockBody(); document.getElementById('prompt-form').reset(); document.getElementById('prompt-modal').showModal(); }
+        
+        function openPromptModal() { lockBody(); document.getElementById('prompt-form').reset(); const m = document.getElementById('prompt-modal'); m.showModal(); setTimeout(() => m.scrollTop = 0, 10); }
         function closePromptModal() { unlockBody(); document.getElementById('prompt-modal').close(); }
 
         // --- 1. API CONFIGURATION & STATE ---
@@ -701,6 +714,12 @@
                 
                 btn.draggable = true; btn.ondragstart = (e) => handleTabDragStart(e, project.id); btn.ondragend = (e) => e.target.classList.remove('dragging-tab'); btn.ondragover = (e) => e.preventDefault(); btn.ondrop = (e) => handleTabDrop(e, project.id);
                 
+                if (project.id === currentProjectId) {
+                    const delBtn = document.createElement('span'); delBtn.className = 'delete-project'; delBtn.innerHTML = '&times;'; 
+                    delBtn.title = "Delete Project";
+                    delBtn.onclick = (e) => { e.stopPropagation(); triggerDeleteProject(project.id); }; 
+                    btn.appendChild(delBtn);
+                }
                 tabsContainer.appendChild(btn);
             });
             const addBtn = document.createElement('button'); addBtn.className = 'tab add-new'; addBtn.innerText = '+ Add Project'; addBtn.onclick = () => openPromptModal(); tabsContainer.appendChild(addBtn);
@@ -798,7 +817,9 @@
             document.getElementById('setting-show-assignee').checked = prefs.displayConfig.showAssignee !== false;
             
             renderWorkspaceUsers();
-            document.getElementById('settings-modal').showModal();
+            const m = document.getElementById('settings-modal');
+            m.showModal();
+            setTimeout(() => m.scrollTop = 0, 10);
         }
 
         function closeSettings() { unlockBody(); document.getElementById('settings-modal').close(); }
@@ -864,6 +885,7 @@
         function contextActionEditProject() { openEditProjectModal(contextTargetProjectId); closeMenus(); }
         function contextActionDeleteProject() { triggerDeleteProject(contextTargetProjectId); closeMenus(); }
         
+        function contextActionMoveTo(status) { moveTaskStatus(contextTargetMainId, status); closeMenus(); }
         function contextActionEditMain() { editTask(contextTargetMainId); closeMenus(); } 
         function contextActionDeleteMain() { triggerDeleteTask(contextTargetMainId); closeMenus(); } 
         function contextActionArchiveMain() { moveTaskStatus(contextTargetMainId, 'complete'); closeMenus(); } 
@@ -939,8 +961,15 @@
             closeModal();
         });
 
-        function openSubtaskPromptModal() { lockBody(); document.getElementById('new-subtask-name').value = ''; document.getElementById('subtask-prompt-modal').showModal(); } 
+        function openSubtaskPromptModal() { 
+            lockBody(); 
+            document.getElementById('new-subtask-name').value = ''; 
+            const m = document.getElementById('subtask-prompt-modal');
+            m.showModal(); 
+            setTimeout(() => m.scrollTop = 0, 10);
+        } 
         function closeSubtaskPromptModal() { unlockBody(); document.getElementById('subtask-prompt-modal').close(); }
+        
         document.getElementById('subtask-prompt-form').addEventListener('submit', function(e) { e.preventDefault(); const title = document.getElementById('new-subtask-name').value.trim(); if(title && draftTask) { draftSubtasks.push({ id: 'sub_' + generateUUID(), project_id: currentProjectId, parent_task_id: draftTask.id, title: title, status: 'todo', description: '', assignees: [], due_date: '', urgency: 'low' }); renderSubtasks(); } closeSubtaskPromptModal(); });
         function openSubtaskDetails(id) { syncFormToDraft(); draftSubtaskId = id; updateFormUI(); } function backToParentTask() { syncFormToDraft(); draftSubtaskId = null; updateFormUI(); }
         function toggleSubtask(id) { const st = draftSubtasks.find(s => s.id === id); if(st) st.status = (st.status === 'complete') ? 'todo' : 'complete'; renderSubtasks(); } function removeSubtask(id) { draftSubtasks = draftSubtasks.filter(s => s.id !== id); renderSubtasks(); }
@@ -950,8 +979,14 @@
             draftSubtasks.forEach(st => { const isComplete = st.status === 'complete'; const div = document.createElement('div'); div.className = `list-item subtask-item ${isComplete ? 'completed' : ''}`; div.setAttribute('onclick', `openSubtaskDetails('${st.id}')`); div.setAttribute('oncontextmenu', `showContextMenuSubtask(event, '${st.id}')`); div.innerHTML = `<input type="checkbox" ${isComplete ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleSubtask('${st.id}')" title="Mark complete"><span class="title">${sanitize(st.title)}</span><div class="list-actions subtask-actions"><button type="button" class="edit" onclick="event.stopPropagation(); openSubtaskDetails('${st.id}')" title="Edit Subtask">✎</button><button type="button" class="danger" style="padding: 2px 6px;" onclick="event.stopPropagation(); removeSubtask('${st.id}')" title="Delete Subtask">&times;</button></div>`; container.appendChild(div); }); container.scrollTop = container.scrollHeight;
         }
 
-        function openAssigneePromptModal() { lockBody(); document.getElementById('assignee-prompt-modal').showModal(); } 
+        function openAssigneePromptModal() { 
+            lockBody(); 
+            const m = document.getElementById('assignee-prompt-modal');
+            m.showModal(); 
+            setTimeout(() => m.scrollTop = 0, 10);
+        } 
         function closeAssigneePromptModal() { unlockBody(); document.getElementById('assignee-prompt-modal').close(); syncFormToDraft(); updateFormUI(); }
+        
         function renderAssigneeCheckboxes(selected = []) {
             const container = document.getElementById('assignee-checkbox-container'); container.innerHTML = '';
             const allKnownUsers = getVisibleUsers();
@@ -981,7 +1016,9 @@
             if (!p) return;
             document.getElementById('edit-project-name').value = p.name;
             document.getElementById('edit-project-secret').checked = p.isSecret;
-            document.getElementById('edit-project-modal').showModal();
+            const m = document.getElementById('edit-project-modal');
+            m.showModal();
+            setTimeout(() => m.scrollTop = 0, 10);
         }
         function closeEditProjectModal() { unlockBody(); document.getElementById('edit-project-modal').close(); }
 
@@ -998,6 +1035,7 @@
             e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
             if (name) { 
                 const newId = generateUUID(); const currentUserObj = getActiveUserObj();
+                // Pass the user ID so the backend automatically spins up the default "Me" project
                 await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj.id }); 
                 currentWorkspaceId = newId; localStorage.setItem('currentWorkspaceId', newId); currentProjectId = null; 
                 await loadDataFromDB(); 
@@ -1009,7 +1047,12 @@
             lockBody();
             workspaceContextMenu.style.display = 'none';
             const currentWs = workspaces.find(w => w.id === currentWorkspaceId);
-            if(currentWs) { document.getElementById('edit-workspace-name').value = currentWs.name; document.getElementById('edit-workspace-modal').showModal(); }
+            if(currentWs) { 
+                document.getElementById('edit-workspace-name').value = currentWs.name; 
+                const m = document.getElementById('edit-workspace-modal');
+                m.showModal(); 
+                setTimeout(() => m.scrollTop = 0, 10);
+            }
         }
         function closeEditWorkspaceModal() { unlockBody(); document.getElementById('edit-workspace-modal').close(); }
         
@@ -1033,7 +1076,10 @@
                 currentWorkspaceId = null; localStorage.removeItem('currentWorkspaceId');
                 await loadDataFromDB(); 
             }; 
-            lockBody(); document.getElementById('confirm-modal').showModal();
+            lockBody(); 
+            const m = document.getElementById('confirm-modal');
+            m.showModal();
+            setTimeout(() => m.scrollTop = 0, 10);
         }
 
         document.getElementById('add-user-form').addEventListener('submit', async function(e) {
@@ -1055,14 +1101,20 @@
             if (getVisibleUsers().length <= 1) { alert("You must have at least one user in the workspace."); return; }
             document.getElementById('confirm-message').innerHTML = `Are you sure you want to remove <strong>${sanitize(name)}</strong> from this workspace?`; document.getElementById('confirm-execute-btn').className = "danger-solid";
             pendingConfirmAction = async () => { await apiCall(`/users/${id}/${currentWorkspaceId}`, 'DELETE'); await loadDataFromDB(); }; 
-            lockBody(); document.getElementById('confirm-modal').showModal();
+            lockBody(); 
+            const m = document.getElementById('confirm-modal');
+            m.showModal();
+            setTimeout(() => m.scrollTop = 0, 10);
         }
 
         function triggerDeleteTask(id) { 
             document.getElementById('confirm-message').innerHTML = "Delete this task?<br>This cannot be undone."; 
             document.getElementById('confirm-execute-btn').className = "danger-solid"; 
             pendingConfirmAction = () => deleteTaskDB(id); 
-            lockBody(); document.getElementById('confirm-modal').showModal(); 
+            lockBody(); 
+            const m = document.getElementById('confirm-modal');
+            m.showModal(); 
+            setTimeout(() => m.scrollTop = 0, 10);
         }
         
         function triggerDeleteProject(id) { 
@@ -1070,7 +1122,10 @@
             document.getElementById('confirm-message').innerHTML = "Delete this project and all its tasks?<br>This cannot be undone."; 
             document.getElementById('confirm-execute-btn').className = "danger-solid"; 
             pendingConfirmAction = () => deleteProjectDB(id); 
-            lockBody(); document.getElementById('confirm-modal').showModal(); 
+            lockBody(); 
+            const m = document.getElementById('confirm-modal');
+            m.showModal(); 
+            setTimeout(() => m.scrollTop = 0, 10);
         }
         
         function executeConfirm() { if (pendingConfirmAction) pendingConfirmAction(); unlockBody(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; }
