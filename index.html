@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <title>Personal Task Board</title>
     <style>
         /* Base Styles */
@@ -176,7 +176,7 @@
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
-            /* Perfectly Bound Modal for Mobile - Responds perfectly to iOS Keyboard! */
+            /* Perfectly Bound Modal for Mobile */
             dialog { 
                 position: fixed !important; 
                 bottom: 0 !important; 
@@ -185,8 +185,8 @@
                 margin: 0 !important; 
                 max-width: 100% !important; 
                 width: 100% !important; 
-                max-height: 85vh; /* Safe fallback */
-                max-height: 85dvh; /* Dynamic Height: Shrinks exactly out of the way of the keyboard */
+                max-height: 85vh; 
+                max-height: 85dvh; 
                 overflow-y: auto; 
                 -webkit-overflow-scrolling: touch; 
                 overscroll-behavior: contain;
@@ -196,10 +196,9 @@
                 box-sizing: border-box;
             }
             
-            /* Gives the Save Task button extra padding so it isn't hugged against the bottom edge */
             .dialog-actions { margin-bottom: 20px; }
 
-            /* Prevents iOS from aggressively zooming in on inputs */
+            /* Force 16px to prevent iOS Safari Auto-Zooming */
             .form-group input, .form-group textarea, .form-group select { padding: 12px !important; font-size: 16px !important; }
             
             @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
@@ -459,7 +458,7 @@
     <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_YnJpZWYtc2F3ZmlzaC02MS5jbGVyay5hY2NvdW50cy5kZXYk" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@4/dist/clerk.browser.js"></script>
 
     <script>
-        // --- 0. UTILS & MISSING MODAL FUNCTIONS ---
+        // --- 0. UTILS, MODAL LOCKS, & MISSING MODAL FUNCTIONS ---
         function sanitize(str) {
             if (!str) return '';
             return String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
@@ -473,11 +472,16 @@
             });
         }
 
-        function openCreateWorkspaceModal() { document.getElementById('create-workspace-form').reset(); document.getElementById('create-workspace-modal').showModal(); }
-        function closeCreateWorkspaceModal() { document.getElementById('create-workspace-modal').close(); }
-        function openAddUserModal() { document.getElementById('add-user-form').reset(); document.getElementById('add-user-modal').showModal(); }
-        function closeAddUserModal() { document.getElementById('add-user-modal').close(); }
-        function closePromptModal() { document.getElementById('prompt-modal').close(); }
+        // Stops the background from sliding around on iOS when a modal is open
+        function lockBody() { document.body.style.overflow = 'hidden'; }
+        function unlockBody() { document.body.style.overflow = 'auto'; }
+
+        function openCreateWorkspaceModal() { lockBody(); document.getElementById('create-workspace-form').reset(); document.getElementById('create-workspace-modal').showModal(); }
+        function closeCreateWorkspaceModal() { unlockBody(); document.getElementById('create-workspace-modal').close(); }
+        function openAddUserModal() { lockBody(); document.getElementById('add-user-form').reset(); document.getElementById('add-user-modal').showModal(); }
+        function closeAddUserModal() { unlockBody(); document.getElementById('add-user-modal').close(); }
+        function openPromptModal() { lockBody(); document.getElementById('prompt-form').reset(); document.getElementById('prompt-modal').showModal(); }
+        function closePromptModal() { unlockBody(); document.getElementById('prompt-modal').close(); }
 
         // --- 1. API CONFIGURATION & STATE ---
         const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
@@ -694,14 +698,20 @@
                 btn.innerText = (project.isSecret ? '🔒 ' : '') + sanitize(project.name);
                 btn.onclick = () => { currentProjectId = project.id; renderBoard(); renderProjects(); updateAssigneeFilterOptions(); };
                 
-                // Native Right-Click Context Menu Hook
+                // Add right-click listener
                 btn.oncontextmenu = (e) => showContextMenuProject(e, project.id);
                 
                 btn.draggable = true; btn.ondragstart = (e) => handleTabDragStart(e, project.id); btn.ondragend = (e) => e.target.classList.remove('dragging-tab'); btn.ondragover = (e) => e.preventDefault(); btn.ondrop = (e) => handleTabDrop(e, project.id);
                 
+                if (project.id === currentProjectId) {
+                    const delBtn = document.createElement('span'); delBtn.className = 'delete-project'; delBtn.innerHTML = '&times;'; 
+                    delBtn.title = "Delete Project";
+                    delBtn.onclick = (e) => { e.stopPropagation(); triggerDeleteProject(project.id); }; 
+                    btn.appendChild(delBtn);
+                }
                 tabsContainer.appendChild(btn);
             });
-            const addBtn = document.createElement('button'); addBtn.className = 'tab add-new'; addBtn.innerText = '+ Add Project'; addBtn.onclick = () => { document.getElementById('prompt-form').reset(); document.getElementById('prompt-modal').showModal(); }; tabsContainer.appendChild(addBtn);
+            const addBtn = document.createElement('button'); addBtn.className = 'tab add-new'; addBtn.innerText = '+ Add Project'; addBtn.onclick = () => openPromptModal(); tabsContainer.appendChild(addBtn);
         }
 
         function updateAssigneeFilterOptions() {
@@ -787,6 +797,7 @@
 
         // --- 5. SETTINGS ---
         function openSettings() {
+            lockBody();
             const prefs = getActiveUserObj().preferences;
             document.getElementById('setting-task-size').value = prefs.uiSize;
             document.getElementById('setting-show-date').checked = prefs.displayConfig.showDate !== false;
@@ -798,7 +809,7 @@
             document.getElementById('settings-modal').showModal();
         }
 
-        function closeSettings() { document.getElementById('settings-modal').close(); }
+        function closeSettings() { unlockBody(); document.getElementById('settings-modal').close(); }
 
         async function saveSettings() {
             const user = getActiveUserObj();
@@ -891,14 +902,16 @@
 
         // --- 7. FORMS & MODALS ---
         function openModal(defaultStatus = 'todo') {
+            lockBody();
             draftTask = { id: generateUUID(), title: '', description: '', assignees: [], due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null };
             draftSubtasks = []; draftSubtaskId = null; document.getElementById('task-form').reset(); updateFormUI(); document.getElementById('task-modal').showModal();
         }
         function editTask(id) {
+            lockBody();
             draftTask = JSON.parse(JSON.stringify(tasks.find(t => t.id === id))); draftSubtasks = tasks.filter(t => t.parent_task_id === id).map(st => JSON.parse(JSON.stringify(st)));
             draftSubtaskId = null; updateFormUI(); document.getElementById('task-modal').showModal();
         }
-        function closeModal() { document.getElementById('task-modal').close(); draftTask = null; draftSubtasks = []; }
+        function closeModal() { unlockBody(); document.getElementById('task-modal').close(); draftTask = null; draftSubtasks = []; }
 
         function syncFormToDraft() {
             if (!draftTask) return;
@@ -925,7 +938,8 @@
             closeModal();
         });
 
-        function openSubtaskPromptModal() { document.getElementById('new-subtask-name').value = ''; document.getElementById('subtask-prompt-modal').showModal(); } function closeSubtaskPromptModal() { document.getElementById('subtask-prompt-modal').close(); }
+        function openSubtaskPromptModal() { lockBody(); document.getElementById('new-subtask-name').value = ''; document.getElementById('subtask-prompt-modal').showModal(); } 
+        function closeSubtaskPromptModal() { unlockBody(); document.getElementById('subtask-prompt-modal').close(); }
         document.getElementById('subtask-prompt-form').addEventListener('submit', function(e) { e.preventDefault(); const title = document.getElementById('new-subtask-name').value.trim(); if(title && draftTask) { draftSubtasks.push({ id: 'sub_' + generateUUID(), project_id: currentProjectId, parent_task_id: draftTask.id, title: title, status: 'todo', description: '', assignees: [], due_date: '', urgency: 'low' }); renderSubtasks(); } closeSubtaskPromptModal(); });
         function openSubtaskDetails(id) { syncFormToDraft(); draftSubtaskId = id; updateFormUI(); } function backToParentTask() { syncFormToDraft(); draftSubtaskId = null; updateFormUI(); }
         function toggleSubtask(id) { const st = draftSubtasks.find(s => s.id === id); if(st) st.status = (st.status === 'complete') ? 'todo' : 'complete'; renderSubtasks(); } function removeSubtask(id) { draftSubtasks = draftSubtasks.filter(s => s.id !== id); renderSubtasks(); }
@@ -935,7 +949,8 @@
             draftSubtasks.forEach(st => { const isComplete = st.status === 'complete'; const div = document.createElement('div'); div.className = `list-item subtask-item ${isComplete ? 'completed' : ''}`; div.setAttribute('onclick', `openSubtaskDetails('${st.id}')`); div.setAttribute('oncontextmenu', `showContextMenuSubtask(event, '${st.id}')`); div.innerHTML = `<input type="checkbox" ${isComplete ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleSubtask('${st.id}')" title="Mark complete"><span class="title">${sanitize(st.title)}</span><div class="list-actions subtask-actions"><button type="button" class="edit" onclick="event.stopPropagation(); openSubtaskDetails('${st.id}')" title="Edit Subtask">✎</button><button type="button" class="danger" style="padding: 2px 6px;" onclick="event.stopPropagation(); removeSubtask('${st.id}')" title="Delete Subtask">&times;</button></div>`; container.appendChild(div); }); container.scrollTop = container.scrollHeight;
         }
 
-        function openAssigneePromptModal() { document.getElementById('assignee-prompt-modal').showModal(); } function closeAssigneePromptModal() { document.getElementById('assignee-prompt-modal').close(); syncFormToDraft(); updateFormUI(); }
+        function openAssigneePromptModal() { lockBody(); document.getElementById('assignee-prompt-modal').showModal(); } 
+        function closeAssigneePromptModal() { unlockBody(); document.getElementById('assignee-prompt-modal').close(); syncFormToDraft(); updateFormUI(); }
         function renderAssigneeCheckboxes(selected = []) {
             const container = document.getElementById('assignee-checkbox-container'); container.innerHTML = '';
             const allKnownUsers = getVisibleUsers();
@@ -960,13 +975,14 @@
         });
 
         function openEditProjectModal(id) {
+            lockBody();
             const p = projects.find(x => x.id === id);
             if (!p) return;
             document.getElementById('edit-project-name').value = p.name;
             document.getElementById('edit-project-secret').checked = p.isSecret;
             document.getElementById('edit-project-modal').showModal();
         }
-        function closeEditProjectModal() { document.getElementById('edit-project-modal').close(); }
+        function closeEditProjectModal() { unlockBody(); document.getElementById('edit-project-modal').close(); }
 
         document.getElementById('edit-project-form').addEventListener('submit', async function(e) {
             e.preventDefault(); 
@@ -981,6 +997,7 @@
             e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
             if (name) { 
                 const newId = generateUUID(); const currentUserObj = getActiveUserObj();
+                // Pass the user ID so the backend automatically spins up the default "Me" project
                 await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj.id }); 
                 currentWorkspaceId = newId; localStorage.setItem('currentWorkspaceId', newId); currentProjectId = null; 
                 await loadDataFromDB(); 
@@ -989,11 +1006,12 @@
         });
 
         function editCurrentWorkspace() {
+            lockBody();
             workspaceContextMenu.style.display = 'none';
             const currentWs = workspaces.find(w => w.id === currentWorkspaceId);
             if(currentWs) { document.getElementById('edit-workspace-name').value = currentWs.name; document.getElementById('edit-workspace-modal').showModal(); }
         }
-        function closeEditWorkspaceModal() { document.getElementById('edit-workspace-modal').close(); }
+        function closeEditWorkspaceModal() { unlockBody(); document.getElementById('edit-workspace-modal').close(); }
         
         document.getElementById('edit-workspace-form').addEventListener('submit', async function(e) {
             e.preventDefault(); const name = document.getElementById('edit-workspace-name').value.trim();
@@ -1015,7 +1033,7 @@
                 currentWorkspaceId = null; localStorage.removeItem('currentWorkspaceId');
                 await loadDataFromDB(); 
             }; 
-            document.getElementById('confirm-modal').showModal();
+            lockBody(); document.getElementById('confirm-modal').showModal();
         }
 
         document.getElementById('add-user-form').addEventListener('submit', async function(e) {
@@ -1036,21 +1054,27 @@
         function deleteWorkspaceUser(id, name) {
             if (getVisibleUsers().length <= 1) { alert("You must have at least one user in the workspace."); return; }
             document.getElementById('confirm-message').innerHTML = `Are you sure you want to remove <strong>${sanitize(name)}</strong> from this workspace?`; document.getElementById('confirm-execute-btn').className = "danger-solid";
-            pendingConfirmAction = async () => { await apiCall(`/users/${id}/${currentWorkspaceId}`, 'DELETE'); await loadDataFromDB(); }; document.getElementById('confirm-modal').showModal();
+            pendingConfirmAction = async () => { await apiCall(`/users/${id}/${currentWorkspaceId}`, 'DELETE'); await loadDataFromDB(); }; 
+            lockBody(); document.getElementById('confirm-modal').showModal();
         }
 
-        function triggerDeleteTask(id) { document.getElementById('confirm-message').innerHTML = "Delete this task?<br>This cannot be undone."; document.getElementById('confirm-execute-btn').className = "danger-solid"; pendingConfirmAction = () => deleteTaskDB(id); document.getElementById('confirm-modal').showModal(); }
+        function triggerDeleteTask(id) { 
+            document.getElementById('confirm-message').innerHTML = "Delete this task?<br>This cannot be undone."; 
+            document.getElementById('confirm-execute-btn').className = "danger-solid"; 
+            pendingConfirmAction = () => deleteTaskDB(id); 
+            lockBody(); document.getElementById('confirm-modal').showModal(); 
+        }
         
         function triggerDeleteProject(id) { 
             if (projects.filter(p => p.workspace_id === currentWorkspaceId).length <= 1) { alert("Cannot delete your only project."); return; } 
             document.getElementById('confirm-message').innerHTML = "Delete this project and all its tasks?<br>This cannot be undone."; 
             document.getElementById('confirm-execute-btn').className = "danger-solid"; 
             pendingConfirmAction = () => deleteProjectDB(id); 
-            document.getElementById('confirm-modal').showModal(); 
+            lockBody(); document.getElementById('confirm-modal').showModal(); 
         }
         
-        function executeConfirm() { if (pendingConfirmAction) pendingConfirmAction(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; }
-        function closeConfirmModal() { document.getElementById('confirm-modal').close(); pendingConfirmAction = null; }
+        function executeConfirm() { if (pendingConfirmAction) pendingConfirmAction(); unlockBody(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; }
+        function closeConfirmModal() { unlockBody(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; }
 
     </script>
 </body>
