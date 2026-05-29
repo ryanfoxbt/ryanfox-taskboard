@@ -30,7 +30,9 @@
         .gear-btn { background: transparent; color: #5e6c84; font-size: 20px; padding: 4px 8px; line-height: 1; }
         .gear-btn:hover { background: #ebecf0; color: #172b4d; }
 
-        .project-tabs { display: flex; gap: 8px; margin-bottom: 15px; border-bottom: 2px solid #dfe1e6; padding-bottom: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        /* Updated Project Tabs Layout with Pinned Scratchpad Button */
+        .project-tabs-wrapper { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #dfe1e6; padding-bottom: 12px; }
+        .project-tabs { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; flex: 1; }
         .tab { display: flex; align-items: center; gap: 8px; background: transparent; color: #5e6c84; border: none; padding: 8px 16px; border-radius: 4px; cursor: grab; font-weight: bold; font-size: 14px; transition: opacity 0.2s ease; white-space: nowrap; }
         .tab:active { cursor: grabbing; }
         .tab:hover { background: #ebecf0; }
@@ -40,6 +42,10 @@
         .tab.dragging-tab { opacity: 0.4; transform: scale(0.98); } 
         .delete-project { background: rgba(255,255,255,0.2); border-radius: 50%; width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; font-size: 14px; line-height: 1; padding: 0; margin-left: 5px; cursor: pointer;}
         .delete-project:hover { background: #de350b; color: white; }
+        
+        /* Sleek Pinned Scratchpad Button */
+        .scratchpad-btn { background: #e6fcff; color: #0052cc; border: 1px solid #b3d4ff; border-radius: 50%; width: 38px; height: 38px; display: flex; justify-content: center; align-items: center; font-size: 16px; padding: 0; cursor: pointer; flex-shrink: 0; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .scratchpad-btn:hover { background: #b3d4ff; transform: scale(1.05); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
 
         .tools-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
         .view-toggles { display: flex; background: #dfe1e6; border-radius: 6px; padding: 4px; flex-wrap: wrap; gap: 2px; }
@@ -79,7 +85,7 @@
         
         .card-header-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 4px;}
         .card h3 { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: #172b4d; line-height: 1.2; word-break: break-word; flex: 1; }
-        .card p { color: #42526e; line-height: 1.4; margin: 0; word-break: break-word; } /* Removed pointer-events: none to allow clickable links */
+        .card p { color: #42526e; line-height: 1.4; margin: 0; word-break: break-word; }
         .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; pointer-events: none; }
         .meta-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; pointer-events: none; }
         
@@ -173,7 +179,7 @@
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
-            /* Full-Screen Mobile Modals to Bypass Safari Keyboard Trap */
+            /* Full-Screen Mobile Modals */
             dialog { 
                 position: fixed !important; 
                 top: 0 !important; 
@@ -225,7 +231,10 @@
             </div>
         </div>
 
-        <div class="project-tabs" id="project-tabs"></div>
+        <div class="project-tabs-wrapper">
+            <div class="project-tabs" id="project-tabs"></div>
+            <button class="scratchpad-btn" onclick="openScratchpadModal()" title="Project Notes / Scratchpad">📝</button>
+        </div>
 
         <div class="tools-row">
             <div class="view-toggles">
@@ -297,6 +306,22 @@
         <button onclick="contextActionEditProject()">✎ Edit Project</button>
         <button onclick="contextActionDeleteProject()" class="danger-text">✕ Delete Project</button>
     </div>
+
+    <dialog id="scratchpad-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
+        <div class="modal-header-row">
+            <h2 id="scratchpad-title" style="margin:0;">Project Scratchpad</h2>
+        </div>
+        <form id="scratchpad-form">
+            <div class="form-group">
+                <textarea id="scratchpad-text" rows="12" placeholder="Jot down quick ideas, meeting notes, or draft future tasks here..." style="resize: vertical;"></textarea>
+            </div>
+            <div class="dialog-actions">
+                <button type="button" class="secondary" onclick="closeScratchpadModal()">Cancel</button>
+                <button type="submit">Save Notes</button>
+            </div>
+        </form>
+    </dialog>
 
     <dialog id="settings-modal">
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
@@ -935,6 +960,33 @@
         }
         function allowDrop(e, status) { e.preventDefault(); const list = document.getElementById(status + '-list'); const dragEl = document.querySelector('.dragging'); if (!dragEl) return; const afterEl = [...list.querySelectorAll('.card:not(.dragging)')].reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = e.clientY - box.top - box.height / 2; return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest; }, { offset: Number.NEGATIVE_INFINITY }).element; if (afterEl == null) list.appendChild(dragEl); else list.insertBefore(dragEl, afterEl); }
 
+        // --- NEW SCRATCHPAD LOGIC ---
+        function openScratchpadModal() {
+            if (!currentProjectId) return;
+            lockBody();
+            const p = projects.find(x => x.id === currentProjectId);
+            document.getElementById('scratchpad-text').value = p.notes || '';
+            const m = document.getElementById('scratchpad-modal');
+            m.showModal();
+            setTimeout(() => m.scrollTop = 0, 10);
+        }
+
+        function closeScratchpadModal() {
+            unlockBody();
+            document.getElementById('scratchpad-modal').close();
+        }
+
+        document.getElementById('scratchpad-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            if (!currentProjectId) return;
+            const p = projects.find(x => x.id === currentProjectId);
+            if (p) {
+                p.notes = document.getElementById('scratchpad-text').value;
+                await saveProjectDB(p);
+            }
+            closeScratchpadModal();
+        });
+
         // --- 7. FORMS & MODALS ---
         function openModal(defaultStatus = 'todo') {
             lockBody();
@@ -1034,6 +1086,7 @@
 
         function openEditProjectModal(id) {
             lockBody();
+            contextTargetProjectId = id; // FIX: Ensures the exact tapped project is set as the active target for the edit form!
             const p = projects.find(x => x.id === id);
             if (!p) return;
             document.getElementById('edit-project-name').value = p.name;
