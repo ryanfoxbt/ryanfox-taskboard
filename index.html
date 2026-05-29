@@ -30,9 +30,7 @@
         .gear-btn { background: transparent; color: #5e6c84; font-size: 20px; padding: 4px 8px; line-height: 1; }
         .gear-btn:hover { background: #ebecf0; color: #172b4d; }
 
-        /* Updated Project Tabs Layout with Pinned Scratchpad Button */
-        .project-tabs-wrapper { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #dfe1e6; padding-bottom: 12px; }
-        .project-tabs { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; flex: 1; }
+        .project-tabs { display: flex; gap: 8px; margin-bottom: 15px; border-bottom: 2px solid #dfe1e6; padding-bottom: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .tab { display: flex; align-items: center; gap: 8px; background: transparent; color: #5e6c84; border: none; padding: 8px 16px; border-radius: 4px; cursor: grab; font-weight: bold; font-size: 14px; transition: opacity 0.2s ease; white-space: nowrap; }
         .tab:active { cursor: grabbing; }
         .tab:hover { background: #ebecf0; }
@@ -42,16 +40,16 @@
         .tab.dragging-tab { opacity: 0.4; transform: scale(0.98); } 
         .delete-project { background: rgba(255,255,255,0.2); border-radius: 50%; width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; font-size: 14px; line-height: 1; padding: 0; margin-left: 5px; cursor: pointer;}
         .delete-project:hover { background: #de350b; color: white; }
-        
-        /* Sleek Pinned Scratchpad Button */
-        .scratchpad-btn { background: #e6fcff; color: #0052cc; border: 1px solid #b3d4ff; border-radius: 50%; width: 38px; height: 38px; display: flex; justify-content: center; align-items: center; font-size: 16px; padding: 0; cursor: pointer; flex-shrink: 0; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .scratchpad-btn:hover { background: #b3d4ff; transform: scale(1.05); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
 
         .tools-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
         .view-toggles { display: flex; background: #dfe1e6; border-radius: 6px; padding: 4px; flex-wrap: wrap; gap: 2px; }
         .view-toggle { background: transparent; color: #42526e; border-radius: 4px; padding: 6px 16px; margin: 0; font-size: 14px; display: flex; align-items: center; gap: 6px; }
         .view-toggle:hover { background: rgba(255,255,255,0.5); }
         .view-toggle.active { background: white; color: #172b4d; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        
+        .scratchpad-trigger { color: #0052cc !important; font-weight: bold; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .scratchpad-trigger:hover { background: #f4f5f7 !important; }
+
         .search-badge { background: #de350b; color: white; font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: bold; line-height: 1; }
 
         .filters-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -231,13 +229,12 @@
             </div>
         </div>
 
-        <div class="project-tabs-wrapper">
-            <div class="project-tabs" id="project-tabs"></div>
-            <button class="scratchpad-btn" onclick="openScratchpadModal()" title="Project Notes / Scratchpad">📝</button>
-        </div>
+        <div class="project-tabs" id="project-tabs"></div>
 
         <div class="tools-row">
             <div class="view-toggles">
+                <button class="view-toggle scratchpad-trigger" onclick="openScratchpadModal()" title="Project Notes / Scratchpad">📝 Notes</button>
+                <div style="width: 2px; background: #c1c7d0; margin: 4px 2px; border-radius: 2px;"></div>
                 <button class="view-toggle active" id="btn-view-active" onclick="switchView('active')">📊 Active Board</button>
                 <button class="view-toggle" id="btn-view-future" onclick="switchView('future')">⏳ Future</button>
                 <button class="view-toggle" id="btn-view-archive" onclick="switchView('archive')">🗄️ Archive</button>
@@ -704,7 +701,6 @@
                 list.appendChild(btn);
             });
             const activeWorkspace = workspaces.find(w => w.id === currentWorkspaceId);
-            // Replaced innerText with innerHTML so special characters (like apostrophes) render correctly
             document.getElementById('app-title').innerHTML = activeWorkspace ? sanitize(activeWorkspace.name) : "Task Board";
         }
 
@@ -734,12 +730,10 @@
             
             visible.forEach(project => {
                 const btn = document.createElement('button'); btn.className = `tab ${project.id === currentProjectId ? 'active' : ''}`;
-                // Replaced innerText with innerHTML to safely render sanitized apostrophes
                 btn.innerHTML = (project.isSecret ? '🔒 ' : '') + sanitize(project.name);
                 
                 btn.onclick = () => { 
                     if (currentProjectId === project.id) {
-                        // Tapping the currently active tab directly opens the Edit Project Modal (Perfect for Mobile UX!)
                         openEditProjectModal(project.id);
                     } else {
                         currentProjectId = project.id; 
@@ -750,7 +744,6 @@
                     }
                 };
                 
-                // Desktop Right-Click Context Menu Hook
                 btn.oncontextmenu = (e) => showContextMenuProject(e, project.id);
                 
                 btn.draggable = true; btn.ondragstart = (e) => handleTabDragStart(e, project.id); btn.ondragend = (e) => e.target.classList.remove('dragging-tab'); btn.ondragover = (e) => e.preventDefault(); btn.ondrop = (e) => handleTabDrop(e, project.id);
@@ -771,7 +764,7 @@
             const activeAssignees = new Set(); tasks.filter(t => t.project_id === currentProjectId).forEach(t => { if (t.assignees) t.assignees.forEach(a => activeAssignees.add(a)); });
             Array.from(activeAssignees).sort().forEach(id => { 
                 const option = document.createElement('option'); option.value = id; 
-                option.innerHTML = sanitize(getUserName(id)); // Changed to innerHTML for safe apostrophe rendering
+                option.innerHTML = sanitize(getUserName(id)); 
                 filterSelect.appendChild(option); 
             });
             if (activeAssignees.has(currentSelection) || currentSelection === "All") filterSelect.value = currentSelection;
@@ -813,7 +806,6 @@
                 card.setAttribute('onclick', `editTask('${task.id}')`); 
                 card.setAttribute('oncontextmenu', `showContextMenuMain(event, '${task.id}')`);
                 
-                // Description string is Sanitized, and THEN injected into Linkify to generate clickable A tags safely
                 const urgencyHtml = displayConfig.showUrgency ? `<span class="dot ${task.urgency}" title="Urgency: ${task.urgency}"></span>` : ''; 
                 const descHtml = (displayConfig.showDesc && task.description) ? `<p>${linkify(sanitize(task.description))}</p>` : '';
                 
@@ -1086,7 +1078,7 @@
 
         function openEditProjectModal(id) {
             lockBody();
-            contextTargetProjectId = id; // FIX: Ensures the exact tapped project is set as the active target for the edit form!
+            contextTargetProjectId = id; 
             const p = projects.find(x => x.id === id);
             if (!p) return;
             document.getElementById('edit-project-name').value = p.name;
