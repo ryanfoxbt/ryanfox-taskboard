@@ -176,26 +176,24 @@
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
-            /* Perfectly Bound Modal for Mobile */
+          /* Full-Screen Mobile Modals to Bypass Safari Keyboard Trap */
             dialog { 
                 position: fixed !important; 
+                top: 0 !important; 
                 bottom: 0 !important; 
-                top: auto !important; 
                 left: 0 !important;
                 margin: 0 !important; 
-                max-width: 100% !important; 
                 width: 100% !important; 
-                max-height: 85vh; 
-                max-height: 85dvh; 
+                max-width: 100% !important; 
+                height: 100% !important; 
+                max-height: 100% !important; 
+                border-radius: 0 !important; /* Removes rounded corners for full-screen feel */
                 overflow-y: auto; 
                 -webkit-overflow-scrolling: touch; 
-                overscroll-behavior: contain;
-                border-radius: 16px 16px 0 0; 
-                animation: slideUp 0.3s ease-out; 
-                padding: 24px 20px 40px 20px; 
+                padding: 20px 20px 100px 20px !important; /* Heavy bottom padding so the Save button clears the keyboard */
                 box-sizing: border-box;
+                animation: slideUp 0.2s ease-out;
             }
-            
             .dialog-actions { margin-bottom: 20px; }
 
             /* Force 16px to prevent iOS Safari Auto-Zooming */
