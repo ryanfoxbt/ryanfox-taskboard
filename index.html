@@ -20,12 +20,6 @@
         button.danger-solid:hover { background: #bf2608; }
         button.edit { background: transparent; color: #5e6c84; padding: 4px 8px; font-size: 12px; margin: 0; }
         button.edit:hover { background: #ebecf0; }
-        button.action-success { background: transparent; color: #36b37e; padding: 4px 8px; font-size: 12px; margin: 0; }
-        button.action-success:hover { background: #e3fcef; }
-        button.action-primary { background: transparent; color: #0052cc; padding: 4px 8px; font-size: 12px; margin: 0; }
-        button.action-primary:hover { background: #e6fcff; }
-        button.action-warning { background: transparent; color: #ff991f; padding: 4px 8px; font-size: 12px; margin: 0; }
-        button.action-warning:hover { background: #fff5e6; }
 
         .gear-btn { background: transparent; color: #5e6c84; font-size: 20px; padding: 4px 8px; line-height: 1; }
         .gear-btn:hover { background: #ebecf0; color: #172b4d; }
@@ -72,10 +66,13 @@
         .badge.subtask-badge { background: #eae6ff; color: #403294; }
         .date-badge { font-size: 12px; color: #5e6c84; display: inline-flex; align-items: center; gap: 4px; background: #f4f5f7; padding: 2px 6px; border-radius: 4px; border: 1px solid #dfe1e6; }
 
-        .card { background: white; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); border: 1px solid #dfe1e6; cursor: pointer; transition: box-shadow 0.2s ease, border-color 0.2s ease; display: flex; flex-direction: column; }
+        /* Task Cards */
+        .card { background: white; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); border: 1px solid #dfe1e6; cursor: pointer; transition: box-shadow 0.2s ease, border-color 0.2s ease; display: flex; flex-direction: column; position: relative; }
         .card:hover { border-color: #b3d4ff; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
         .card.dragging { opacity: 0.4; cursor: grabbing; box-shadow: 0 8px 16px rgba(0,0,0,0.15); transform: scale(1.02); }
-        .card h3 { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: #172b4d; line-height: 1.2; word-break: break-word; }
+        
+        .card-header-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 4px;}
+        .card h3 { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: #172b4d; line-height: 1.2; word-break: break-word; flex: 1; }
         .card p { color: #42526e; line-height: 1.4; margin: 0; pointer-events: none; word-break: break-word; }
         .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; pointer-events: none; }
         .meta-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; pointer-events: none; }
@@ -125,99 +122,64 @@
         .list-actions { opacity: 0; transition: opacity 0.2s ease; display: flex; gap: 4px; }
         .list-item:hover .list-actions { opacity: 1; }
         .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
-        .settings-section-title { font-size: 12px; text-transform: uppercase; color: #5e6c84; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #dfe1e6; padding-bottom: 4px; margin-top: 24px; }
+        
+        .mobile-fab { display: none; } /* Hidden on desktop */
+        .card-menu-btn { display: none; } /* Hidden on desktop */
 
         /* --- MOBILE OPTIMIZATIONS --- */
         @media (max-width: 768px) {
             body { padding: 10px; }
             .header { flex-direction: column; align-items: stretch; gap: 15px; }
             .header-controls { justify-content: space-between; width: 100%; flex-wrap: nowrap; }
+            .header-controls .desktop-add-task { display: none; } /* Hide text button */
             .tools-row { flex-direction: column; align-items: stretch; gap: 10px; }
             .filters-bar { flex-direction: column; width: 100%; align-items: stretch;}
             .filters-bar input, .filters-bar select { width: 100%; box-sizing: border-box; }
             
+            /* Floating Action Button (FAB) */
+            .mobile-fab {
+                display: flex; position: fixed; bottom: 24px; right: 24px;
+                width: 56px; height: 56px; border-radius: 50%;
+                background: #0052cc; color: white;
+                justify-content: center; align-items: center; font-size: 28px;
+                box-shadow: 0 4px 12px rgba(0,82,204,0.4);
+                z-index: 1000; cursor: pointer; border: none;
+            }
+
+            /* Clean Cards */
+            .card .actions { display: none !important; } /* Hide clumsy arrows completely */
+            .card-menu-btn { 
+                display: flex; align-items: center; justify-content: center;
+                width: 32px; height: 32px; border-radius: 4px;
+                background: transparent; color: #5e6c84; font-size: 20px; font-weight: bold;
+                margin: -4px -8px 0 0; cursor: pointer;
+            }
+            .card-menu-btn:active { background: #ebecf0; }
+
             /* Swipeable Carousel for Columns */
-            .board { 
-                scroll-snap-type: x mandatory; 
-                padding-bottom: 20px; 
-                margin: 0 -10px; 
-                padding: 0 10px 20px 10px;
-                scroll-behavior: smooth;
-                -webkit-overflow-scrolling: touch;
-            }
-            .column { 
-                min-width: 88vw; 
-                scroll-snap-align: center; 
-                margin-right: 10px;
-            }
+            .board { scroll-snap-type: x mandatory; padding-bottom: 20px; margin: 0 -10px; padding: 0 10px 20px 10px; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
+            .column { min-width: 88vw; scroll-snap-align: center; margin-right: 10px; }
             .board::after { content: ''; padding-right: 2vw; }
             
             /* Bottom Sheet Context Menus */
             .custom-context-menu {
-                position: fixed !important;
-                bottom: 0 !important; top: auto !important; left: 0 !important;
-                width: 100% !important;
-                border-radius: 16px 16px 0 0;
-                box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
-                padding: 10px 0 30px 0;
+                position: fixed !important; bottom: 0 !important; top: auto !important; left: 0 !important;
+                width: 100% !important; border-radius: 16px 16px 0 0;
+                box-shadow: 0 -4px 20px rgba(0,0,0,0.2); padding: 10px 0 30px 0;
                 animation: slideUp 0.2s ease-out;
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
-            /* Perfectly Bound Modal for Mobile - Stops screen stretching */
+            /* Fixed Bottom Sheet Modals */
             dialog { 
-                margin: auto 0 0 0; 
-                max-width: 100%; width: 100%; 
-                max-height: calc(100svh - 20px); /* 100svh resizes correctly when iOS keyboard pops up! */
-                overflow-y: auto; 
-                -webkit-overflow-scrolling: touch;
-                overscroll-behavior: contain;
-                border-radius: 16px 16px 0 0; 
-                animation: slideUp 0.3s ease-out;
-                padding: 24px 20px 40px 20px; 
-                box-sizing: border-box;
+                margin: auto 0 0 0; max-width: 100%; width: 100%; 
+                max-height: calc(100svh - 20px); overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+                border-radius: 16px 16px 0 0; animation: slideUp 0.3s ease-out; padding: 24px 20px 40px 20px; box-sizing: border-box;
             }
 
-            /* Prevents iOS from aggressively zooming in on inputs */
-            .form-group input, .form-group textarea, .form-group select {
-                padding: 12px !important;
-                font-size: 16px !important; 
-            }
+            .form-group input, .form-group textarea, .form-group select { padding: 12px !important; font-size: 16px !important; }
             
-            @keyframes slideUp {
-                from { transform: translateY(100%); }
-                to { transform: translateY(0); }
-            }
-
-            /* Make Task Cards beautiful & fat-finger friendly */
-            .card .actions, .list-item .list-actions { opacity: 1; pointer-events: auto; }
-            
-            .board-container.size-big .card-footer, 
-            .board-container.size-medium .card-footer, 
-            .board-container.size-small .card-footer { 
-                flex-direction: column; align-items: flex-start; gap: 12px; 
-                border-top: none; padding-top: 0;
-            }
-            .meta-group { width: 100%; justify-content: flex-start; }
-            
-            /* Break action buttons to their own row and expand them */
-            .card .actions { 
-                width: 100%; 
-                justify-content: flex-end; 
-                padding-top: 12px; 
-                border-top: 1px solid #ebecf0; 
-                gap: 12px; 
-            }
-            .card .actions button { 
-                padding: 10px 16px !important; 
-                font-size: 16px !important; 
-                border-radius: 8px;
-                font-weight: bold;
-            }
-            .card .actions button.action-primary { background: #e6fcff; color: #0052cc; }
-            .card .actions button.action-success { background: #e3fcef; color: #36b37e; }
-            .card .actions button.edit { background: #ebecf0; color: #5e6c84; }
-            .card .actions button.danger { background: #ffebe6; color: #de350b; }
+            @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         }
     </style>
 </head>
@@ -243,8 +205,9 @@
             </div>
             
             <div class="header-controls">
-                <div id="user-button"></div> <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
-                <button onclick="openModal('todo')">+ Add New Task</button>
+                <div id="user-button"></div>
+                <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
+                <button class="desktop-add-task" onclick="openModal('todo')">+ Add New Task</button>
             </div>
         </div>
 
@@ -294,11 +257,15 @@
                 </div>
             </div>
         </div>
+        
+        <button class="mobile-fab" onclick="openModal('todo')">+</button>
     </div>
 
     <div id="active-context-menu" class="custom-context-menu">
         <button onclick="contextActionEditMain()">✎ Edit Task</button>
-        <button onclick="contextActionFutureMain()" style="color:#0052cc;">⏳ Move to Future</button>
+        <button onclick="contextActionMoveTo('doing')" style="color:#0052cc;">→ Move to Doing</button>
+        <button onclick="contextActionMoveTo('done')" style="color:#36b37e;">→ Move to Done</button>
+        <button onclick="contextActionFutureMain()" style="color:#ff991f;">⏳ Move to Future</button>
         <button onclick="contextActionArchiveMain()" class="success-text">✓ Archive Task</button>
         <button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>
     </div>
@@ -753,26 +720,17 @@
             document.getElementById('master-board-wrapper').className = `board-container size-${activeSize}`;
             
             allMatches.forEach(task => {
-                // Mobile-friendly Arrow Actions included in the hover overlay!
-                let hoverActionsHtml = '';
-                if (task.status === 'todo') { 
-                    hoverActionsHtml = `<button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'doing')" title="Move to Doing">→</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; 
-                } 
-                else if (task.status === 'doing') { 
-                    hoverActionsHtml = `<button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'todo')" title="Move to To Do">←</button> <button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'done')" title="Move to Done">→</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; 
-                } 
-                else if (task.status === 'done') { 
-                    hoverActionsHtml = `<button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'doing')" title="Move to Doing">←</button> <button type="button" class="action-success" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'complete')" title="Archive">✓</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; 
-                }
-                else if (task.status === 'future') { 
-                    hoverActionsHtml = `<button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'todo')" title="Move to Active Board">🚀</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; 
-                } 
-                else if (task.status === 'complete') { 
-                    hoverActionsHtml = `<button type="button" class="action-warning" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'done')" title="Restore to Board">⏪</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; 
-                }
+                // Desktop Action Buttons
+                let desktopActions = '';
+                if (['todo', 'doing', 'done'].includes(task.status)) { desktopActions = `<button type="button" class="action-success" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'complete')" title="Archive">✓</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; } 
+                else if (task.status === 'future') { desktopActions = `<button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'todo')" title="Move to Active Board">🚀</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; } 
+                else if (task.status === 'complete') { desktopActions = `<button type="button" class="action-warning" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'done')" title="Restore to Board">⏪</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; }
                 
                 const card = document.createElement('div'); card.className = 'card'; card.setAttribute('data-id', task.id); card.draggable = true;
-                card.ondragstart = (e) => dragStart(e, task.id); card.ondragend = (e) => dragEnd(e); card.setAttribute('onclick', `editTask('${task.id}')`); card.setAttribute('oncontextmenu', `showContextMenuMain(event, '${task.id}')`);
+                card.ondragstart = (e) => dragStart(e, task.id); card.ondragend = (e) => dragEnd(e); 
+                card.setAttribute('onclick', `editTask('${task.id}')`); 
+                // Context menu triggers on right click (desktop) OR ellipsis click (mobile)
+                card.setAttribute('oncontextmenu', `showContextMenuMain(event, '${task.id}')`);
                 
                 const urgencyHtml = displayConfig.showUrgency ? `<span class="dot ${task.urgency}" title="Urgency: ${task.urgency}"></span>` : ''; const descHtml = (displayConfig.showDesc && task.description) ? `<p>${sanitize(task.description)}</p>` : '';
                 let assigneesHtml = ''; 
@@ -785,7 +743,17 @@
                 let dateHtml = ''; if (displayConfig.showDate && task.due_date) { const d = new Date(task.due_date + 'T12:00:00'); dateHtml = `<span class="date-badge" title="Due Date">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; }
                 const childTasks = tasks.filter(t => t.parent_task_id === task.id); let subtaskHtml = ''; if (childTasks.length > 0) { subtaskHtml = `<span class="badge subtask-badge" title="Subtasks">☑ ${childTasks.filter(s => s.status === 'complete').length}/${childTasks.length}</span>`; }
                 
-                card.innerHTML = `<h3>${urgencyHtml} ${sanitize(task.title)}</h3>${descHtml}<div class="card-footer"><div class="meta-group">${assigneesHtml}${dateHtml}${subtaskHtml}</div><div class="actions">${hoverActionsHtml}</div></div>`; 
+                // Construct Card HTML with the new Ellipsis Icon in header
+                card.innerHTML = `
+                    <div class="card-header-row">
+                        <h3>${urgencyHtml} ${sanitize(task.title)}</h3>
+                        <button type="button" class="card-menu-btn" onclick="event.stopPropagation(); showContextMenuMain(event, '${task.id}')">⋮</button>
+                    </div>
+                    ${descHtml}
+                    <div class="card-footer">
+                        <div class="meta-group">${assigneesHtml}${dateHtml}${subtaskHtml}</div>
+                        <div class="actions">${desktopActions}</div>
+                    </div>`; 
                 (lists[task.status] || lists.todo).appendChild(card);
             });
 
@@ -848,18 +816,48 @@
         function closeMenus() { activeContextMenu.style.display = 'none'; futureContextMenu.style.display = 'none'; archiveContextMenu.style.display = 'none'; subtaskContextMenu.style.display = 'none'; workspaceContextMenu.style.display = 'none'; if(projectContextMenu) projectContextMenu.style.display = 'none'; }
         document.addEventListener('click', closeMenus);
 
-        function showContextMenuMain(e, id) { e.preventDefault(); e.stopPropagation(); closeMenus(); contextTargetMainId = id; let target = (currentView === 'active') ? activeContextMenu : (currentView === 'future') ? futureContextMenu : archiveContextMenu; target.style.display = 'block'; target.style.left = (e.currentTarget.getBoundingClientRect().right - target.offsetWidth - 5) + 'px'; target.style.top = (e.currentTarget.getBoundingClientRect().top + 5) + 'px'; }
-        function showContextMenuSubtask(e, id) { e.preventDefault(); e.stopPropagation(); closeMenus(); contextTargetSubtaskId = id; subtaskContextMenu.style.display = 'block'; subtaskContextMenu.style.left = (e.currentTarget.getBoundingClientRect().right - subtaskContextMenu.offsetWidth - 5) + 'px'; subtaskContextMenu.style.top = (e.currentTarget.getBoundingClientRect().top + 5) + 'px'; }
+        function showContextMenuMain(e, id) { 
+            e.preventDefault(); e.stopPropagation(); closeMenus(); 
+            contextTargetMainId = id; 
+            let target = (currentView === 'active') ? activeContextMenu : (currentView === 'future') ? futureContextMenu : archiveContextMenu; 
+            
+            // Adjust position for Desktop vs Mobile Bottom Sheet
+            target.style.display = 'block'; 
+            if (window.innerWidth > 768) {
+                target.style.left = Math.min(e.pageX, window.innerWidth - target.offsetWidth - 10) + 'px'; 
+                target.style.top = e.pageY + 'px'; 
+            }
+        }
+        
+        function showContextMenuSubtask(e, id) { 
+            e.preventDefault(); e.stopPropagation(); closeMenus(); contextTargetSubtaskId = id; subtaskContextMenu.style.display = 'block'; 
+            if (window.innerWidth > 768) {
+                subtaskContextMenu.style.left = (e.currentTarget.getBoundingClientRect().right - subtaskContextMenu.offsetWidth - 5) + 'px'; 
+                subtaskContextMenu.style.top = (e.currentTarget.getBoundingClientRect().top + 5) + 'px'; 
+            }
+        }
         
         function showContextMenuProject(e, id) { 
             e.preventDefault(); e.stopPropagation(); closeMenus(); 
             contextTargetProjectId = id; projectContextMenu.style.display = 'block'; 
-            projectContextMenu.style.left = e.pageX + 'px'; projectContextMenu.style.top = e.pageY + 'px'; 
+            if (window.innerWidth > 768) {
+                projectContextMenu.style.left = e.pageX + 'px'; projectContextMenu.style.top = e.pageY + 'px'; 
+            }
         }
+
         function contextActionEditProject() { openEditProjectModal(contextTargetProjectId); closeMenus(); }
         function contextActionDeleteProject() { triggerDeleteProject(contextTargetProjectId); closeMenus(); }
         
-        function contextActionEditMain() { editTask(contextTargetMainId); } function contextActionDeleteMain() { triggerDeleteTask(contextTargetMainId); } function contextActionArchiveMain() { moveTaskStatus(contextTargetMainId, 'complete'); } function contextActionFutureMain() { moveTaskStatus(contextTargetMainId, 'future'); } function contextActionStartMain() { moveTaskStatus(contextTargetMainId, 'todo'); } function contextActionRestoreMain() { moveTaskStatus(contextTargetMainId, 'done'); } function contextActionEditSubtask() { openSubtaskDetails(contextTargetSubtaskId); } function contextActionDeleteSubtask() { removeSubtask(contextTargetSubtaskId); }
+        // Context menu actions specifically wired for mobile ease
+        function contextActionMoveTo(status) { moveTaskStatus(contextTargetMainId, status); closeMenus(); }
+        function contextActionEditMain() { editTask(contextTargetMainId); closeMenus(); } 
+        function contextActionDeleteMain() { triggerDeleteTask(contextTargetMainId); closeMenus(); } 
+        function contextActionArchiveMain() { moveTaskStatus(contextTargetMainId, 'complete'); closeMenus(); } 
+        function contextActionFutureMain() { moveTaskStatus(contextTargetMainId, 'future'); closeMenus(); } 
+        function contextActionStartMain() { moveTaskStatus(contextTargetMainId, 'todo'); closeMenus(); } 
+        function contextActionRestoreMain() { moveTaskStatus(contextTargetMainId, 'done'); closeMenus(); } 
+        function contextActionEditSubtask() { openSubtaskDetails(contextTargetSubtaskId); closeMenus(); } 
+        function contextActionDeleteSubtask() { removeSubtask(contextTargetSubtaskId); closeMenus(); }
 
         function moveTaskStatus(id, newStatus) { const t = tasks.find(t => t.id === id); if (t) { t.status = newStatus; saveTaskDB(t); } }
 
@@ -971,6 +969,7 @@
             e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
             if (name) { 
                 const newId = generateUUID(); const currentUserObj = getActiveUserObj();
+                // Pass the user ID so the backend automatically spins up the default "Me" project
                 await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj.id }); 
                 currentWorkspaceId = newId; localStorage.setItem('currentWorkspaceId', newId); currentProjectId = null; 
                 await loadDataFromDB(); 
