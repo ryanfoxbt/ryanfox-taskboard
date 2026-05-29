@@ -64,19 +64,33 @@ app.delete('/api/tasks/:id', async (req, res) => {
 
 // 3. PROJECTS
 app.post('/api/projects', async (req, res) => {
-    const { id, workspace_id, name, isSecret, owner_id } = req.body;
+    // 1. Added 'notes' to the destructured variables
+    const { id, workspace_id, name, isSecret, owner_id, notes } = req.body; 
+    
     try {
         await pool.query(
-            `INSERT INTO projects (id, workspace_id, name, is_secret, owner_id) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO UPDATE SET name = $3, is_secret = $4`,
-            [id, workspace_id, name, isSecret || false, owner_id || null]
+            // 2. Added 'notes' to the columns, VALUES ($6), and the ON CONFLICT update list
+            `INSERT INTO projects (id, workspace_id, name, is_secret, owner_id, notes) 
+             VALUES ($1, $2, $3, $4, $5, $6) 
+             ON CONFLICT (id) DO UPDATE SET name = $3, is_secret = $4, notes = $6`,
+            
+            // 3. Added 'notes' to the parameter array (defaulting to a blank string if empty)
+            [id, workspace_id, name, isSecret || false, owner_id || null, notes || '']
         );
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 app.delete('/api/projects/:id', async (req, res) => {
-    try { await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]); res.json({ success: true }); } 
-    catch (err) { res.status(500).json({ error: err.message }); }
+    try { 
+        await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]); 
+        res.json({ success: true }); 
+    } 
+    catch (err) { 
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 // 4. WORKSPACES
