@@ -49,11 +49,8 @@
         .search-badge { background: #de350b; color: white; font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: bold; line-height: 1; }
 
         .filters-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-        .filters-bar input, .filters-bar select { padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px; box-sizing: border-box; }
+        .filters-bar input, .filters-bar select { padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px; }
         .filters-bar input:focus, .filters-bar select:focus { border-color: #4c9aff; }
-        
-        .scratchpad-icon-btn { background: white; border: 1px solid #dfe1e6; border-radius: 4px; padding: 6px 12px; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; font-size: 16px; }
-        .scratchpad-icon-btn:hover { background: #ebecf0; border-color: #c1c7d0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 
         .board { display: flex; gap: 20px; align-items: flex-start; overflow-x: auto; padding-bottom: 10px; }
         .column { flex: 1; min-width: 260px; background: #ebecf0; padding: 12px; border-radius: 6px; min-height: 400px; display: flex; flex-direction: column; }
@@ -143,7 +140,8 @@
             .header-controls { justify-content: space-between; width: 100%; flex-wrap: nowrap; }
             .header-controls .desktop-add-task { display: none; } 
             .tools-row { flex-direction: column; align-items: stretch; gap: 10px; }
-            .filters-bar { flex-direction: column; width: 100%; align-items: stretch; gap: 10px; }
+            .filters-bar { flex-direction: column; width: 100%; align-items: stretch;}
+            .filters-bar input, .filters-bar select { width: 100%; box-sizing: border-box; }
             
             .mobile-fab {
                 display: flex; position: fixed; bottom: 24px; right: 24px;
@@ -175,7 +173,7 @@
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
-            /* Full-Screen Mobile Modals to Bypass Safari Keyboard Trap */
+            /* Full-Screen Mobile Modals */
             dialog { 
                 position: fixed !important; 
                 top: 0 !important; 
@@ -239,11 +237,7 @@
             <div class="filters-bar">
                 <input type="text" id="filter-search" placeholder="Search tasks..." oninput="renderBoard()">
                 <select id="filter-assignee" onchange="renderBoard()"><option value="All">All Assignees</option></select>
-                
-                <div style="display: flex; gap: 10px; width: 100%;">
-                    <select id="filter-urgency" onchange="renderBoard()" style="flex: 1;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
-                    <button class="scratchpad-icon-btn" onclick="openScratchpadModal()" title="Project Notes / Scratchpad">📝</button>
-                </div>
+                <select id="filter-urgency" onchange="renderBoard()"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
             </div>
         </div>
 
@@ -303,25 +297,6 @@
         <button onclick="contextActionEditProject()">✎ Edit Project</button>
         <button onclick="contextActionDeleteProject()" class="danger-text">✕ Delete Project</button>
     </div>
-
-    <dialog id="scratchpad-modal">
-        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
-        <div class="modal-header-row">
-            <h2 id="scratchpad-title" style="margin:0;">Project Scratchpad</h2>
-        </div>
-        <form id="scratchpad-form">
-            <div class="form-group">
-                <textarea id="scratchpad-text" rows="12" placeholder="Jot down quick ideas, meeting notes, or draft future tasks here..." style="resize: vertical;"></textarea>
-            </div>
-            <div class="dialog-actions" style="justify-content: space-between;">
-                <button type="button" class="danger-solid" onclick="clearScratchpad()">Clear Note</button>
-                <div style="display: flex; gap: 10px;">
-                    <button type="button" class="secondary" onclick="closeScratchpadModal()">Cancel</button>
-                    <button type="submit">Save Notes</button>
-                </div>
-            </div>
-        </form>
-    </dialog>
 
     <dialog id="settings-modal">
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
@@ -398,6 +373,15 @@
         <h2 style="margin-top:0;">Edit Project</h2>
         <form id="edit-project-form">
             <div class="form-group"><label>Project Name</label><input type="text" id="edit-project-name" required autocomplete="off"></div>
+            
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label style="margin: 0;">Project Notes / Scratchpad</label>
+                    <button type="button" class="danger" onclick="document.getElementById('edit-project-notes').value = ''" title="Clear text (Requires Save to commit)">Clear</button>
+                </div>
+                <textarea id="edit-project-notes" rows="6" placeholder="Jot down quick ideas, meeting notes, or draft future tasks here..." style="resize: vertical;"></textarea>
+            </div>
+
             <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;">
                 <input type="checkbox" id="edit-project-secret"><label for="edit-project-secret" style="margin:0; font-weight:bold; color: #006644;">🔒 Make Secret (Only visible to me)</label>
             </div>
@@ -955,44 +939,6 @@
         }
         function allowDrop(e, status) { e.preventDefault(); const list = document.getElementById(status + '-list'); const dragEl = document.querySelector('.dragging'); if (!dragEl) return; const afterEl = [...list.querySelectorAll('.card:not(.dragging)')].reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = e.clientY - box.top - box.height / 2; return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest; }, { offset: Number.NEGATIVE_INFINITY }).element; if (afterEl == null) list.appendChild(dragEl); else list.insertBefore(dragEl, afterEl); }
 
-        // --- NEW SCRATCHPAD LOGIC ---
-        function openScratchpadModal() {
-            if (!currentProjectId) return;
-            lockBody();
-            const p = projects.find(x => x.id === currentProjectId);
-            document.getElementById('scratchpad-text').value = p.notes || '';
-            const m = document.getElementById('scratchpad-modal');
-            m.showModal();
-            setTimeout(() => m.scrollTop = 0, 10);
-        }
-
-        function closeScratchpadModal() {
-            unlockBody();
-            document.getElementById('scratchpad-modal').close();
-        }
-
-        async function clearScratchpad() {
-            if (!currentProjectId) return;
-            document.getElementById('scratchpad-text').value = '';
-            const p = projects.find(x => x.id === currentProjectId);
-            if (p) {
-                p.notes = '';
-                await saveProjectDB(p);
-            }
-            closeScratchpadModal();
-        }
-
-        document.getElementById('scratchpad-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            if (!currentProjectId) return;
-            const p = projects.find(x => x.id === currentProjectId);
-            if (p) {
-                p.notes = document.getElementById('scratchpad-text').value;
-                await saveProjectDB(p);
-            }
-            closeScratchpadModal();
-        });
-
         // --- 7. FORMS & MODALS ---
         function openModal(defaultStatus = 'todo') {
             lockBody();
@@ -1097,6 +1043,7 @@
             if (!p) return;
             document.getElementById('edit-project-name').value = p.name;
             document.getElementById('edit-project-secret').checked = p.isSecret;
+            document.getElementById('edit-project-notes').value = p.notes || '';
             const m = document.getElementById('edit-project-modal');
             m.showModal();
             setTimeout(() => m.scrollTop = 0, 10);
@@ -1107,7 +1054,16 @@
             e.preventDefault(); 
             const name = document.getElementById('edit-project-name').value.trim();
             const isSecret = document.getElementById('edit-project-secret').checked;
-            if (name) { const p = projects.find(x => x.id === contextTargetProjectId); if (p) { p.name = name; p.isSecret = isSecret; await saveProjectDB(p); } }
+            const notes = document.getElementById('edit-project-notes').value;
+            if (name) { 
+                const p = projects.find(x => x.id === contextTargetProjectId); 
+                if (p) { 
+                    p.name = name; 
+                    p.isSecret = isSecret; 
+                    p.notes = notes;
+                    await saveProjectDB(p); 
+                } 
+            }
             closeEditProjectModal();
         });
 
