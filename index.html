@@ -46,15 +46,14 @@
         .view-toggle { background: transparent; color: #42526e; border-radius: 4px; padding: 6px 16px; margin: 0; font-size: 14px; display: flex; align-items: center; gap: 6px; }
         .view-toggle:hover { background: rgba(255,255,255,0.5); }
         .view-toggle.active { background: white; color: #172b4d; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        
-        .scratchpad-trigger { color: #0052cc !important; font-weight: bold; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        .scratchpad-trigger:hover { background: #f4f5f7 !important; }
-
         .search-badge { background: #de350b; color: white; font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: bold; line-height: 1; }
 
         .filters-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-        .filters-bar input, .filters-bar select { padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px; }
+        .filters-bar input, .filters-bar select { padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px; box-sizing: border-box; }
         .filters-bar input:focus, .filters-bar select:focus { border-color: #4c9aff; }
+        
+        .scratchpad-icon-btn { background: white; border: 1px solid #dfe1e6; border-radius: 4px; padding: 6px 12px; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; font-size: 16px; }
+        .scratchpad-icon-btn:hover { background: #ebecf0; border-color: #c1c7d0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 
         .board { display: flex; gap: 20px; align-items: flex-start; overflow-x: auto; padding-bottom: 10px; }
         .column { flex: 1; min-width: 260px; background: #ebecf0; padding: 12px; border-radius: 6px; min-height: 400px; display: flex; flex-direction: column; }
@@ -144,8 +143,7 @@
             .header-controls { justify-content: space-between; width: 100%; flex-wrap: nowrap; }
             .header-controls .desktop-add-task { display: none; } 
             .tools-row { flex-direction: column; align-items: stretch; gap: 10px; }
-            .filters-bar { flex-direction: column; width: 100%; align-items: stretch;}
-            .filters-bar input, .filters-bar select { width: 100%; box-sizing: border-box; }
+            .filters-bar { flex-direction: column; width: 100%; align-items: stretch; gap: 10px; }
             
             .mobile-fab {
                 display: flex; position: fixed; bottom: 24px; right: 24px;
@@ -177,7 +175,7 @@
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
-            /* Full-Screen Mobile Modals */
+            /* Full-Screen Mobile Modals to Bypass Safari Keyboard Trap */
             dialog { 
                 position: fixed !important; 
                 top: 0 !important; 
@@ -233,8 +231,6 @@
 
         <div class="tools-row">
             <div class="view-toggles">
-                <button class="view-toggle scratchpad-trigger" onclick="openScratchpadModal()" title="Project Notes / Scratchpad">📝 Notes</button>
-                <div style="width: 2px; background: #c1c7d0; margin: 4px 2px; border-radius: 2px;"></div>
                 <button class="view-toggle active" id="btn-view-active" onclick="switchView('active')">📊 Active Board</button>
                 <button class="view-toggle" id="btn-view-future" onclick="switchView('future')">⏳ Future</button>
                 <button class="view-toggle" id="btn-view-archive" onclick="switchView('archive')">🗄️ Archive</button>
@@ -243,7 +239,11 @@
             <div class="filters-bar">
                 <input type="text" id="filter-search" placeholder="Search tasks..." oninput="renderBoard()">
                 <select id="filter-assignee" onchange="renderBoard()"><option value="All">All Assignees</option></select>
-                <select id="filter-urgency" onchange="renderBoard()"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+                
+                <div style="display: flex; gap: 10px; width: 100%;">
+                    <select id="filter-urgency" onchange="renderBoard()" style="flex: 1;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+                    <button class="scratchpad-icon-btn" onclick="openScratchpadModal()" title="Project Notes / Scratchpad">📝</button>
+                </div>
             </div>
         </div>
 
@@ -313,9 +313,12 @@
             <div class="form-group">
                 <textarea id="scratchpad-text" rows="12" placeholder="Jot down quick ideas, meeting notes, or draft future tasks here..." style="resize: vertical;"></textarea>
             </div>
-            <div class="dialog-actions">
-                <button type="button" class="secondary" onclick="closeScratchpadModal()">Cancel</button>
-                <button type="submit">Save Notes</button>
+            <div class="dialog-actions" style="justify-content: space-between;">
+                <button type="button" class="danger-solid" onclick="clearScratchpad()">Clear Note</button>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" class="secondary" onclick="closeScratchpadModal()">Cancel</button>
+                    <button type="submit">Save Notes</button>
+                </div>
             </div>
         </form>
     </dialog>
@@ -966,6 +969,17 @@
         function closeScratchpadModal() {
             unlockBody();
             document.getElementById('scratchpad-modal').close();
+        }
+
+        async function clearScratchpad() {
+            if (!currentProjectId) return;
+            document.getElementById('scratchpad-text').value = '';
+            const p = projects.find(x => x.id === currentProjectId);
+            if (p) {
+                p.notes = '';
+                await saveProjectDB(p);
+            }
+            closeScratchpadModal();
         }
 
         document.getElementById('scratchpad-form').addEventListener('submit', async function(e) {
