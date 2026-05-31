@@ -50,6 +50,9 @@
         .view-toggle:hover { background: rgba(255,255,255,0.5); }
         .view-toggle.active { background: white; color: #172b4d; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         
+        /* NEW: Inverted active state for Master View Scopes */
+        .view-toggle.active-blue { background: #e6fcff; color: #0052cc; font-weight: bold; box-shadow: 0 1px 2px rgba(0,82,204,0.15); border: 1px solid #b3d4ff; }
+
         .search-badge { background: #de350b; color: white; font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: bold; line-height: 1; }
 
         .filters-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -94,6 +97,8 @@
         .card:hover .actions { opacity: 1; }
 
         .context-crumb { font-size: 10px; color: #8993a4; margin-bottom: 6px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
+        .clickable-crumb { cursor: pointer; transition: color 0.2s ease; display: inline-block; }
+        .clickable-crumb:hover { color: #0052cc; text-decoration: underline; }
 
         /* SIZES */
         .board-container.size-big .card { padding: 16px; gap: 12px; }
@@ -296,29 +301,27 @@
                 <button class="secondary" onclick="toggleMasterView()">← Back to Board</button>
             </div>
 
-            <div class="tools-row" style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-top: 15px;">
-                <div class="view-toggles" style="width: 100%;">
+            <div class="tools-row" style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-top: 15px; display: flex; gap: 15px; flex-wrap: wrap;">
+                <div class="view-toggles" style="flex: 1; min-width: 200px;">
                     <button class="view-toggle active" id="mv-time-today" onclick="setMasterTime('today')" style="flex: 1; justify-content: center;">Today</button>
                     <button class="view-toggle" id="mv-time-week" onclick="setMasterTime('week')" style="flex: 1; justify-content: center;">This Week</button>
-                    <button class="view-toggle" id="mv-time-month" onclick="setMasterTime('month')" style="flex: 1; justify-content: center;">This Month</button>
-                    <button class="view-toggle" id="mv-time-all" onclick="setMasterTime('all')" style="flex: 1; justify-content: center;">All Upcoming</button>
                 </div>
-                <div class="view-toggles" style="background: #e6fcff; width: 100%;">
+                <div class="view-toggles" style="flex: 2; min-width: 300px;">
                     <button class="view-toggle" id="mv-scope-project" onclick="setMasterScope('project')" style="flex: 1; justify-content: center;">This Project</button>
-                    <button class="view-toggle active" id="mv-scope-workspace" onclick="setMasterScope('workspace')" style="flex: 1; justify-content: center;">This Workspace</button>
+                    <button class="view-toggle active-blue" id="mv-scope-workspace" onclick="setMasterScope('workspace')" style="flex: 1; justify-content: center;">This Workspace</button>
                     <button class="view-toggle" id="mv-scope-all" onclick="setMasterScope('all')" style="flex: 1; justify-content: center;">All Workspaces</button>
                 </div>
             </div>
 
-            <div class="filters-bar" style="margin-bottom: 20px;">
-                <input type="text" id="mv-filter-search" placeholder="Search schedule..." oninput="renderMasterView()">
-                <select id="mv-filter-assignee" onchange="renderMasterView()"><option value="All">All Assignees</option></select>
-                <div style="display: flex; gap: 10px; width: 100%;">
-                    <select id="mv-filter-urgency" onchange="renderMasterView()" style="flex: 1;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
-                    <button type="button" class="icon-btn" onclick="window.open('https://calendar.google.com', '_blank')" title="Open Google Calendar">📅</button>
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+                <div style="display: flex; gap: 10px; align-items: center; width: 100%; overflow-x: auto; padding-bottom: 4px;">
+                    <input type="text" id="mv-filter-search" placeholder="Search schedule..." oninput="renderMasterView()" style="flex: 1; min-width: 140px; padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; box-sizing: border-box; outline: none; font-family: inherit; font-size: 14px;">
+                    <select id="mv-filter-assignee" onchange="renderMasterView()" style="padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px;"><option value="All">All Assignees</option></select>
+                    <select id="mv-filter-urgency" onchange="renderMasterView()" style="padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+                    <button type="button" class="icon-btn" onclick="window.open('https://calendar.google.com', '_blank')" title="Open Google Calendar" style="flex-shrink: 0; height: 32px; padding: 0 12px;">📅</button>
                 </div>
                 
-                <div style="width: 100%; display: flex; gap: 15px; flex-wrap: wrap; align-items: center; background: white; padding: 10px; border-radius: 4px; border: 1px solid #dfe1e6;">
+                <div style="width: 100%; display: flex; gap: 15px; flex-wrap: wrap; align-items: center; background: white; padding: 10px; border-radius: 4px; border: 1px solid #dfe1e6; box-sizing: border-box;">
                     <span style="font-size: 13px; font-weight: bold; color: #5e6c84; text-transform: uppercase;">Status:</span>
                     <label style="font-size: 14px; display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" class="mv-status-check" value="todo" checked onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> To Do</label>
                     <label style="font-size: 14px; display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" class="mv-status-check" value="doing" checked onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Doing</label>
@@ -766,7 +769,7 @@
                 list.appendChild(btn);
             });
             const activeWorkspace = workspaces.find(w => w.id === currentWorkspaceId);
-            document.getElementById('app-title').innerHTML = (activeWorkspace ? sanitize(activeWorkspace.name) : "Task Board") + ' <span style="font-size:14px; opacity:0.6; margin-left:6px;">(Schedule ▼)</span>';
+            document.getElementById('app-title').innerHTML = activeWorkspace ? sanitize(activeWorkspace.name) : "Task Board";
         }
 
         function renderWorkspaceUsers() {
@@ -856,6 +859,7 @@
                 return (titleStr.includes(searchQ) || descStr.includes(searchQ)) && (assigneeQ === "All" || assigneesArray.includes(assigneeQ)) && (urgencyQ === "All" || urgencyStr === urgencyQ);
             });
 
+            // Sort by User's custom Task Order preferences
             const userPrefs = getActiveUserObj().preferences;
             const taskOrder = userPrefs.taskOrder || [];
             allMatches.sort((a, b) => {
@@ -932,20 +936,34 @@
         }
 
         // --- NEW: MASTER SCHEDULE RENDERER ---
+        
+        async function navigateToProject(wsId, projId) {
+            if (!wsId || !projId) return;
+            if (currentWorkspaceId !== wsId) {
+                currentWorkspaceId = wsId;
+                localStorage.setItem('currentWorkspaceId', wsId);
+                await loadDataFromDB(); // This updates projects array and triggers renderAll()
+            } 
+            
+            currentProjectId = projId;
+            localStorage.setItem('currentProjectId', projId);
+            
+            if (isMasterView) toggleMasterView();
+            else renderAll();
+        }
+        
         function setMasterTime(time) {
             masterTimeframe = time;
             document.getElementById('mv-time-today').classList.toggle('active', time === 'today');
             document.getElementById('mv-time-week').classList.toggle('active', time === 'week');
-            document.getElementById('mv-time-month').classList.toggle('active', time === 'month');
-            document.getElementById('mv-time-all').classList.toggle('active', time === 'all');
             renderMasterView();
         }
 
         function setMasterScope(scope) {
             masterScope = scope;
-            document.getElementById('mv-scope-project').classList.toggle('active', scope === 'project');
-            document.getElementById('mv-scope-workspace').classList.toggle('active', scope === 'workspace');
-            document.getElementById('mv-scope-all').classList.toggle('active', scope === 'all');
+            document.getElementById('mv-scope-project').classList.toggle('active-blue', scope === 'project');
+            document.getElementById('mv-scope-workspace').classList.toggle('active-blue', scope === 'workspace');
+            document.getElementById('mv-scope-all').classList.toggle('active-blue', scope === 'all');
             updateAssigneeFilterOptions();
             renderMasterView();
         }
@@ -992,7 +1010,6 @@
 
             // 2. Filter Timeframe
             let timeFiltered = scopedTasks.filter(t => {
-                if (masterTimeframe === 'all') return true;
                 if (!t.due_date) return false;
 
                 const [y, m, d] = t.due_date.split('-');
@@ -1004,7 +1021,6 @@
 
                 if (masterTimeframe === 'today') return diffDays <= 0; // Includes Overdue tasks
                 if (masterTimeframe === 'week') return diffDays <= 7;
-                if (masterTimeframe === 'month') return diffDays <= 30;
                 return true;
             });
 
@@ -1036,37 +1052,26 @@
                 card.className = 'card'; 
                 card.setAttribute('data-id', task.id); 
                 card.setAttribute('onclick', `editTask('${task.id}')`); 
-                // Context menu triggers on right click (desktop) OR ellipsis click (mobile)
                 card.setAttribute('oncontextmenu', `showContextMenuMain(event, '${task.id}')`);
-                // Note: Draggable is DISABLED here to prevent data corruption across projects
                 
                 const proj = projects.find(p => p.id === task.project_id);
                 const ws = workspaces.find(w => w.id === (proj ? proj.workspace_id : null));
-                const contextHtml = `<div class="context-crumb">${sanitize(ws ? ws.name : '')} › ${sanitize(proj ? proj.name : '')}</div>`;
-
-                const urgencyHtml = displayConfig.showUrgency ? `<span class="dot ${task.urgency}" title="Urgency: ${task.urgency}"></span>` : ''; 
-                const descHtml = (displayConfig.showDesc && task.description) ? `<p>${linkify(sanitize(task.description))}</p>` : '';
                 
-                let assigneesHtml = ''; 
-                if (displayConfig.showAssignee) { 
-                    const aList = task.assignees || []; 
-                    if (aList.length === 0) assigneesHtml = `<span class="badge" style="background:#dfe1e6; color:#42526e;">Unassigned</span>`; 
-                    else assigneesHtml = aList.map(id => `<span class="badge">👤 ${sanitize(getUserName(id))}</span>`).join(''); 
+                // Clickable Context Crumb
+                const contextHtml = `<div class="context-crumb clickable-crumb" onclick="event.stopPropagation(); navigateToProject('${ws ? ws.id : ''}', '${proj ? proj.id : ''}')">${sanitize(ws ? ws.name : '')} › ${sanitize(proj ? proj.name : '')}</div>`;
+
+                let dateHtml = ''; 
+                if (task.due_date) { 
+                    const d = new Date(task.due_date + 'T12:00:00'); 
+                    dateHtml = `<span class="date-badge" style="margin:0; background: transparent; border: none; padding: 0;">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; 
                 }
                 
-                let dateHtml = ''; if (task.due_date) { const d = new Date(task.due_date + 'T12:00:00'); dateHtml = `<span class="date-badge" title="Due Date">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; }
-                const childTasks = tasks.filter(t => t.parent_task_id === task.id); let subtaskHtml = ''; if (childTasks.length > 0) { subtaskHtml = `<span class="badge subtask-badge" title="Subtasks">☑ ${childTasks.filter(s => s.status === 'complete').length}/${childTasks.length}</span>`; }
-                
                 card.innerHTML = `
-                    <div style="padding: 16px;">
+                    <div style="padding: 12px 16px;">
                         ${contextHtml}
-                        <div class="card-header-row">
-                            <h3 style="font-size: 16px;">${urgencyHtml} ${sanitize(task.title)}</h3>
-                            <button type="button" class="card-menu-btn" onclick="event.stopPropagation(); showContextMenuMain(event, '${task.id}')">⋮</button>
-                        </div>
-                        ${descHtml}
-                        <div class="card-footer" style="padding-top: 12px; margin-top: 12px; border-top: 1px solid #ebecf0;">
-                            <div class="meta-group">${assigneesHtml}${dateHtml}${subtaskHtml}</div>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                            <h3 style="font-size: 15px; margin: 0; color: #172b4d; flex: 1;">${sanitize(task.title)}</h3>
+                            ${dateHtml}
                         </div>
                     </div>`; 
                 list.appendChild(card);
