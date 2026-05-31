@@ -53,7 +53,7 @@
         .search-badge { background: #de350b; color: white; font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: bold; line-height: 1; }
 
         .filters-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-        .filters-bar input, .filters-bar select { padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px; box-sizing: border-box; }
+        .filters-bar input[type="text"], .filters-bar select { padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px; box-sizing: border-box; }
         .filters-bar input:focus, .filters-bar select:focus { border-color: #4c9aff; }
         
         .icon-btn { background: white; border: 1px solid #dfe1e6; border-radius: 4px; padding: 6px 12px; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; font-size: 16px; height: 35px; }
@@ -149,7 +149,6 @@
             .header-controls { justify-content: space-between; width: 100%; flex-wrap: nowrap; }
             .header-controls .desktop-add-task { display: none; } 
             
-            /* Ensure Tools Row Elements Stack Cleanly on Mobile */
             .tools-row { flex-direction: column; align-items: stretch; gap: 10px; }
             .filters-bar { flex-direction: column; width: 100%; align-items: stretch; gap: 10px; }
             
@@ -317,6 +316,15 @@
                 <div style="display: flex; gap: 10px; width: 100%;">
                     <select id="mv-filter-urgency" onchange="renderMasterView()" style="flex: 1;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
                     <button type="button" class="icon-btn" onclick="window.open('https://calendar.google.com', '_blank')" title="Open Google Calendar">📅</button>
+                </div>
+                
+                <div style="width: 100%; display: flex; gap: 15px; flex-wrap: wrap; align-items: center; background: white; padding: 10px; border-radius: 4px; border: 1px solid #dfe1e6;">
+                    <span style="font-size: 13px; font-weight: bold; color: #5e6c84; text-transform: uppercase;">Status:</span>
+                    <label style="font-size: 14px; display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" class="mv-status-check" value="todo" checked onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> To Do</label>
+                    <label style="font-size: 14px; display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" class="mv-status-check" value="doing" checked onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Doing</label>
+                    <label style="font-size: 14px; display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" class="mv-status-check" value="done" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Done</label>
+                    <label style="font-size: 14px; display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" class="mv-status-check" value="future" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Future</label>
+                    <label style="font-size: 14px; display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" class="mv-status-check" value="complete" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Archived</label>
                 </div>
             </div>
 
@@ -548,6 +556,7 @@
         function lockBody() { document.body.style.overflow = 'hidden'; }
         function unlockBody() { document.body.style.overflow = 'auto'; }
 
+        // --- ALL MODALS NOW RESET SCROLLTOP ON OPEN ---
         function openCreateWorkspaceModal() { lockBody(); document.getElementById('create-workspace-form').reset(); const m = document.getElementById('create-workspace-modal'); m.showModal(); setTimeout(() => m.scrollTop = 0, 10); }
         function closeCreateWorkspaceModal() { unlockBody(); document.getElementById('create-workspace-modal').close(); }
         
@@ -794,7 +803,7 @@
                     } else {
                         currentProjectId = project.id; 
                         localStorage.setItem('currentProjectId', project.id);
-                        if(isMasterView) toggleMasterView(); // Auto-close master view if they click a specific project
+                        if(isMasterView) toggleMasterView(); 
                         renderBoard(); 
                         renderProjects(); 
                         updateAssigneeFilterOptions(); 
@@ -820,7 +829,6 @@
             const filterSelect = document.getElementById(isMasterView ? 'mv-filter-assignee' : 'filter-assignee'); 
             const currentSelection = filterSelect.value; filterSelect.innerHTML = '<option value="All">All Assignees</option>';
             
-            // In master view, grab assignees across all visible workspaces. Otherwise, just current project.
             let activeAssignees = new Set(); 
             if(isMasterView) {
                 const allowedWsIds = getActiveUserObj().workspace_ids || [];
@@ -967,8 +975,9 @@
             const today = new Date();
             today.setHours(0,0,0,0);
 
-            // 1. Filter Scope (Project vs Workspace vs All Workspaces)
-            let scopedTasks = tasks.filter(t => t.parent_task_id === null && t.status !== 'complete');
+            // 1. Filter Scope & Multi-Select Statuses
+            const activeStatuses = Array.from(document.querySelectorAll('.mv-status-check:checked')).map(cb => cb.value);
+            let scopedTasks = tasks.filter(t => t.parent_task_id === null && activeStatuses.includes(t.status));
 
             if (masterScope === 'project') {
                 scopedTasks = scopedTasks.filter(t => t.project_id === currentProjectId);
