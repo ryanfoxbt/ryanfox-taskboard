@@ -27,6 +27,9 @@
         button.action-warning { background: transparent; color: #ff991f; padding: 4px 8px; font-size: 12px; margin: 0; }
         button.action-warning:hover { background: #fff5e6; }
 
+        .clickable-title { cursor: pointer; transition: color 0.2s; user-select: none; }
+        .clickable-title:hover { color: #0052cc; }
+
         .gear-btn { background: transparent; color: #5e6c84; font-size: 20px; padding: 4px 8px; line-height: 1; }
         .gear-btn:hover { background: #ebecf0; color: #172b4d; }
 
@@ -46,6 +49,7 @@
         .view-toggle { background: transparent; color: #42526e; border-radius: 4px; padding: 6px 16px; margin: 0; font-size: 14px; display: flex; align-items: center; gap: 6px; }
         .view-toggle:hover { background: rgba(255,255,255,0.5); }
         .view-toggle.active { background: white; color: #172b4d; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        
         .search-badge { background: #de350b; color: white; font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: bold; line-height: 1; }
 
         .filters-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -88,6 +92,8 @@
         
         .card .actions { opacity: 0; transition: opacity 0.2s ease; display: flex; gap: 2px; }
         .card:hover .actions { opacity: 1; }
+
+        .context-crumb { font-size: 10px; color: #8993a4; margin-bottom: 6px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
 
         /* SIZES */
         .board-container.size-big .card { padding: 16px; gap: 12px; }
@@ -142,6 +148,8 @@
             .header { flex-direction: column; align-items: stretch; gap: 15px; }
             .header-controls { justify-content: space-between; width: 100%; flex-wrap: nowrap; }
             .header-controls .desktop-add-task { display: none; } 
+            
+            /* Ensure Tools Row Elements Stack Cleanly on Mobile */
             .tools-row { flex-direction: column; align-items: stretch; gap: 10px; }
             .filters-bar { flex-direction: column; width: 100%; align-items: stretch; gap: 10px; }
             
@@ -209,7 +217,7 @@
     <div id="app-container" style="display: none;">
         <div class="header">
             <div class="title-container" style="display: flex; align-items: center; position: relative;">
-                <h1 id="app-title" style="margin: 0;">Loading...</h1>
+                <h1 id="app-title" class="clickable-title" onclick="toggleMasterView()" title="Open Master Schedule">Loading...</h1>
                 <button class="gear-btn" onclick="toggleWorkspaceMenu(event)" title="Workspace Options" style="font-weight: bold; margin-left: 8px; font-size: 24px; padding: 0 8px;">⋮</button>
                 
                 <div id="workspace-context-menu" class="custom-context-menu" style="position: absolute; top: 100%; left: 0; margin-top: 8px;">
@@ -227,58 +235,94 @@
             </div>
         </div>
 
-        <div class="project-tabs" id="project-tabs"></div>
+        <div id="kanban-view-container">
+            <div class="project-tabs" id="project-tabs"></div>
 
-        <div class="tools-row">
-            <div class="view-toggles">
-                <button class="view-toggle active" id="btn-view-active" onclick="switchView('active')">📊 Active Board</button>
-                <button class="view-toggle" id="btn-view-future" onclick="switchView('future')">⏳ Future</button>
-                <button class="view-toggle" id="btn-view-archive" onclick="switchView('archive')">🗄️ Archive</button>
+            <div class="tools-row" id="main-tools-row">
+                <div class="view-toggles">
+                    <button class="view-toggle active" id="btn-view-active" onclick="switchView('active')">📊 Active Board</button>
+                    <button class="view-toggle" id="btn-view-future" onclick="switchView('future')">⏳ Future</button>
+                    <button class="view-toggle" id="btn-view-archive" onclick="switchView('archive')">🗄️ Archive</button>
+                </div>
+
+                <div class="filters-bar">
+                    <input type="text" id="filter-search" placeholder="Search tasks..." oninput="renderBoard()">
+                    <select id="filter-assignee" onchange="renderBoard()"><option value="All">All Assignees</option></select>
+                    
+                    <div style="display: flex; gap: 10px; width: 100%;">
+                        <select id="filter-urgency" onchange="renderBoard()" style="flex: 1;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+                        <button type="button" class="icon-btn" onclick="window.open('https://calendar.google.com', '_blank')" title="Open Google Calendar">📅</button>
+                    </div>
+                </div>
             </div>
 
-            <div class="filters-bar">
-                <input type="text" id="filter-search" placeholder="Search tasks..." oninput="renderBoard()">
-                <select id="filter-assignee" onchange="renderBoard()"><option value="All">All Assignees</option></select>
-                
+            <div id="master-board-wrapper" class="board-container size-big">
+                <div class="board" id="view-active">
+                    <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'todo')">
+                        <div class="column-header"><h2>To Do</h2><button class="add-icon" onclick="openModal('todo')" title="Add To Do">+</button></div>
+                        <div id="todo-list" class="task-list"></div>
+                    </div>
+                    <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'doing')">
+                        <div class="column-header"><h2>Doing</h2><button class="add-icon" onclick="openModal('doing')" title="Add Doing">+</button></div>
+                        <div id="doing-list" class="task-list"></div>
+                    </div>
+                    <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'done')">
+                        <div class="column-header"><h2>Done</h2><button class="add-icon" onclick="openModal('done')" title="Add Done">+</button></div>
+                        <div id="done-list" class="task-list"></div>
+                    </div>
+                </div>
+
+                <div class="single-column-board" id="view-future">
+                    <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'future')">
+                        <div class="column-header"><h2>Future Tasks</h2><button class="add-icon" onclick="openModal('future')" title="Add Future Task">+</button></div>
+                        <div id="future-list" class="task-list"></div>
+                    </div>
+                </div>
+
+                <div class="single-column-board" id="view-archive">
+                    <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'complete')">
+                        <div class="column-header"><h2>Completed (Archived)</h2></div>
+                        <div id="complete-list" class="task-list"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="mobile-fab" onclick="openModal()">+</button>
+        </div>
+
+        <div id="master-schedule-container" style="display: none;">
+            
+            <div class="modal-header-row" style="margin-top: 10px; border-bottom: none; padding-bottom: 0;">
+                <h2 style="margin:0; color: #0052cc;">Master Schedule</h2>
+                <button class="secondary" onclick="toggleMasterView()">← Back to Board</button>
+            </div>
+
+            <div class="tools-row" style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-top: 15px;">
+                <div class="view-toggles" style="width: 100%;">
+                    <button class="view-toggle active" id="mv-time-today" onclick="setMasterTime('today')" style="flex: 1; justify-content: center;">Today</button>
+                    <button class="view-toggle" id="mv-time-week" onclick="setMasterTime('week')" style="flex: 1; justify-content: center;">This Week</button>
+                    <button class="view-toggle" id="mv-time-month" onclick="setMasterTime('month')" style="flex: 1; justify-content: center;">This Month</button>
+                    <button class="view-toggle" id="mv-time-all" onclick="setMasterTime('all')" style="flex: 1; justify-content: center;">All Upcoming</button>
+                </div>
+                <div class="view-toggles" style="background: #e6fcff; width: 100%;">
+                    <button class="view-toggle" id="mv-scope-project" onclick="setMasterScope('project')" style="flex: 1; justify-content: center;">This Project</button>
+                    <button class="view-toggle active" id="mv-scope-workspace" onclick="setMasterScope('workspace')" style="flex: 1; justify-content: center;">This Workspace</button>
+                    <button class="view-toggle" id="mv-scope-all" onclick="setMasterScope('all')" style="flex: 1; justify-content: center;">All Workspaces</button>
+                </div>
+            </div>
+
+            <div class="filters-bar" style="margin-bottom: 20px;">
+                <input type="text" id="mv-filter-search" placeholder="Search schedule..." oninput="renderMasterView()">
+                <select id="mv-filter-assignee" onchange="renderMasterView()"><option value="All">All Assignees</option></select>
                 <div style="display: flex; gap: 10px; width: 100%;">
-                    <select id="filter-urgency" onchange="renderBoard()" style="flex: 1;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+                    <select id="mv-filter-urgency" onchange="renderMasterView()" style="flex: 1;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
                     <button type="button" class="icon-btn" onclick="window.open('https://calendar.google.com', '_blank')" title="Open Google Calendar">📅</button>
                 </div>
             </div>
+
+            <div id="master-task-list" class="board-container size-big" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding-bottom: 60px;">
+                </div>
         </div>
-
-        <div id="master-board-wrapper" class="board-container size-big">
-            <div class="board" id="view-active">
-                <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'todo')">
-                    <div class="column-header"><h2>To Do</h2><button class="add-icon" onclick="openModal('todo')" title="Add To Do">+</button></div>
-                    <div id="todo-list" class="task-list"></div>
-                </div>
-                <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'doing')">
-                    <div class="column-header"><h2>Doing</h2><button class="add-icon" onclick="openModal('doing')" title="Add Doing">+</button></div>
-                    <div id="doing-list" class="task-list"></div>
-                </div>
-                <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'done')">
-                    <div class="column-header"><h2>Done</h2><button class="add-icon" onclick="openModal('done')" title="Add Done">+</button></div>
-                    <div id="done-list" class="task-list"></div>
-                </div>
-            </div>
-
-            <div class="single-column-board" id="view-future">
-                <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'future')">
-                    <div class="column-header"><h2>Future Tasks</h2><button class="add-icon" onclick="openModal('future')" title="Add Future Task">+</button></div>
-                    <div id="future-list" class="task-list"></div>
-                </div>
-            </div>
-
-            <div class="single-column-board" id="view-archive">
-                <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'complete')">
-                    <div class="column-header"><h2>Completed (Archived)</h2></div>
-                    <div id="complete-list" class="task-list"></div>
-                </div>
-            </div>
-        </div>
-        
-        <button class="mobile-fab" onclick="openModal()">+</button>
     </div>
 
     <div id="active-context-menu" class="custom-context-menu">
@@ -487,7 +531,6 @@
             return String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
         }
 
-        // Detects web URLs and safely converts them to clickable links
         function linkify(text) {
             if (!text) return '';
             const urlPattern = /(\b(https?):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gim;
@@ -502,11 +545,9 @@
             });
         }
 
-        // Stops the background from sliding around on iOS when a modal is open
         function lockBody() { document.body.style.overflow = 'hidden'; }
         function unlockBody() { document.body.style.overflow = 'auto'; }
 
-        // --- ALL MODALS NOW RESET SCROLLTOP ON OPEN ---
         function openCreateWorkspaceModal() { lockBody(); document.getElementById('create-workspace-form').reset(); const m = document.getElementById('create-workspace-modal'); m.showModal(); setTimeout(() => m.scrollTop = 0, 10); }
         function closeCreateWorkspaceModal() { unlockBody(); document.getElementById('create-workspace-modal').close(); }
         
@@ -530,6 +571,11 @@
 
         let currentView = 'active'; let draftTask = null; let draftSubtasks = []; let pendingConfirmAction = null; 
         let contextTargetMainId = null; let contextTargetSubtaskId = null; let contextTargetProjectId = null;
+
+        // MASTER SCHEDULE STATE
+        let isMasterView = false;
+        let masterTimeframe = 'today';
+        let masterScope = 'workspace'; 
 
         const lists = { future: document.getElementById('future-list'), todo: document.getElementById('todo-list'), doing: document.getElementById('doing-list'), done: document.getElementById('done-list'), complete: document.getElementById('complete-list') };
         const workspaceContextMenu = document.getElementById('workspace-context-menu'); const activeContextMenu = document.getElementById('active-context-menu'); const futureContextMenu = document.getElementById('future-context-menu'); const archiveContextMenu = document.getElementById('archive-context-menu'); const subtaskContextMenu = document.getElementById('subtask-context-menu');
@@ -609,7 +655,6 @@
             } catch (error) { console.error("Database connection failed.", error); }
         }
 
-        // --- SAFE USER PARSING LOGIC ---
         function getActiveUserObj() { 
             let u = workspaceUsers.find(u => u.email === activeUserEmail);
             if (!u) u = { id: null, workspace_ids: [] };
@@ -633,7 +678,6 @@
             
             const activeWorkspaceProjects = projects.filter(p => p.workspace_id === currentWorkspaceId);
             if (activeWorkspaceProjects.length > 0) {
-                // Check if current project is invalid or null. If so, default to the user's first visible tab.
                 if (!currentProjectId || !activeWorkspaceProjects.find(p => p.id === currentProjectId)) {
                     activeWorkspaceProjects.sort((a, b) => {
                         let idxA = (me.preferences.projectOrder || []).indexOf(a.id); 
@@ -656,7 +700,12 @@
             renderWorkspaceUsers(); 
             renderProjects(); 
             updateAssigneeFilterOptions(); 
-            renderBoard();
+            
+            if (isMasterView) {
+                renderMasterView();
+            } else {
+                renderBoard();
+            }
         }
 
         function getVisibleUsers() { return workspaceUsers.filter(u => u.workspace_ids && u.workspace_ids.includes(currentWorkspaceId)); }
@@ -673,12 +722,12 @@
 
         async function saveTaskDB(t) {
             const idx = tasks.findIndex(x => x.id === t.id); if (idx > -1) tasks[idx] = t; else tasks.push(t);
-            renderBoard(); await apiCall('/tasks', 'POST', t);
+            renderAll(); await apiCall('/tasks', 'POST', t);
         }
 
         async function deleteTaskDB(id) {
             tasks = tasks.filter(t => t.id !== id && t.parent_task_id !== id);
-            renderBoard(); await apiCall(`/tasks/${id}`, 'DELETE');
+            renderAll(); await apiCall(`/tasks/${id}`, 'DELETE');
         }
 
         async function saveProjectDB(p) {
@@ -708,7 +757,7 @@
                 list.appendChild(btn);
             });
             const activeWorkspace = workspaces.find(w => w.id === currentWorkspaceId);
-            document.getElementById('app-title').innerHTML = activeWorkspace ? sanitize(activeWorkspace.name) : "Task Board";
+            document.getElementById('app-title').innerHTML = (activeWorkspace ? sanitize(activeWorkspace.name) : "Task Board") + ' <span style="font-size:14px; opacity:0.6; margin-left:6px;">(Schedule ▼)</span>';
         }
 
         function renderWorkspaceUsers() {
@@ -745,6 +794,7 @@
                     } else {
                         currentProjectId = project.id; 
                         localStorage.setItem('currentProjectId', project.id);
+                        if(isMasterView) toggleMasterView(); // Auto-close master view if they click a specific project
                         renderBoard(); 
                         renderProjects(); 
                         updateAssigneeFilterOptions(); 
@@ -767,8 +817,19 @@
         }
 
         function updateAssigneeFilterOptions() {
-            const filterSelect = document.getElementById('filter-assignee'); const currentSelection = filterSelect.value; filterSelect.innerHTML = '<option value="All">All Assignees</option>';
-            const activeAssignees = new Set(); tasks.filter(t => t.project_id === currentProjectId).forEach(t => { if (t.assignees) t.assignees.forEach(a => activeAssignees.add(a)); });
+            const filterSelect = document.getElementById(isMasterView ? 'mv-filter-assignee' : 'filter-assignee'); 
+            const currentSelection = filterSelect.value; filterSelect.innerHTML = '<option value="All">All Assignees</option>';
+            
+            // In master view, grab assignees across all visible workspaces. Otherwise, just current project.
+            let activeAssignees = new Set(); 
+            if(isMasterView) {
+                const allowedWsIds = getActiveUserObj().workspace_ids || [];
+                const allowedProjIds = projects.filter(p => allowedWsIds.includes(p.workspace_id)).map(p => p.id);
+                tasks.filter(t => allowedProjIds.includes(t.project_id)).forEach(t => { if (t.assignees) t.assignees.forEach(a => activeAssignees.add(a)); });
+            } else {
+                tasks.filter(t => t.project_id === currentProjectId).forEach(t => { if (t.assignees) t.assignees.forEach(a => activeAssignees.add(a)); });
+            }
+
             Array.from(activeAssignees).sort().forEach(id => { 
                 const option = document.createElement('option'); option.value = id; 
                 option.innerHTML = sanitize(getUserName(id)); 
@@ -787,7 +848,6 @@
                 return (titleStr.includes(searchQ) || descStr.includes(searchQ)) && (assigneeQ === "All" || assigneesArray.includes(assigneeQ)) && (urgencyQ === "All" || urgencyStr === urgencyQ);
             });
 
-            // Sort by User's custom Task Order preferences
             const userPrefs = getActiveUserObj().preferences;
             const taskOrder = userPrefs.taskOrder || [];
             allMatches.sort((a, b) => {
@@ -861,6 +921,147 @@
                     firstPopulated.col.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
                 }
             }
+        }
+
+        // --- NEW: MASTER SCHEDULE RENDERER ---
+        function setMasterTime(time) {
+            masterTimeframe = time;
+            document.getElementById('mv-time-today').classList.toggle('active', time === 'today');
+            document.getElementById('mv-time-week').classList.toggle('active', time === 'week');
+            document.getElementById('mv-time-month').classList.toggle('active', time === 'month');
+            document.getElementById('mv-time-all').classList.toggle('active', time === 'all');
+            renderMasterView();
+        }
+
+        function setMasterScope(scope) {
+            masterScope = scope;
+            document.getElementById('mv-scope-project').classList.toggle('active', scope === 'project');
+            document.getElementById('mv-scope-workspace').classList.toggle('active', scope === 'workspace');
+            document.getElementById('mv-scope-all').classList.toggle('active', scope === 'all');
+            updateAssigneeFilterOptions();
+            renderMasterView();
+        }
+
+        function toggleMasterView() {
+            isMasterView = !isMasterView;
+            document.getElementById('kanban-view-container').style.display = isMasterView ? 'none' : 'block';
+            document.getElementById('master-schedule-container').style.display = isMasterView ? 'block' : 'none';
+
+            if (isMasterView) {
+                updateAssigneeFilterOptions();
+                renderMasterView();
+            } else {
+                updateAssigneeFilterOptions();
+                renderBoard();
+            }
+        }
+
+        function renderMasterView() {
+            const list = document.getElementById('master-task-list');
+            list.innerHTML = '';
+
+            const searchQ = document.getElementById('mv-filter-search').value.toLowerCase();
+            const assigneeQ = document.getElementById('mv-filter-assignee').value;
+            const urgencyQ = document.getElementById('mv-filter-urgency').value;
+
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            // 1. Filter Scope (Project vs Workspace vs All Workspaces)
+            let scopedTasks = tasks.filter(t => t.parent_task_id === null && t.status !== 'complete');
+
+            if (masterScope === 'project') {
+                scopedTasks = scopedTasks.filter(t => t.project_id === currentProjectId);
+            } else if (masterScope === 'workspace') {
+                const wsProjectIds = projects.filter(p => p.workspace_id === currentWorkspaceId).map(p => p.id);
+                scopedTasks = scopedTasks.filter(t => wsProjectIds.includes(t.project_id));
+            } else {
+                const allowedWsIds = getActiveUserObj().workspace_ids || [];
+                const allowedProjIds = projects.filter(p => allowedWsIds.includes(p.workspace_id)).map(p => p.id);
+                scopedTasks = scopedTasks.filter(t => allowedProjIds.includes(t.project_id));
+            }
+
+            // 2. Filter Timeframe
+            let timeFiltered = scopedTasks.filter(t => {
+                if (masterTimeframe === 'all') return true;
+                if (!t.due_date) return false;
+
+                const [y, m, d] = t.due_date.split('-');
+                const taskDate = new Date(y, m - 1, d);
+                taskDate.setHours(0,0,0,0);
+
+                const diffTime = taskDate - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                if (masterTimeframe === 'today') return diffDays <= 0; // Includes Overdue tasks
+                if (masterTimeframe === 'week') return diffDays <= 7;
+                if (masterTimeframe === 'month') return diffDays <= 30;
+                return true;
+            });
+
+            // 3. Filter Search, Assignee, Urgency
+            let finalMatches = timeFiltered.filter(task => {
+                const titleStr = (task.title || '').toLowerCase();
+                const descStr = (task.description || '').toLowerCase();
+                const urgencyStr = (task.urgency || '');
+                const assigneesArray = task.assignees || [];
+                return (titleStr.includes(searchQ) || descStr.includes(searchQ)) &&
+                       (assigneeQ === "All" || assigneesArray.includes(assigneeQ)) &&
+                       (urgencyQ === "All" || urgencyStr === urgencyQ);
+            });
+
+            // Sort by due date ascending
+            finalMatches.sort((a, b) => {
+                if (!a.due_date) return 1;
+                if (!b.due_date) return -1;
+                return new Date(a.due_date) - new Date(b.due_date);
+            });
+
+            if (finalMatches.length === 0) {
+                list.innerHTML = `<div style="padding: 40px 20px; color: #5e6c84; font-size: 16px; text-align: center; width: 100%;">You have no tasks scheduled for this timeframe. Enjoy your free time! 🎉</div>`;
+                return;
+            }
+
+            finalMatches.forEach(task => {
+                const card = document.createElement('div'); 
+                card.className = 'card'; 
+                card.setAttribute('data-id', task.id); 
+                card.setAttribute('onclick', `editTask('${task.id}')`); 
+                // Context menu triggers on right click (desktop) OR ellipsis click (mobile)
+                card.setAttribute('oncontextmenu', `showContextMenuMain(event, '${task.id}')`);
+                // Note: Draggable is DISABLED here to prevent data corruption across projects
+                
+                const proj = projects.find(p => p.id === task.project_id);
+                const ws = workspaces.find(w => w.id === (proj ? proj.workspace_id : null));
+                const contextHtml = `<div class="context-crumb">${sanitize(ws ? ws.name : '')} › ${sanitize(proj ? proj.name : '')}</div>`;
+
+                const urgencyHtml = displayConfig.showUrgency ? `<span class="dot ${task.urgency}" title="Urgency: ${task.urgency}"></span>` : ''; 
+                const descHtml = (displayConfig.showDesc && task.description) ? `<p>${linkify(sanitize(task.description))}</p>` : '';
+                
+                let assigneesHtml = ''; 
+                if (displayConfig.showAssignee) { 
+                    const aList = task.assignees || []; 
+                    if (aList.length === 0) assigneesHtml = `<span class="badge" style="background:#dfe1e6; color:#42526e;">Unassigned</span>`; 
+                    else assigneesHtml = aList.map(id => `<span class="badge">👤 ${sanitize(getUserName(id))}</span>`).join(''); 
+                }
+                
+                let dateHtml = ''; if (task.due_date) { const d = new Date(task.due_date + 'T12:00:00'); dateHtml = `<span class="date-badge" title="Due Date">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; }
+                const childTasks = tasks.filter(t => t.parent_task_id === task.id); let subtaskHtml = ''; if (childTasks.length > 0) { subtaskHtml = `<span class="badge subtask-badge" title="Subtasks">☑ ${childTasks.filter(s => s.status === 'complete').length}/${childTasks.length}</span>`; }
+                
+                card.innerHTML = `
+                    <div style="padding: 16px;">
+                        ${contextHtml}
+                        <div class="card-header-row">
+                            <h3 style="font-size: 16px;">${urgencyHtml} ${sanitize(task.title)}</h3>
+                            <button type="button" class="card-menu-btn" onclick="event.stopPropagation(); showContextMenuMain(event, '${task.id}')">⋮</button>
+                        </div>
+                        ${descHtml}
+                        <div class="card-footer" style="padding-top: 12px; margin-top: 12px; border-top: 1px solid #ebecf0;">
+                            <div class="meta-group">${assigneesHtml}${dateHtml}${subtaskHtml}</div>
+                        </div>
+                    </div>`; 
+                list.appendChild(card);
+            });
         }
 
         // --- 5. SETTINGS ---
@@ -996,14 +1197,12 @@
         function openModal(defaultStatus) {
             lockBody();
             
-            // PREVENT VOID TASKS: Ensure a valid project exists before opening the task modal
             if (!currentProjectId) {
                 unlockBody();
                 alert("Please select or create a Project before adding a task.");
                 return;
             }
             
-            // Dynamically assign status based on the board you are looking at
             if (typeof defaultStatus !== 'string') {
                 defaultStatus = (currentView === 'future') ? 'future' : (currentView === 'archive' ? 'complete' : 'todo');
             }
@@ -1053,7 +1252,6 @@
             document.getElementById('modal-back-btn').style.display = draftSubtaskId ? 'inline-block' : 'none'; 
             document.getElementById('modal-title').innerText = draftSubtaskId ? "Subtask Details" : 'Task Configuration';
             
-            // Hide Google Calendar checkbox if looking at a subtask
             if (draftSubtaskId) document.getElementById('gcal-checkbox-container').style.display = 'none';
             
             if(!draftSubtaskId) renderSubtasks();
@@ -1062,12 +1260,10 @@
         document.getElementById('task-form').addEventListener('submit', async function(e) {
             e.preventDefault(); syncFormToDraft(); 
             
-            // GOOGLE CALENDAR SYNC
             const syncGcal = document.getElementById('task-gcal-sync').checked;
             if (syncGcal && !draftSubtaskId) {
                 let gcalDesc = draftTask.description || '';
                 
-                // Add Subtasks to description if they exist
                 if (draftSubtasks && draftSubtasks.length > 0) {
                     gcalDesc += '\n\nSubtasks:\n' + draftSubtasks.map(st => '• ' + st.title).join('\n');
                 }
@@ -1078,7 +1274,6 @@
                 
                 if (draftTask.due_date) {
                     const dStr1 = draftTask.due_date.replace(/-/g, '');
-                    // Google prefers Start/End Date formats for all-day events
                     const dObj = new Date(draftTask.due_date + 'T12:00:00');
                     dObj.setDate(dObj.getDate() + 1);
                     const dStr2 = dObj.toISOString().split('T')[0].replace(/-/g, '');
