@@ -50,7 +50,6 @@
         .view-toggle:hover { background: rgba(255,255,255,0.5); }
         .view-toggle.active { background: white; color: #172b4d; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         
-        /* NEW: Inverted active state for Master View Scopes */
         .view-toggle.active-blue { background: #e6fcff; color: #0052cc; font-weight: bold; box-shadow: 0 1px 2px rgba(0,82,204,0.15); border: 1px solid #b3d4ff; }
 
         .search-badge { background: #de350b; color: white; font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: bold; line-height: 1; }
@@ -96,7 +95,7 @@
         .card .actions { opacity: 0; transition: opacity 0.2s ease; display: flex; gap: 2px; }
         .card:hover .actions { opacity: 1; }
 
-        .context-crumb { font-size: 10px; color: #8993a4; margin-bottom: 6px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
+        .context-crumb { font-size: 10px; color: #8993a4; margin-bottom: 4px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
         .clickable-crumb { cursor: pointer; transition: color 0.2s ease; display: inline-block; }
         .clickable-crumb:hover { color: #0052cc; text-decoration: underline; }
 
@@ -187,7 +186,7 @@
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
-            /* Full-Screen Mobile Modals to Bypass Safari Keyboard Trap */
+            /* Full-Screen Mobile Modals */
             dialog { 
                 position: fixed !important; 
                 top: 0 !important; 
@@ -318,20 +317,23 @@
                     <input type="text" id="mv-filter-search" placeholder="Search schedule..." oninput="renderMasterView()" style="flex: 1; min-width: 140px; padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; box-sizing: border-box; outline: none; font-family: inherit; font-size: 14px;">
                     <select id="mv-filter-assignee" onchange="renderMasterView()" style="padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px;"><option value="All">All Assignees</option></select>
                     <select id="mv-filter-urgency" onchange="renderMasterView()" style="padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
-                    <button type="button" class="icon-btn" onclick="window.open('https://calendar.google.com', '_blank')" title="Open Google Calendar" style="flex-shrink: 0; height: 32px; padding: 0 12px;">📅</button>
-                </div>
-                
-                <div style="width: 100%; display: flex; gap: 15px; flex-wrap: wrap; align-items: center; background: white; padding: 10px; border-radius: 4px; border: 1px solid #dfe1e6; box-sizing: border-box;">
-                    <span style="font-size: 13px; font-weight: bold; color: #5e6c84; text-transform: uppercase;">Status:</span>
-                    <label style="font-size: 14px; display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" class="mv-status-check" value="todo" checked onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> To Do</label>
-                    <label style="font-size: 14px; display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" class="mv-status-check" value="doing" checked onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Doing</label>
-                    <label style="font-size: 14px; display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" class="mv-status-check" value="done" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Done</label>
-                    <label style="font-size: 14px; display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" class="mv-status-check" value="future" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Future</label>
-                    <label style="font-size: 14px; display: flex; align-items: center; gap: 4px; cursor: pointer;"><input type="checkbox" class="mv-status-check" value="complete" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Archived</label>
+                    
+                    <div style="position: relative; flex-shrink: 0;">
+                        <button type="button" class="secondary" onclick="toggleStatusDropdown(event)" style="padding: 6px 12px; font-size: 14px; margin: 0; height: 35px; border: 1px solid #dfe1e6; background: white;">Status ▼</button>
+                        <div id="mv-status-dropdown" class="custom-context-menu" style="top: 100%; right: 0; margin-top: 4px; padding: 12px; min-width: 150px;" onclick="event.stopPropagation()">
+                            <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="todo" checked onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> To Do</label>
+                            <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="doing" checked onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Doing</label>
+                            <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="done" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Done</label>
+                            <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="future" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Future</label>
+                            <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;"><input type="checkbox" class="mv-status-check" value="complete" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Archived</label>
+                        </div>
+                    </div>
+
+                    <button type="button" class="icon-btn" onclick="window.open('https://calendar.google.com', '_blank')" title="Open Google Calendar" style="flex-shrink: 0; height: 35px; padding: 0 12px;">📅</button>
                 </div>
             </div>
 
-            <div id="master-task-list" class="board-container size-big" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding-bottom: 60px;">
+            <div id="master-task-list" class="board-container size-small" style="display: flex; flex-direction: column; gap: 8px; max-width: 800px; margin: 0 auto; padding-bottom: 60px;">
                 </div>
         </div>
     </div>
@@ -859,7 +861,6 @@
                 return (titleStr.includes(searchQ) || descStr.includes(searchQ)) && (assigneeQ === "All" || assigneesArray.includes(assigneeQ)) && (urgencyQ === "All" || urgencyStr === urgencyQ);
             });
 
-            // Sort by User's custom Task Order preferences
             const userPrefs = getActiveUserObj().preferences;
             const taskOrder = userPrefs.taskOrder || [];
             allMatches.sort((a, b) => {
@@ -942,7 +943,7 @@
             if (currentWorkspaceId !== wsId) {
                 currentWorkspaceId = wsId;
                 localStorage.setItem('currentWorkspaceId', wsId);
-                await loadDataFromDB(); // This updates projects array and triggers renderAll()
+                await loadDataFromDB(); 
             } 
             
             currentProjectId = projId;
@@ -966,6 +967,16 @@
             document.getElementById('mv-scope-all').classList.toggle('active-blue', scope === 'all');
             updateAssigneeFilterOptions();
             renderMasterView();
+        }
+
+        // Dropdown toggle for Master View Status Filter
+        function toggleStatusDropdown(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const dropdown = document.getElementById('mv-status-dropdown');
+            const isCurrentlyOpen = dropdown.style.display === 'block';
+            closeMenus(); 
+            dropdown.style.display = isCurrentlyOpen ? 'none' : 'block';
         }
 
         function toggleMasterView() {
@@ -1060,17 +1071,20 @@
                 // Clickable Context Crumb
                 const contextHtml = `<div class="context-crumb clickable-crumb" onclick="event.stopPropagation(); navigateToProject('${ws ? ws.id : ''}', '${proj ? proj.id : ''}')">${sanitize(ws ? ws.name : '')} › ${sanitize(proj ? proj.name : '')}</div>`;
 
+                const urgencyHtml = displayConfig.showUrgency ? `<span class="dot ${task.urgency}" title="Urgency: ${task.urgency}"></span>` : ''; 
+
                 let dateHtml = ''; 
                 if (task.due_date) { 
                     const d = new Date(task.due_date + 'T12:00:00'); 
                     dateHtml = `<span class="date-badge" style="margin:0; background: transparent; border: none; padding: 0;">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; 
                 }
                 
+                // Slim, Title-Only layout
                 card.innerHTML = `
-                    <div style="padding: 12px 16px;">
+                    <div style="padding: 8px 12px;">
                         ${contextHtml}
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-                            <h3 style="font-size: 15px; margin: 0; color: #172b4d; flex: 1;">${sanitize(task.title)}</h3>
+                            <h3 style="font-size: 14px; margin: 0; color: #172b4d; flex: 1; display: flex; align-items: center; gap: 6px;">${urgencyHtml} ${sanitize(task.title)}</h3>
                             ${dateHtml}
                         </div>
                     </div>`; 
@@ -1123,7 +1137,17 @@
         }
 
         function toggleWorkspaceMenu(e) { e.preventDefault(); e.stopPropagation(); closeMenus(); workspaceContextMenu.style.display = workspaceContextMenu.style.display === 'block' ? 'none' : 'block'; }
-        function closeMenus() { activeContextMenu.style.display = 'none'; futureContextMenu.style.display = 'none'; archiveContextMenu.style.display = 'none'; subtaskContextMenu.style.display = 'none'; workspaceContextMenu.style.display = 'none'; if(projectContextMenu) projectContextMenu.style.display = 'none'; }
+        
+        function closeMenus() { 
+            activeContextMenu.style.display = 'none'; 
+            futureContextMenu.style.display = 'none'; 
+            archiveContextMenu.style.display = 'none'; 
+            subtaskContextMenu.style.display = 'none'; 
+            workspaceContextMenu.style.display = 'none'; 
+            if(projectContextMenu) projectContextMenu.style.display = 'none'; 
+            const statusDropdown = document.getElementById('mv-status-dropdown');
+            if(statusDropdown) statusDropdown.style.display = 'none';
+        }
         document.addEventListener('click', closeMenus);
 
         function showContextMenuMain(e, id) { 
