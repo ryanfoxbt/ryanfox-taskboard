@@ -51,6 +51,9 @@
         .filters-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
         .filters-bar input, .filters-bar select { padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px; }
         .filters-bar input:focus, .filters-bar select:focus { border-color: #4c9aff; }
+        
+        .icon-btn { background: white; border: 1px solid #dfe1e6; border-radius: 4px; padding: 6px 12px; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; font-size: 16px; height: 35px; }
+        .icon-btn:hover { background: #ebecf0; border-color: #c1c7d0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 
         .board { display: flex; gap: 20px; align-items: flex-start; overflow-x: auto; padding-bottom: 10px; }
         .column { flex: 1; min-width: 260px; background: #ebecf0; padding: 12px; border-radius: 6px; min-height: 400px; display: flex; flex-direction: column; }
@@ -140,8 +143,7 @@
             .header-controls { justify-content: space-between; width: 100%; flex-wrap: nowrap; }
             .header-controls .desktop-add-task { display: none; } 
             .tools-row { flex-direction: column; align-items: stretch; gap: 10px; }
-            .filters-bar { flex-direction: column; width: 100%; align-items: stretch;}
-            .filters-bar input, .filters-bar select { width: 100%; box-sizing: border-box; }
+            .filters-bar { flex-direction: column; width: 100%; align-items: stretch; gap: 10px; }
             
             .mobile-fab {
                 display: flex; position: fixed; bottom: 24px; right: 24px;
@@ -237,7 +239,11 @@
             <div class="filters-bar">
                 <input type="text" id="filter-search" placeholder="Search tasks..." oninput="renderBoard()">
                 <select id="filter-assignee" onchange="renderBoard()"><option value="All">All Assignees</option></select>
-                <select id="filter-urgency" onchange="renderBoard()"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+                
+                <div style="display: flex; gap: 10px; width: 100%;">
+                    <select id="filter-urgency" onchange="renderBoard()" style="flex: 1;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+                    <button type="button" class="icon-btn" onclick="window.open('https://calendar.google.com', '_blank')" title="Open Google Calendar">📅</button>
+                </div>
             </div>
         </div>
 
@@ -463,6 +469,11 @@
                     </div>
                 </div>
             </div>
+            
+            <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;">
+                <input type="checkbox" id="task-gcal-sync"><label for="task-gcal-sync" style="margin:0; font-weight:bold; color: #0052cc;">📅 Add to Google Calendar on Save</label>
+            </div>
+            
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeModal()">Cancel</button><button type="submit" id="save-task-btn">Save Task</button></div>
         </form>
     </dialog>
@@ -624,7 +635,6 @@
             const activeWorkspaceProjects = projects.filter(p => p.workspace_id === currentWorkspaceId);
             if (activeWorkspaceProjects.length > 0 && (!currentProjectId || !activeWorkspaceProjects.find(p => p.id === currentProjectId))) {
                 
-                // NEW: Sort by the user's preferences first, so it defaults to their chosen left-most tab!
                 activeWorkspaceProjects.sort((a, b) => {
                     let idxA = (me.preferences.projectOrder || []).indexOf(a.id); 
                     let idxB = (me.preferences.projectOrder || []).indexOf(b.id);
@@ -775,7 +785,7 @@
                 return (titleStr.includes(searchQ) || descStr.includes(searchQ)) && (assigneeQ === "All" || assigneesArray.includes(assigneeQ)) && (urgencyQ === "All" || urgencyStr === urgencyQ);
             });
 
-            // NEW: Sort by User's custom Task Order preferences!
+            // Sort by User's custom Task Order preferences
             const userPrefs = getActiveUserObj().preferences;
             const taskOrder = userPrefs.taskOrder || [];
             allMatches.sort((a, b) => {
@@ -966,7 +976,6 @@
                     t.status = status; 
                     saveTaskDB(t); 
                     
-                    // NEW: Save the visual task order directly to user preferences!
                     const user = getActiveUserObj();
                     if (!user.preferences.taskOrder) user.preferences.taskOrder = [];
                     
@@ -982,7 +991,6 @@
 
         // --- 7. FORMS & MODALS ---
         
-        // NEW: Automatically defaults task to the current view you are on!
         function openModal(defaultStatus) {
             lockBody();
             if (typeof defaultStatus !== 'string') {
@@ -990,6 +998,7 @@
             }
             draftTask = { id: generateUUID(), title: '', description: '', assignees: [], due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null };
             draftSubtasks = []; draftSubtaskId = null; document.getElementById('task-form').reset(); updateFormUI(); 
+            document.getElementById('task-gcal-sync').checked = false; // Reset Google Calendar Checkbox
             
             const modal = document.getElementById('task-modal');
             modal.showModal();
@@ -1000,6 +1009,7 @@
             lockBody();
             draftTask = JSON.parse(JSON.stringify(tasks.find(t => t.id === id))); draftSubtasks = tasks.filter(t => t.parent_task_id === id).map(st => JSON.parse(JSON.stringify(st)));
             draftSubtaskId = null; updateFormUI(); 
+            document.getElementById('task-gcal-sync').checked = false; // Reset Google Calendar Checkbox
             
             const modal = document.getElementById('task-modal');
             modal.showModal();
@@ -1028,6 +1038,27 @@
 
         document.getElementById('task-form').addEventListener('submit', async function(e) {
             e.preventDefault(); syncFormToDraft(); 
+            
+            // GOOGLE CALENDAR SYNC CHECK
+            const syncGcal = document.getElementById('task-gcal-sync').checked;
+            if (syncGcal && !draftSubtaskId) {
+                const title = encodeURIComponent(draftTask.title || 'New Task');
+                const desc = encodeURIComponent(draftTask.description || '');
+                let dateParam = '';
+                
+                if (draftTask.due_date) {
+                    const dStr1 = draftTask.due_date.replace(/-/g, '');
+                    // For an all day event, Google prefers Start Date / End Date
+                    const dObj = new Date(draftTask.due_date + 'T12:00:00');
+                    dObj.setDate(dObj.getDate() + 1);
+                    const dStr2 = dObj.toISOString().split('T')[0].replace(/-/g, '');
+                    dateParam = `&dates=${dStr1}/${dStr2}`;
+                }
+                
+                const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${desc}${dateParam}`;
+                window.open(gcalUrl, '_blank');
+            }
+
             await saveTaskDB(draftTask);
             for (const st of draftSubtasks) { if (st.id.includes('sub_') || st.id.includes('temp')) st.id = generateUUID(); st.parent_task_id = draftTask.id; await saveTaskDB(st); }
             closeModal();
