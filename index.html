@@ -49,7 +49,7 @@
         .search-badge { background: #de350b; color: white; font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: bold; line-height: 1; }
 
         .filters-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-        .filters-bar input, .filters-bar select { padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px; }
+        .filters-bar input, .filters-bar select { padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px; box-sizing: border-box; }
         .filters-bar input:focus, .filters-bar select:focus { border-color: #4c9aff; }
         
         .icon-btn { background: white; border: 1px solid #dfe1e6; border-radius: 4px; padding: 6px 12px; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; font-size: 16px; height: 35px; }
@@ -470,7 +470,7 @@
                 </div>
             </div>
             
-            <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;">
+            <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;" id="gcal-checkbox-container">
                 <input type="checkbox" id="task-gcal-sync"><label for="task-gcal-sync" style="margin:0; font-weight:bold; color: #0052cc;">📅 Add to Google Calendar on Save</label>
             </div>
             
@@ -629,20 +629,22 @@
             if (myWorkspaces.length > 0 && (!currentWorkspaceId || !myWorkspaces.find(w => w.id === currentWorkspaceId))) {
                 currentWorkspaceId = myWorkspaces[0].id; 
                 localStorage.setItem('currentWorkspaceId', currentWorkspaceId);
-                return; 
             }
             
             const activeWorkspaceProjects = projects.filter(p => p.workspace_id === currentWorkspaceId);
-            if (activeWorkspaceProjects.length > 0 && (!currentProjectId || !activeWorkspaceProjects.find(p => p.id === currentProjectId))) {
-                
-                activeWorkspaceProjects.sort((a, b) => {
-                    let idxA = (me.preferences.projectOrder || []).indexOf(a.id); 
-                    let idxB = (me.preferences.projectOrder || []).indexOf(b.id);
-                    if (idxA === -1) idxA = 99999; if (idxB === -1) idxB = 99999; return idxA - idxB;
-                });
-                
-                currentProjectId = activeWorkspaceProjects[0].id; 
-                localStorage.setItem('currentProjectId', currentProjectId);
+            if (activeWorkspaceProjects.length > 0) {
+                // Check if current project is invalid or null. If so, default to the user's first visible tab.
+                if (!currentProjectId || !activeWorkspaceProjects.find(p => p.id === currentProjectId)) {
+                    activeWorkspaceProjects.sort((a, b) => {
+                        let idxA = (me.preferences.projectOrder || []).indexOf(a.id); 
+                        let idxB = (me.preferences.projectOrder || []).indexOf(b.id);
+                        if (idxA === -1) idxA = 99999; if (idxB === -1) idxB = 99999; return idxA - idxB;
+                    });
+                    currentProjectId = activeWorkspaceProjects[0].id; 
+                    localStorage.setItem('currentProjectId', currentProjectId);
+                }
+            } else {
+                currentProjectId = null;
             }
 
             uiSize = me.preferences.uiSize;
@@ -993,12 +995,24 @@
         
         function openModal(defaultStatus) {
             lockBody();
+            
+            // PREVENT VOID TASKS: Ensure a valid project exists before opening the task modal
+            if (!currentProjectId) {
+                unlockBody();
+                alert("Please select or create a Project before adding a task.");
+                return;
+            }
+            
+            // Dynamically assign status based on the board you are looking at
             if (typeof defaultStatus !== 'string') {
                 defaultStatus = (currentView === 'future') ? 'future' : (currentView === 'archive' ? 'complete' : 'todo');
             }
+            
             draftTask = { id: generateUUID(), title: '', description: '', assignees: [], due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null };
             draftSubtasks = []; draftSubtaskId = null; document.getElementById('task-form').reset(); updateFormUI(); 
-            document.getElementById('task-gcal-sync').checked = false; // Reset Google Calendar Checkbox
+            
+            document.getElementById('gcal-checkbox-container').style.display = 'flex';
+            document.getElementById('task-gcal-sync').checked = false;
             
             const modal = document.getElementById('task-modal');
             modal.showModal();
@@ -1009,7 +1023,9 @@
             lockBody();
             draftTask = JSON.parse(JSON.stringify(tasks.find(t => t.id === id))); draftSubtasks = tasks.filter(t => t.parent_task_id === id).map(st => JSON.parse(JSON.stringify(st)));
             draftSubtaskId = null; updateFormUI(); 
-            document.getElementById('task-gcal-sync').checked = false; // Reset Google Calendar Checkbox
+            
+            document.getElementById('gcal-checkbox-container').style.display = 'flex';
+            document.getElementById('task-gcal-sync').checked = false;
             
             const modal = document.getElementById('task-modal');
             modal.showModal();
@@ -1032,23 +1048,37 @@
             const badgeContainer = document.getElementById('task-assignees-display'); badgeContainer.innerHTML = '';
             (data.assignees || []).forEach(id => { badgeContainer.innerHTML += `<span class="badge" style="margin-right:4px;">👤 ${sanitize(getUserName(id))}</span>`; });
             
-            document.getElementById('subtasks-form-section').style.display = draftSubtaskId ? 'none' : 'block'; document.getElementById('status-form-section').style.display = draftSubtaskId ? 'none' : 'block'; document.getElementById('modal-back-btn').style.display = draftSubtaskId ? 'inline-block' : 'none'; document.getElementById('modal-title').innerText = draftSubtaskId ? "Subtask Details" : 'Task Configuration';
+            document.getElementById('subtasks-form-section').style.display = draftSubtaskId ? 'none' : 'block'; 
+            document.getElementById('status-form-section').style.display = draftSubtaskId ? 'none' : 'block'; 
+            document.getElementById('modal-back-btn').style.display = draftSubtaskId ? 'inline-block' : 'none'; 
+            document.getElementById('modal-title').innerText = draftSubtaskId ? "Subtask Details" : 'Task Configuration';
+            
+            // Hide Google Calendar checkbox if looking at a subtask
+            if (draftSubtaskId) document.getElementById('gcal-checkbox-container').style.display = 'none';
+            
             if(!draftSubtaskId) renderSubtasks();
         }
 
         document.getElementById('task-form').addEventListener('submit', async function(e) {
             e.preventDefault(); syncFormToDraft(); 
             
-            // GOOGLE CALENDAR SYNC CHECK
+            // GOOGLE CALENDAR SYNC
             const syncGcal = document.getElementById('task-gcal-sync').checked;
             if (syncGcal && !draftSubtaskId) {
+                let gcalDesc = draftTask.description || '';
+                
+                // Add Subtasks to description if they exist
+                if (draftSubtasks && draftSubtasks.length > 0) {
+                    gcalDesc += '\n\nSubtasks:\n' + draftSubtasks.map(st => '• ' + st.title).join('\n');
+                }
+                
                 const title = encodeURIComponent(draftTask.title || 'New Task');
-                const desc = encodeURIComponent(draftTask.description || '');
+                const desc = encodeURIComponent(gcalDesc);
                 let dateParam = '';
                 
                 if (draftTask.due_date) {
                     const dStr1 = draftTask.due_date.replace(/-/g, '');
-                    // For an all day event, Google prefers Start Date / End Date
+                    // Google prefers Start/End Date formats for all-day events
                     const dObj = new Date(draftTask.due_date + 'T12:00:00');
                     dObj.setDate(dObj.getDate() + 1);
                     const dStr2 = dObj.toISOString().split('T')[0].replace(/-/g, '');
