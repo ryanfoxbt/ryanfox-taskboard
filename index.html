@@ -186,7 +186,6 @@
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
-            /* Full-Screen Mobile Modals */
             dialog { 
                 position: fixed !important; 
                 top: 0 !important; 
@@ -233,7 +232,8 @@
             </div>
             
             <div class="header-controls">
-                <div id="user-button"></div> <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
+                <div id="user-button"></div>
+                <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
                 <button class="desktop-add-task" onclick="openModal()">+ Add New Task</button>
             </div>
         </div>
@@ -243,9 +243,10 @@
 
             <div class="tools-row" id="main-tools-row">
                 <div class="view-toggles">
-                    <button class="view-toggle active" id="btn-view-active" onclick="switchView('active')">📊 Active Board</button>
-                    <button class="view-toggle" id="btn-view-future" onclick="switchView('future')">⏳ Future</button>
-                    <button class="view-toggle" id="btn-view-archive" onclick="switchView('archive')">🗄️ Archive</button>
+                    <button class="view-toggle active" id="btn-view-active" onclick="switchView('active')">📊 Active</button>
+                    <button class="view-toggle" id="btn-view-recurring" onclick="switchView('recurring')">Recurring</button>
+                    <button class="view-toggle" id="btn-view-future" onclick="switchView('future')">Future</button>
+                    <button class="view-toggle" id="btn-view-archive" onclick="switchView('archive')">Archive</button>
                 </div>
 
                 <div class="filters-bar">
@@ -272,6 +273,13 @@
                     <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'done')">
                         <div class="column-header"><h2>Done</h2><button class="add-icon" onclick="openModal('done')" title="Add Done">+</button></div>
                         <div id="done-list" class="task-list"></div>
+                    </div>
+                </div>
+
+                <div class="single-column-board" id="view-recurring">
+                    <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'recurring')">
+                        <div class="column-header"><h2>Recurring Tasks</h2><button class="add-icon" onclick="openModal('recurring')" title="Add Recurring Task">+</button></div>
+                        <div id="recurring-list" class="task-list"></div>
                     </div>
                 </div>
 
@@ -323,6 +331,7 @@
                         <div id="mv-status-dropdown" class="custom-context-menu" style="top: 100%; right: 0; margin-top: 4px; padding: 12px; min-width: 150px;" onclick="event.stopPropagation()">
                             <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="todo" checked onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> To Do</label>
                             <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="doing" checked onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Doing</label>
+                            <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="recurring" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Recurring</label>
                             <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="done" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Done</label>
                             <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="future" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Future</label>
                             <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;"><input type="checkbox" class="mv-status-check" value="complete" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Archived</label>
@@ -515,13 +524,18 @@
                 </div>
                 
                 <div class="form-group" style="flex: 1; min-width: 140px;">
-                    <label>Due Date</label><input type="date" id="task-due-date" style="margin-bottom: 12px;">
+                    <label id="date-label">Due Date</label><input type="date" id="task-due-date" style="margin-bottom: 12px;">
                     <label>Urgency</label>
                     <select id="task-urgency" style="margin-bottom: 12px;"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
                     <div id="status-form-section">
                         <label>Status</label>
-                        <select id="task-status">
-                            <option value="future">Future</option><option value="todo">To Do</option><option value="doing">Doing</option><option value="done">Done</option><option value="complete">Complete (Archived)</option>
+                        <select id="task-status" onchange="handleStatusChange(this.value)">
+                            <option value="future">Future</option>
+                            <option value="todo">To Do</option>
+                            <option value="doing">Doing</option>
+                            <option value="recurring">Recurring</option>
+                            <option value="done">Done</option>
+                            <option value="complete">Complete (Archived)</option>
                         </select>
                     </div>
                 </div>
@@ -591,7 +605,7 @@
         let masterTimeframe = 'today';
         let masterScope = 'workspace'; 
 
-        const lists = { future: document.getElementById('future-list'), todo: document.getElementById('todo-list'), doing: document.getElementById('doing-list'), done: document.getElementById('done-list'), complete: document.getElementById('complete-list') };
+        const lists = { future: document.getElementById('future-list'), todo: document.getElementById('todo-list'), doing: document.getElementById('doing-list'), done: document.getElementById('done-list'), recurring: document.getElementById('recurring-list'), complete: document.getElementById('complete-list') };
         const workspaceContextMenu = document.getElementById('workspace-context-menu'); const activeContextMenu = document.getElementById('active-context-menu'); const futureContextMenu = document.getElementById('future-context-menu'); const archiveContextMenu = document.getElementById('archive-context-menu'); const subtaskContextMenu = document.getElementById('subtask-context-menu');
         const projectContextMenu = document.getElementById('project-context-menu');
 
@@ -661,6 +675,15 @@
                     t.assignees = (data.task_assignees || []).filter(ta => ta.task_id === t.id).map(ta => ta.user_id);
                     if (t.due_date) t.due_date = t.due_date.split('T')[0];
                     return t;
+                });
+
+                // Auto-Archive Logic for expired Recurring Tasks!
+                const todayStr = new Date().toISOString().split('T')[0];
+                tasks.forEach(t => {
+                    if (t.status === 'recurring' && t.due_date && t.due_date < todayStr) {
+                        t.status = 'complete';
+                        apiCall('/tasks', 'POST', t); // Silently save to backend
+                    }
                 });
 
                 initValidation();
@@ -852,7 +875,7 @@
         }
 
         function renderBoard() {
-            lists.future.innerHTML = ''; lists.todo.innerHTML = ''; lists.doing.innerHTML = ''; lists.done.innerHTML = ''; lists.complete.innerHTML = '';
+            lists.future.innerHTML = ''; lists.todo.innerHTML = ''; lists.doing.innerHTML = ''; lists.done.innerHTML = ''; lists.recurring.innerHTML = ''; lists.complete.innerHTML = '';
             const searchQ = document.getElementById('filter-search').value.toLowerCase(); const assigneeQ = document.getElementById('filter-assignee').value; const urgencyQ = document.getElementById('filter-urgency').value;
             const activeMainTasks = tasks.filter(task => task.project_id === currentProjectId && task.parent_task_id === null);
             
@@ -861,6 +884,7 @@
                 return (titleStr.includes(searchQ) || descStr.includes(searchQ)) && (assigneeQ === "All" || assigneesArray.includes(assigneeQ)) && (urgencyQ === "All" || urgencyStr === urgencyQ);
             });
 
+            // Sort by User's custom Task Order preferences
             const userPrefs = getActiveUserObj().preferences;
             const taskOrder = userPrefs.taskOrder || [];
             allMatches.sort((a, b) => {
@@ -872,10 +896,20 @@
             });
 
             if (searchQ || assigneeQ !== 'All' || urgencyQ !== 'All') {
-                const aHits = allMatches.filter(t => ['todo', 'doing', 'done'].includes(t.status)).length; const fHits = allMatches.filter(t => t.status === 'future').length; const cHits = allMatches.filter(t => t.status === 'complete').length;
-                document.getElementById('btn-view-active').innerHTML = `📊 Active Board ${aHits > 0 ? `<span class="search-badge">${aHits}</span>` : ''}`; document.getElementById('btn-view-future').innerHTML = `⏳ Future ${fHits > 0 ? `<span class="search-badge">${fHits}</span>` : ''}`; document.getElementById('btn-view-archive').innerHTML = `🗄️ Archive ${cHits > 0 ? `<span class="search-badge">${cHits}</span>` : ''}`;
+                const aHits = allMatches.filter(t => ['todo', 'doing', 'done'].includes(t.status)).length; 
+                const fHits = allMatches.filter(t => t.status === 'future').length; 
+                const cHits = allMatches.filter(t => t.status === 'complete').length;
+                const rHits = allMatches.filter(t => t.status === 'recurring').length;
+                
+                document.getElementById('btn-view-active').innerHTML = `📊 Active ${aHits > 0 ? `<span class="search-badge">${aHits}</span>` : ''}`; 
+                document.getElementById('btn-view-recurring').innerHTML = `Recurring ${rHits > 0 ? `<span class="search-badge">${rHits}</span>` : ''}`; 
+                document.getElementById('btn-view-future').innerHTML = `Future ${fHits > 0 ? `<span class="search-badge">${fHits}</span>` : ''}`; 
+                document.getElementById('btn-view-archive').innerHTML = `Archive ${cHits > 0 ? `<span class="search-badge">${cHits}</span>` : ''}`;
             } else {
-                document.getElementById('btn-view-active').innerHTML = `📊 Active Board`; document.getElementById('btn-view-future').innerHTML = `⏳ Future`; document.getElementById('btn-view-archive').innerHTML = `🗄️ Archive`;
+                document.getElementById('btn-view-active').innerHTML = `📊 Active`; 
+                document.getElementById('btn-view-recurring').innerHTML = `Recurring`; 
+                document.getElementById('btn-view-future').innerHTML = `Future`; 
+                document.getElementById('btn-view-archive').innerHTML = `Archive`;
             }
 
             let activeSize = uiSize;
@@ -889,6 +923,7 @@
             allMatches.forEach(task => {
                 let desktopActions = '';
                 if (['todo', 'doing', 'done'].includes(task.status)) { desktopActions = `<button type="button" class="action-success" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'complete')" title="Archive">✓</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; } 
+                else if (task.status === 'recurring') { desktopActions = `<button type="button" class="action-success" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'complete')" title="Archive">✓</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; } 
                 else if (task.status === 'future') { desktopActions = `<button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'todo')" title="Move to Active Board">🚀</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; } 
                 else if (task.status === 'complete') { desktopActions = `<button type="button" class="action-warning" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'done')" title="Restore to Board">⏪</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; }
                 
@@ -969,7 +1004,6 @@
             renderMasterView();
         }
 
-        // Dropdown toggle for Master View Status Filter
         function toggleStatusDropdown(e) {
             e.preventDefault();
             e.stopPropagation();
@@ -1030,7 +1064,7 @@
                 const diffTime = taskDate - today;
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-                if (masterTimeframe === 'today') return diffDays <= 0; // Includes Overdue tasks
+                if (masterTimeframe === 'today') return diffDays <= 0; 
                 if (masterTimeframe === 'week') return diffDays <= 7;
                 return true;
             });
@@ -1079,7 +1113,7 @@
                     dateHtml = `<span class="date-badge" style="margin:0; background: transparent; border: none; padding: 0;">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; 
                 }
                 
-                // Slim, Title-Only layout
+                // Slim, Title-Only layout for Master List
                 card.innerHTML = `
                     <div style="padding: 8px 12px;">
                         ${contextHtml}
@@ -1131,8 +1165,15 @@
         // --- 6. INTERACTION LOGIC ---
         function switchView(v) {
             currentView = v;
-            document.getElementById('btn-view-active').classList.toggle('active', v === 'active'); document.getElementById('btn-view-future').classList.toggle('active', v === 'future'); document.getElementById('btn-view-archive').classList.toggle('active', v === 'archive');
-            document.getElementById('view-active').style.display = (v === 'active') ? 'flex' : 'none'; document.getElementById('view-future').style.display = (v === 'future') ? 'block' : 'none'; document.getElementById('view-archive').style.display = (v === 'archive') ? 'block' : 'none';
+            document.getElementById('btn-view-active').classList.toggle('active', v === 'active'); 
+            document.getElementById('btn-view-recurring').classList.toggle('active', v === 'recurring'); 
+            document.getElementById('btn-view-future').classList.toggle('active', v === 'future'); 
+            document.getElementById('btn-view-archive').classList.toggle('active', v === 'archive');
+            
+            document.getElementById('view-active').style.display = (v === 'active') ? 'flex' : 'none'; 
+            document.getElementById('view-recurring').style.display = (v === 'recurring') ? 'block' : 'none'; 
+            document.getElementById('view-future').style.display = (v === 'future') ? 'block' : 'none'; 
+            document.getElementById('view-archive').style.display = (v === 'archive') ? 'block' : 'none';
             renderBoard();
         }
 
@@ -1204,7 +1245,7 @@
         function dragStart(e, id) { e.dataTransfer.setData("taskId", id); setTimeout(() => e.target.classList.add('dragging'), 0); }
         function dragEnd(e) {
             e.target.classList.remove('dragging'); const draggedId = e.target.getAttribute('data-id'); const t = tasks.find(t => t.id === draggedId); if (!t) return;
-            let statuses = (currentView === 'active') ? ['todo', 'doing', 'done'] : (currentView === 'future') ? ['future'] : ['complete'];
+            let statuses = (currentView === 'active') ? ['todo', 'doing', 'done'] : (currentView === 'future') ? ['future'] : (currentView === 'recurring') ? ['recurring'] : ['complete'];
             
             statuses.forEach(status => { 
                 const list = document.getElementById(status + '-list'); 
@@ -1232,6 +1273,10 @@
 
         // --- 7. FORMS & MODALS ---
         
+        function handleStatusChange(status) {
+            document.getElementById('date-label').innerText = (status === 'recurring') ? 'End Recurring Date' : 'Due Date';
+        }
+
         function openModal(defaultStatus) {
             lockBody();
             
@@ -1242,7 +1287,7 @@
             }
             
             if (typeof defaultStatus !== 'string') {
-                defaultStatus = (currentView === 'future') ? 'future' : (currentView === 'archive' ? 'complete' : 'todo');
+                defaultStatus = (currentView === 'future') ? 'future' : (currentView === 'archive' ? 'complete' : (currentView === 'recurring' ? 'recurring' : 'todo'));
             }
             
             draftTask = { id: generateUUID(), title: '', description: '', assignees: [], due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null };
@@ -1281,6 +1326,8 @@
             if (!draftTask) return; const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask; if (!data) return;
             document.getElementById('task-title').value = data.title || ''; document.getElementById('task-desc').value = data.description || ''; document.getElementById('task-due-date').value = data.due_date || ''; document.getElementById('task-status').value = data.status || 'todo'; document.getElementById('task-urgency').value = data.urgency || 'low';
             
+            handleStatusChange(data.status || 'todo');
+
             renderAssigneeCheckboxes(data.assignees || []);
             const badgeContainer = document.getElementById('task-assignees-display'); badgeContainer.innerHTML = '';
             (data.assignees || []).forEach(id => { badgeContainer.innerHTML += `<span class="badge" style="margin-right:4px;">👤 ${sanitize(getUserName(id))}</span>`; });
