@@ -173,7 +173,7 @@
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
-            /* Full-Screen Mobile Modals */
+            /* Full-Screen Mobile Modals to Bypass Safari Keyboard Trap */
             dialog { 
                 position: fixed !important; 
                 top: 0 !important; 
@@ -221,7 +221,7 @@
             
             <div class="header-controls">
                 <div id="user-button"></div> <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
-                <button class="desktop-add-task" onclick="openModal('todo')">+ Add New Task</button>
+                <button class="desktop-add-task" onclick="openModal()">+ Add New Task</button>
             </div>
         </div>
 
@@ -272,7 +272,7 @@
             </div>
         </div>
         
-        <button class="mobile-fab" onclick="openModal('todo')">+</button>
+        <button class="mobile-fab" onclick="openModal()">+</button>
     </div>
 
     <div id="active-context-menu" class="custom-context-menu">
@@ -623,6 +623,14 @@
             
             const activeWorkspaceProjects = projects.filter(p => p.workspace_id === currentWorkspaceId);
             if (activeWorkspaceProjects.length > 0 && (!currentProjectId || !activeWorkspaceProjects.find(p => p.id === currentProjectId))) {
+                
+                // NEW: Sort by the user's preferences first, so it defaults to their chosen left-most tab!
+                activeWorkspaceProjects.sort((a, b) => {
+                    let idxA = (me.preferences.projectOrder || []).indexOf(a.id); 
+                    let idxB = (me.preferences.projectOrder || []).indexOf(b.id);
+                    if (idxA === -1) idxA = 99999; if (idxB === -1) idxB = 99999; return idxA - idxB;
+                });
+                
                 currentProjectId = activeWorkspaceProjects[0].id; 
                 localStorage.setItem('currentProjectId', currentProjectId);
             }
@@ -765,6 +773,17 @@
             const allMatches = activeMainTasks.filter(task => {
                 const titleStr = (task.title || '').toLowerCase(); const descStr = (task.description || '').toLowerCase(); const urgencyStr = (task.urgency || ''); const assigneesArray = task.assignees || [];
                 return (titleStr.includes(searchQ) || descStr.includes(searchQ)) && (assigneeQ === "All" || assigneesArray.includes(assigneeQ)) && (urgencyQ === "All" || urgencyStr === urgencyQ);
+            });
+
+            // NEW: Sort by User's custom Task Order preferences!
+            const userPrefs = getActiveUserObj().preferences;
+            const taskOrder = userPrefs.taskOrder || [];
+            allMatches.sort((a, b) => {
+                let idxA = taskOrder.indexOf(a.id);
+                let idxB = taskOrder.indexOf(b.id);
+                if (idxA === -1) idxA = 99999;
+                if (idxB === -1) idxB = 99999;
+                return idxA - idxB;
             });
 
             if (searchQ || assigneeQ !== 'All' || urgencyQ !== 'All') {
@@ -935,13 +954,40 @@
         function dragEnd(e) {
             e.target.classList.remove('dragging'); const draggedId = e.target.getAttribute('data-id'); const t = tasks.find(t => t.id === draggedId); if (!t) return;
             let statuses = (currentView === 'active') ? ['todo', 'doing', 'done'] : (currentView === 'future') ? ['future'] : ['complete'];
-            statuses.forEach(status => { const list = document.getElementById(status + '-list'); const cards = list.querySelectorAll('.card'); cards.forEach(card => { if (card.getAttribute('data-id') === draggedId) { t.status = status; saveTaskDB(t); } }); });
+            
+            statuses.forEach(status => { 
+                const list = document.getElementById(status + '-list'); 
+                const cards = list.querySelectorAll('.card'); 
+                
+                let isHere = false;
+                cards.forEach(card => { if (card.getAttribute('data-id') === draggedId) isHere = true; });
+                
+                if (isHere) { 
+                    t.status = status; 
+                    saveTaskDB(t); 
+                    
+                    // NEW: Save the visual task order directly to user preferences!
+                    const user = getActiveUserObj();
+                    if (!user.preferences.taskOrder) user.preferences.taskOrder = [];
+                    
+                    const visualOrder = Array.from(cards).map(c => c.getAttribute('data-id'));
+                    user.preferences.taskOrder = user.preferences.taskOrder.filter(id => !visualOrder.includes(id));
+                    user.preferences.taskOrder = [...visualOrder, ...user.preferences.taskOrder];
+                    
+                    apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: user.id, preferences: user.preferences });
+                } 
+            });
         }
         function allowDrop(e, status) { e.preventDefault(); const list = document.getElementById(status + '-list'); const dragEl = document.querySelector('.dragging'); if (!dragEl) return; const afterEl = [...list.querySelectorAll('.card:not(.dragging)')].reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = e.clientY - box.top - box.height / 2; return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest; }, { offset: Number.NEGATIVE_INFINITY }).element; if (afterEl == null) list.appendChild(dragEl); else list.insertBefore(dragEl, afterEl); }
 
         // --- 7. FORMS & MODALS ---
-        function openModal(defaultStatus = 'todo') {
+        
+        // NEW: Automatically defaults task to the current view you are on!
+        function openModal(defaultStatus) {
             lockBody();
+            if (typeof defaultStatus !== 'string') {
+                defaultStatus = (currentView === 'future') ? 'future' : (currentView === 'archive' ? 'complete' : 'todo');
+            }
             draftTask = { id: generateUUID(), title: '', description: '', assignees: [], due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null };
             draftSubtasks = []; draftSubtaskId = null; document.getElementById('task-form').reset(); updateFormUI(); 
             
