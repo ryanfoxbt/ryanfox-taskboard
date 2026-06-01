@@ -35,31 +35,67 @@ app.get('/api/data', async (req, res) => {
     } catch (err) { res.status(500).json({ error: 'Failed to fetch data' }); }
 });
 
-// 2. TASKS & ASSIGNEES
+// 2. TASKS & ASSIGNEES (PERFORMANCE OPTIMIZED)
 app.post('/api/tasks', async (req, res) => {
-    const { id, project_id, parent_task_id, title, description, status, urgency, due_date, assignees } = req.body;
+    const { 
+        id, project_id, parent_task_id, title, description, status, urgency, due_date, assignees,
+        counter, timer_running, timer_started_at, timer_elapsed 
+    } = req.body;
+    
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+        
+        // OPTIMIZATION 1: Use COALESCE so missing fields keep their existing database values
         await client.query(
-            `INSERT INTO tasks (id, project_id, parent_task_id, title, description, status, urgency, due_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-             ON CONFLICT (id) DO UPDATE SET title = $4, description = $5, status = $6, urgency = $7, due_date = $8`,
-            [id, project_id, parent_task_id || null, title, description, status, urgency, due_date || null]
+            `INSERT INTO tasks (
+                id, project_id, parent_task_id, title, description, status, urgency, due_date,
+                counter, timer_running, timer_started_at, timer_elapsed
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+             ON CONFLICT (id) DO UPDATE SET 
+                title = COALESCE($4, tasks.title), 
+                description = COALESCE($5, tasks.description), 
+                status = COALESCE($6, tasks.status), 
+                urgency = COALESCE($7, tasks.urgency), 
+                due_date = COALESCE($8, tasks.due_date),
+                counter = COALESCE($9, tasks.counter), 
+                timer_running = COALESCE($10, tasks.timer_running), 
+                timer_started_at = COALESCE($11, tasks.timer_started_at), 
+                timer_elapsed = COALESCE($12, tasks.timer_elapsed)`,
+            [
+                id, 
+                project_id, 
+                parent_task_id || null, 
+                title || null, 
+                description !== undefined ? description : null, 
+                status || null, 
+                urgency || null, 
+                due_date || null,
+                counter !== undefined ? counter : null, 
+                timer_running !== undefined ? timer_running : null, 
+                timer_started_at !== undefined ? timer_started_at : null, 
+                timer_elapsed !== undefined ? timer_elapsed : null
+            ]
         );
-        await client.query('DELETE FROM task_assignees WHERE task_id = $1', [id]);
-        if (assignees && assignees.length > 0) {
-            for (let userId of assignees) { await client.query('INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, userId]); }
+        
+        // OPTIMIZATION 2: Only wipe & re-link assignees if they are explicitly sent in the payload
+        if (assignees !== undefined) {
+            await client.query('DELETE FROM task_assignees WHERE task_id = $1', [id]);
+            if (assignees && assignees.length > 0) {
+                for (let userId of assignees) { 
+                    await client.query('INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, userId]); 
+                }
+            }
         }
+        
         await client.query('COMMIT');
         res.json({ success: true });
     } catch (err) { 
-        await client.query('ROLLBACK'); res.status(500).json({ error: err.message }); 
-    } finally { client.release(); }
-});
-
-app.delete('/api/tasks/:id', async (req, res) => {
-    try { await pool.query('DELETE FROM tasks WHERE id = $1', [req.params.id]); res.json({ success: true }); } 
-    catch (err) { res.status(500).json({ error: err.message }); }
+        await client.query('ROLLBACK'); 
+        res.status(500).json({ error: err.message }); 
+    } finally { 
+        client.release(); 
+    }
 });
 
 // 3. PROJECTS
