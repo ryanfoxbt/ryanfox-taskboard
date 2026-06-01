@@ -188,7 +188,6 @@
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
-            /* Full-Screen Mobile Modals */
             dialog { 
                 position: fixed !important; 
                 top: 0 !important; 
@@ -525,7 +524,28 @@
                         <label style="margin: 0;">Assignees</label>
                         <button type="button" class="add-icon" onclick="openAssigneePromptModal()" title="Add Assignee">+</button>
                     </div>
-                    <div class="list-container" id="task-assignees-display" style="border:none; padding:0; background:transparent;"></div>
+                    <div class="list-container" id="task-assignees-display" style="border:none; padding:0; background:transparent; margin-bottom: 10px;"></div>
+                    
+                    <div id="dynamic-tools-section" style="margin-top: 15px; background: #fafbfc; padding: 10px; border-radius: 4px; border: 1px solid #dfe1e6; display: none;">
+                        
+                        <div id="counter-section" style="display: none;">
+                            <label style="margin: 0 0 6px 0; font-size: 12px; color: #5e6c84;">Repetitions</label>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <button type="button" class="secondary" style="padding: 4px 12px; font-size: 16px;" onclick="adjustCounter(-1)">-</button>
+                                <span id="task-counter-display" style="font-weight: bold; font-size: 16px; min-width: 30px; text-align: center;">0</span>
+                                <button type="button" class="secondary" style="padding: 4px 12px; font-size: 16px;" onclick="adjustCounter(1)">+</button>
+                            </div>
+                        </div>
+
+                        <div id="timer-section" style="display: none;">
+                            <label style="margin: 0 0 6px 0; font-size: 12px; color: #5e6c84;">Time Spent</label>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <button type="button" id="timer-toggle-btn" class="action-success" onclick="toggleTimer()" style="font-size: 12px; padding: 6px 12px; background: #e3fcef; color: #006644; border: 1px solid #36b37e;">▶ Start</button>
+                                <span id="task-timer-display" style="font-weight: bold; font-size: 16px; font-variant-numeric: tabular-nums;">00:00:00</span>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
                 
                 <div class="form-group" style="flex: 1; min-width: 140px;">
@@ -580,7 +600,6 @@
         function lockBody() { document.body.style.overflow = 'hidden'; }
         function unlockBody() { document.body.style.overflow = 'auto'; }
 
-        // --- ALL MODALS NOW RESET SCROLLTOP ON OPEN ---
         function openCreateWorkspaceModal() { lockBody(); document.getElementById('create-workspace-form').reset(); const m = document.getElementById('create-workspace-modal'); m.showModal(); setTimeout(() => m.scrollTop = 0, 10); }
         function closeCreateWorkspaceModal() { unlockBody(); document.getElementById('create-workspace-modal').close(); }
         
@@ -610,6 +629,9 @@
         let masterTimeframe = 'today';
         let masterScope = 'workspace'; 
 
+        // TIMER STATE
+        let activeTimerInterval = null;
+
         const lists = { future: document.getElementById('future-list'), todo: document.getElementById('todo-list'), doing: document.getElementById('doing-list'), done: document.getElementById('done-list'), recurring: document.getElementById('recurring-list'), complete: document.getElementById('complete-list') };
         const workspaceContextMenu = document.getElementById('workspace-context-menu'); const activeContextMenu = document.getElementById('active-context-menu'); const futureContextMenu = document.getElementById('future-context-menu'); const archiveContextMenu = document.getElementById('archive-context-menu'); const subtaskContextMenu = document.getElementById('subtask-context-menu');
         const projectContextMenu = document.getElementById('project-context-menu');
@@ -636,6 +658,7 @@
                         wsId = generateUUID();
                         await apiCall('/workspaces', 'POST', { id: wsId, name: 'Personal Workspace', userId: null });
                         await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
+                        // Default project renamed to My Project
                         await apiCall('/projects', 'POST', { id: generateUUID(), workspace_id: wsId, name: 'My Project', isSecret: false, owner_id: newUserId });
                     } else {
                         if (!wsId || !workspaces.find(w => w.id === wsId)) wsId = workspaces[0].id;
@@ -1268,14 +1291,91 @@
         }
         function allowDrop(e, status) { e.preventDefault(); const list = document.getElementById(status + '-list'); const dragEl = document.querySelector('.dragging'); if (!dragEl) return; const afterEl = [...list.querySelectorAll('.card:not(.dragging)')].reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = e.clientY - box.top - box.height / 2; return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest; }, { offset: Number.NEGATIVE_INFINITY }).element; if (afterEl == null) list.appendChild(dragEl); else list.insertBefore(dragEl, afterEl); }
 
-        // --- 7. FORMS & MODALS ---
+        // --- 7. FORMS & MODALS (INCLUDES NEW TIMER/COUNTER LOGIC) ---
         
         function handleStatusChange(status) {
             document.getElementById('date-label').innerText = (status === 'recurring') ? 'End Recurring Date' : 'Due Date';
+            
+            // Toggle Dynamic Counter & Timer Sections
+            document.getElementById('counter-section').style.display = (status === 'recurring' && !draftSubtaskId) ? 'block' : 'none';
+            document.getElementById('timer-section').style.display = (status === 'doing' && !draftSubtaskId) ? 'block' : 'none';
+
+            // Auto-pause timer if they move it out of doing while running
+            if (status !== 'doing' && draftTask && draftTask.timer_running) {
+                toggleTimer(); 
+            }
+        }
+
+        // --- TIMER AND COUNTER FUNCTIONS ---
+        function adjustCounter(amount) {
+            if (!draftTask) return;
+            draftTask.counter = (draftTask.counter || 0) + amount;
+            if (draftTask.counter < 0) draftTask.counter = 0;
+            document.getElementById('task-counter-display').innerText = draftTask.counter;
+        }
+
+        function toggleTimer() {
+            if (!draftTask) return;
+            const btn = document.getElementById('timer-toggle-btn');
+            
+            if (draftTask.timer_running) {
+                // Pause Timer
+                const now = Date.now();
+                const start = draftTask.timer_started_at || now;
+                draftTask.timer_elapsed = (draftTask.timer_elapsed || 0) + (now - start);
+                draftTask.timer_running = false;
+                draftTask.timer_started_at = null;
+                
+                btn.innerText = '▶ Start';
+                btn.className = 'action-success';
+                btn.style.background = '#e3fcef';
+                btn.style.color = '#006644';
+                btn.style.border = '1px solid #36b37e';
+                
+                clearInterval(activeTimerInterval);
+            } else {
+                // Start Timer
+                draftTask.timer_running = true;
+                draftTask.timer_started_at = Date.now();
+                
+                btn.innerText = '⏸ Pause';
+                btn.className = 'danger-solid';
+                btn.style.background = '#de350b';
+                btn.style.color = 'white';
+                btn.style.border = '1px solid #de350b';
+                
+                startTimerInterval();
+            }
+            // Auto-save so they don't lose time if they close the browser
+            saveTaskDB(draftTask);
+        }
+
+        function formatTime(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function updateTimerDisplay() {
+            if (!draftTask) return;
+            let elapsed = draftTask.timer_elapsed || 0;
+            if (draftTask.timer_running && draftTask.timer_started_at) {
+                elapsed += (Date.now() - draftTask.timer_started_at);
+            }
+            document.getElementById('task-timer-display').innerText = formatTime(elapsed);
+        }
+
+        function startTimerInterval() {
+            clearInterval(activeTimerInterval);
+            updateTimerDisplay();
+            activeTimerInterval = setInterval(updateTimerDisplay, 1000);
         }
 
         function openModal(defaultStatus) {
             lockBody();
+            clearInterval(activeTimerInterval);
             
             if (!currentProjectId) {
                 unlockBody();
@@ -1287,7 +1387,11 @@
                 defaultStatus = (currentView === 'future') ? 'future' : (currentView === 'archive' ? 'complete' : (currentView === 'recurring' ? 'recurring' : 'todo'));
             }
             
-            draftTask = { id: generateUUID(), title: '', description: '', assignees: [], due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null };
+            draftTask = { 
+                id: generateUUID(), title: '', description: '', assignees: [], due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null,
+                counter: 0, timer_running: false, timer_started_at: null, timer_elapsed: 0 
+            };
+            
             draftSubtasks = []; draftSubtaskId = null; document.getElementById('task-form').reset(); updateFormUI(); 
             
             document.getElementById('gcal-checkbox-container').style.display = 'flex';
@@ -1300,7 +1404,10 @@
 
         function editTask(id) {
             lockBody();
-            draftTask = JSON.parse(JSON.stringify(tasks.find(t => t.id === id))); draftSubtasks = tasks.filter(t => t.parent_task_id === id).map(st => JSON.parse(JSON.stringify(st)));
+            clearInterval(activeTimerInterval);
+            
+            draftTask = JSON.parse(JSON.stringify(tasks.find(t => t.id === id))); 
+            draftSubtasks = tasks.filter(t => t.parent_task_id === id).map(st => JSON.parse(JSON.stringify(st)));
             draftSubtaskId = null; updateFormUI(); 
             
             document.getElementById('gcal-checkbox-container').style.display = 'flex';
@@ -1311,7 +1418,12 @@
             setTimeout(() => { modal.scrollTop = 0; }, 10);
         }
 
-        function closeModal() { unlockBody(); document.getElementById('task-modal').close(); draftTask = null; draftSubtasks = []; }
+        function closeModal() { 
+            unlockBody(); 
+            clearInterval(activeTimerInterval);
+            document.getElementById('task-modal').close(); 
+            draftTask = null; draftSubtasks = []; 
+        }
 
         function syncFormToDraft() {
             if (!draftTask) return;
@@ -1324,11 +1436,32 @@
             document.getElementById('task-title').value = data.title || ''; document.getElementById('task-desc').value = data.description || ''; document.getElementById('task-due-date').value = data.due_date || ''; document.getElementById('task-status').value = data.status || 'todo'; document.getElementById('task-urgency').value = data.urgency || 'low';
             
             handleStatusChange(data.status || 'todo');
+            
+            // Timer and Counter UI Bindings
+            document.getElementById('task-counter-display').innerText = data.counter || 0;
+            const btn = document.getElementById('timer-toggle-btn');
+            if (data.timer_running) {
+                btn.innerText = '⏸ Pause';
+                btn.className = 'danger-solid';
+                btn.style.background = '#de350b';
+                btn.style.color = 'white';
+                btn.style.border = '1px solid #de350b';
+                startTimerInterval();
+            } else {
+                btn.innerText = '▶ Start';
+                btn.className = 'action-success';
+                btn.style.background = '#e3fcef';
+                btn.style.color = '#006644';
+                btn.style.border = '1px solid #36b37e';
+                updateTimerDisplay();
+            }
 
             renderAssigneeCheckboxes(data.assignees || []);
             const badgeContainer = document.getElementById('task-assignees-display'); badgeContainer.innerHTML = '';
             (data.assignees || []).forEach(id => { badgeContainer.innerHTML += `<span class="badge" style="margin-right:4px;">👤 ${sanitize(getUserName(id))}</span>`; });
             
+            // Hide Dynamic Sections in Subtask View
+            document.getElementById('dynamic-tools-section').style.display = draftSubtaskId ? 'none' : 'block';
             document.getElementById('subtasks-form-section').style.display = draftSubtaskId ? 'none' : 'block'; 
             document.getElementById('status-form-section').style.display = draftSubtaskId ? 'none' : 'block'; 
             document.getElementById('modal-back-btn').style.display = draftSubtaskId ? 'inline-block' : 'none'; 
