@@ -37,29 +37,58 @@ app.get('/api/data', async (req, res) => {
 
 // 2. TASKS & ASSIGNEES
 app.post('/api/tasks', async (req, res) => {
-    const { id, project_id, parent_task_id, title, description, status, urgency, due_date, assignees } = req.body;
+    // 1. Added the 4 new variables to the destructuring
+    const { 
+        id, project_id, parent_task_id, title, description, status, urgency, due_date, assignees,
+        counter, timer_running, timer_started_at, timer_elapsed 
+    } = req.body;
+    
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+        
+        // 2. Added the 4 new columns to the INSERT, VALUES, and DO UPDATE SET
         await client.query(
-            `INSERT INTO tasks (id, project_id, parent_task_id, title, description, status, urgency, due_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-             ON CONFLICT (id) DO UPDATE SET title = $4, description = $5, status = $6, urgency = $7, due_date = $8`,
-            [id, project_id, parent_task_id || null, title, description, status, urgency, due_date || null]
+            `INSERT INTO tasks (
+                id, project_id, parent_task_id, title, description, status, urgency, due_date,
+                counter, timer_running, timer_started_at, timer_elapsed
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+             ON CONFLICT (id) DO UPDATE SET 
+                title = $4, description = $5, status = $6, urgency = $7, due_date = $8,
+                counter = $9, timer_running = $10, timer_started_at = $11, timer_elapsed = $12`,
+            
+            // 3. Added the 4 new fallback values mapped to $9 through $12
+            [
+                id, project_id, parent_task_id || null, title, description, status, urgency, due_date || null,
+                counter || 0, timer_running || false, timer_started_at || null, timer_elapsed || 0
+            ]
         );
+        
+        // Your Assignee logic remains untouched and perfectly intact!
         await client.query('DELETE FROM task_assignees WHERE task_id = $1', [id]);
         if (assignees && assignees.length > 0) {
-            for (let userId of assignees) { await client.query('INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, userId]); }
+            for (let userId of assignees) { 
+                await client.query('INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, userId]); 
+            }
         }
         await client.query('COMMIT');
         res.json({ success: true });
     } catch (err) { 
-        await client.query('ROLLBACK'); res.status(500).json({ error: err.message }); 
-    } finally { client.release(); }
+        await client.query('ROLLBACK'); 
+        res.status(500).json({ error: err.message }); 
+    } finally { 
+        client.release(); 
+    }
 });
 
 app.delete('/api/tasks/:id', async (req, res) => {
-    try { await pool.query('DELETE FROM tasks WHERE id = $1', [req.params.id]); res.json({ success: true }); } 
-    catch (err) { res.status(500).json({ error: err.message }); }
+    try { 
+        await pool.query('DELETE FROM tasks WHERE id = $1', [req.params.id]); 
+        res.json({ success: true }); 
+    } 
+    catch (err) { 
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 // 3. PROJECTS
