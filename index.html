@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <title>Personal Task Board</title>
     <style>
-        /* Base Styles */
+        /* Base Styles & iOS Tap Highlight Fix */
         body { font-family: system-ui, -apple-system, sans-serif; background: #f4f5f7; margin: 0; padding: 20px; color: #172b4d; }
+        button, a, .card, .tab, .clickable-title, .icon-btn, .clickable-crumb { -webkit-tap-highlight-color: transparent; }
+
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
         .header-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
         
@@ -186,6 +188,7 @@
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
+            /* Full-Screen Mobile Modals */
             dialog { 
                 position: fixed !important; 
                 top: 0 !important; 
@@ -232,8 +235,7 @@
             </div>
             
             <div class="header-controls">
-                <div id="user-button"></div>
-                <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
+                <div id="user-button"></div> <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
                 <button class="desktop-add-task" onclick="openModal()">+ Add New Task</button>
             </div>
         </div>
@@ -250,7 +252,7 @@
                 </div>
 
                 <div class="filters-bar">
-                    <input type="text" id="filter-search" placeholder="Search tasks..." oninput="renderBoard()">
+                    <input type="text" id="filter-search" placeholder="Search tasks..." oninput="renderBoard()" spellcheck="true">
                     <select id="filter-assignee" onchange="renderBoard()"><option value="All">All Assignees</option></select>
                     
                     <div style="display: flex; gap: 10px; width: 100%;">
@@ -322,7 +324,7 @@
 
             <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
                 <div style="display: flex; gap: 10px; align-items: center; width: 100%; overflow-x: auto; padding-bottom: 4px;">
-                    <input type="text" id="mv-filter-search" placeholder="Search schedule..." oninput="renderMasterView()" style="flex: 1; min-width: 140px; padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; box-sizing: border-box; outline: none; font-family: inherit; font-size: 14px;">
+                    <input type="text" id="mv-filter-search" placeholder="Search schedule..." oninput="renderMasterView()" style="flex: 1; min-width: 140px; padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; box-sizing: border-box; outline: none; font-family: inherit; font-size: 14px;" spellcheck="true">
                     <select id="mv-filter-assignee" onchange="renderMasterView()" style="padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px;"><option value="All">All Assignees</option></select>
                     <select id="mv-filter-urgency" onchange="renderMasterView()" style="padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
                     
@@ -393,6 +395,9 @@
         <div class="checkbox-group"><input type="checkbox" id="setting-show-desc"><label for="setting-show-desc">Show Description</label></div>
         <div class="checkbox-group"><input type="checkbox" id="setting-show-assignee"><label for="setting-show-assignee">Show Assignees</label></div>
         
+        <div class="settings-section-title">Support</div>
+        <button type="button" class="secondary" style="width: 100%; font-size: 13px; margin-bottom: 10px;" onclick="window.location.href='mailto:support@yourdomain.com?subject=TaskBoard%20Bug%20Report'">🐞 Report a Bug</button>
+
         <div class="dialog-actions">
             <button type="button" class="secondary" onclick="closeSettings()">Cancel</button>
             <button type="button" onclick="saveSettings()">Save Settings</button>
@@ -403,7 +408,7 @@
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">Invite User</h2>
         <form id="add-user-form">
-            <div class="form-group"><label>Name</label><input type="text" id="new-ws-user-name" required placeholder="E.g., Sarah" autocomplete="off"></div>
+            <div class="form-group"><label>Name</label><input type="text" id="new-ws-user-name" required placeholder="E.g., Sarah" autocomplete="off" spellcheck="false"></div>
             <div class="form-group"><label>Email</label><input type="email" id="new-ws-user-email" required placeholder="sarah@example.com" autocomplete="off"></div>
             <div class="form-group"><label>Role</label><select id="new-ws-user-role"><option value="Member">Member</option><option value="Admin">Admin</option></select></div>
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeAddUserModal()">Cancel</button><button type="submit">Add User</button></div>
@@ -414,7 +419,7 @@
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">Create Workspace</h2>
         <form id="create-workspace-form">
-            <div class="form-group"><label>Workspace Name</label><input type="text" id="create-workspace-name" required autocomplete="off" placeholder="e.g. Acme Corp"></div>
+            <div class="form-group"><label>Workspace Name</label><input type="text" id="create-workspace-name" required autocomplete="off" placeholder="e.g. Acme Corp" spellcheck="true"></div>
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeCreateWorkspaceModal()">Cancel</button><button type="submit">Create</button></div>
         </form>
     </dialog>
@@ -423,7 +428,7 @@
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">Edit Workspace</h2>
         <form id="edit-workspace-form">
-            <div class="form-group"><label>Workspace Name</label><input type="text" id="edit-workspace-name" required autocomplete="off"></div>
+            <div class="form-group"><label>Workspace Name</label><input type="text" id="edit-workspace-name" required autocomplete="off" spellcheck="true"></div>
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeEditWorkspaceModal()">Cancel</button><button type="submit">Save Changes</button></div>
         </form>
     </dialog>
@@ -432,7 +437,7 @@
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">New Project</h2>
         <form id="prompt-form">
-            <div class="form-group"><label>Project Name</label><input type="text" id="new-project-name" required placeholder="E.g., Vacation Planning" autocomplete="off"></div>
+            <div class="form-group"><label>Project Name</label><input type="text" id="new-project-name" required placeholder="E.g., Vacation Planning" autocomplete="off" spellcheck="true"></div>
             <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;">
                 <input type="checkbox" id="new-project-secret"><label for="new-project-secret" style="margin:0; font-weight:bold; color: #006644;">🔒 Make Secret (Only visible to me)</label>
             </div>
@@ -444,14 +449,14 @@
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">Edit Project</h2>
         <form id="edit-project-form">
-            <div class="form-group"><label>Project Name</label><input type="text" id="edit-project-name" required autocomplete="off"></div>
+            <div class="form-group"><label>Project Name</label><input type="text" id="edit-project-name" required autocomplete="off" spellcheck="true"></div>
             
             <div class="form-group">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                     <label style="margin: 0;">Project Notes / Scratchpad</label>
                     <button type="button" class="danger" onclick="document.getElementById('edit-project-notes').value = ''" title="Clear text (Requires Save to commit)">Clear</button>
                 </div>
-                <textarea id="edit-project-notes" rows="6" placeholder="Jot down quick ideas, meeting notes, or draft future tasks here..." style="resize: vertical;"></textarea>
+                <textarea id="edit-project-notes" rows="6" placeholder="Jot down quick ideas, meeting notes, or draft future tasks here..." style="resize: vertical;" spellcheck="true"></textarea>
             </div>
 
             <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;">
@@ -465,7 +470,7 @@
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">New Subtask</h2>
         <form id="subtask-prompt-form">
-            <div class="form-group"><label>Subtask Title</label><input type="text" id="new-subtask-name" required placeholder="E.g., Buy groceries" autocomplete="off"></div>
+            <div class="form-group"><label>Subtask Title</label><input type="text" id="new-subtask-name" required placeholder="E.g., Buy groceries" autocomplete="off" spellcheck="true"></div>
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeSubtaskPromptModal()">Cancel</button><button type="submit">Add</button></div>
         </form>
     </dialog>
@@ -503,8 +508,8 @@
         </div>
         
         <form id="task-form">
-            <div class="form-group"><label>Title</label><input type="text" id="task-title" required placeholder="E.g., Take out recycling"></div>
-            <div class="form-group"><label>Description</label><textarea id="task-desc" rows="2" placeholder="Details go here..."></textarea></div>
+            <div class="form-group"><label>Title</label><input type="text" id="task-title" required placeholder="E.g., Take out recycling" spellcheck="true"></div>
+            <div class="form-group"><label>Description</label><textarea id="task-desc" rows="2" placeholder="Details go here..." spellcheck="true"></textarea></div>
             
             <div class="form-group" id="subtasks-form-section">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
@@ -631,7 +636,7 @@
                         wsId = generateUUID();
                         await apiCall('/workspaces', 'POST', { id: wsId, name: 'Personal Workspace', userId: null });
                         await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
-                        await apiCall('/projects', 'POST', { id: generateUUID(), workspace_id: wsId, name: 'Me', isSecret: false, owner_id: newUserId });
+                        await apiCall('/projects', 'POST', { id: generateUUID(), workspace_id: wsId, name: 'My Project', isSecret: false, owner_id: newUserId });
                     } else {
                         if (!wsId || !workspaces.find(w => w.id === wsId)) wsId = workspaces[0].id;
                         await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
@@ -677,12 +682,11 @@
                     return t;
                 });
 
-                // Auto-Archive Logic for expired Recurring Tasks!
                 const todayStr = new Date().toISOString().split('T')[0];
                 tasks.forEach(t => {
                     if (t.status === 'recurring' && t.due_date && t.due_date < todayStr) {
                         t.status = 'complete';
-                        apiCall('/tasks', 'POST', t); // Silently save to backend
+                        apiCall('/tasks', 'POST', t);
                     }
                 });
 
@@ -884,7 +888,6 @@
                 return (titleStr.includes(searchQ) || descStr.includes(searchQ)) && (assigneeQ === "All" || assigneesArray.includes(assigneeQ)) && (urgencyQ === "All" || urgencyStr === urgencyQ);
             });
 
-            // Sort by User's custom Task Order preferences
             const userPrefs = getActiveUserObj().preferences;
             const taskOrder = userPrefs.taskOrder || [];
             allMatches.sort((a, b) => {
@@ -1038,7 +1041,6 @@
             const today = new Date();
             today.setHours(0,0,0,0);
 
-            // 1. Filter Scope & Multi-Select Statuses
             const activeStatuses = Array.from(document.querySelectorAll('.mv-status-check:checked')).map(cb => cb.value);
             let scopedTasks = tasks.filter(t => t.parent_task_id === null && activeStatuses.includes(t.status));
 
@@ -1053,7 +1055,6 @@
                 scopedTasks = scopedTasks.filter(t => allowedProjIds.includes(t.project_id));
             }
 
-            // 2. Filter Timeframe
             let timeFiltered = scopedTasks.filter(t => {
                 if (!t.due_date) return false;
 
@@ -1069,7 +1070,6 @@
                 return true;
             });
 
-            // 3. Filter Search, Assignee, Urgency
             let finalMatches = timeFiltered.filter(task => {
                 const titleStr = (task.title || '').toLowerCase();
                 const descStr = (task.description || '').toLowerCase();
@@ -1080,7 +1080,6 @@
                        (urgencyQ === "All" || urgencyStr === urgencyQ);
             });
 
-            // Sort by due date ascending
             finalMatches.sort((a, b) => {
                 if (!a.due_date) return 1;
                 if (!b.due_date) return -1;
@@ -1102,7 +1101,6 @@
                 const proj = projects.find(p => p.id === task.project_id);
                 const ws = workspaces.find(w => w.id === (proj ? proj.workspace_id : null));
                 
-                // Clickable Context Crumb
                 const contextHtml = `<div class="context-crumb clickable-crumb" onclick="event.stopPropagation(); navigateToProject('${ws ? ws.id : ''}', '${proj ? proj.id : ''}')">${sanitize(ws ? ws.name : '')} › ${sanitize(proj ? proj.name : '')}</div>`;
 
                 const urgencyHtml = displayConfig.showUrgency ? `<span class="dot ${task.urgency}" title="Urgency: ${task.urgency}"></span>` : ''; 
@@ -1113,7 +1111,6 @@
                     dateHtml = `<span class="date-badge" style="margin:0; background: transparent; border: none; padding: 0;">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; 
                 }
                 
-                // Slim, Title-Only layout for Master List
                 card.innerHTML = `
                     <div style="padding: 8px 12px;">
                         ${contextHtml}
