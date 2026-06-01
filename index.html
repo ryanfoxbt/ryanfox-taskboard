@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <title>Personal Task Board</title>
     <style>
-        /* Base Styles */
+        /* Base Styles & iOS Tap Highlight Fix */
         body { font-family: system-ui, -apple-system, sans-serif; background: #f4f5f7; margin: 0; padding: 20px; color: #172b4d; }
+        button, a, .card, .tab, .clickable-title, .icon-btn, .clickable-crumb { -webkit-tap-highlight-color: transparent; }
+
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
         .header-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
         
@@ -27,6 +29,9 @@
         button.action-warning { background: transparent; color: #ff991f; padding: 4px 8px; font-size: 12px; margin: 0; }
         button.action-warning:hover { background: #fff5e6; }
 
+        .clickable-title { cursor: pointer; transition: color 0.2s; user-select: none; }
+        .clickable-title:hover { color: #0052cc; }
+
         .gear-btn { background: transparent; color: #5e6c84; font-size: 20px; padding: 4px 8px; line-height: 1; }
         .gear-btn:hover { background: #ebecf0; color: #172b4d; }
 
@@ -46,11 +51,17 @@
         .view-toggle { background: transparent; color: #42526e; border-radius: 4px; padding: 6px 16px; margin: 0; font-size: 14px; display: flex; align-items: center; gap: 6px; }
         .view-toggle:hover { background: rgba(255,255,255,0.5); }
         .view-toggle.active { background: white; color: #172b4d; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        
+        .view-toggle.active-blue { background: #e6fcff; color: #0052cc; font-weight: bold; box-shadow: 0 1px 2px rgba(0,82,204,0.15); border: 1px solid #b3d4ff; }
+
         .search-badge { background: #de350b; color: white; font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: bold; line-height: 1; }
 
         .filters-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-        .filters-bar input, .filters-bar select { padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px; }
+        .filters-bar input[type="text"], .filters-bar select { padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px; box-sizing: border-box; }
         .filters-bar input:focus, .filters-bar select:focus { border-color: #4c9aff; }
+        
+        .icon-btn { background: white; border: 1px solid #dfe1e6; border-radius: 4px; padding: 6px 12px; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; font-size: 16px; height: 35px; }
+        .icon-btn:hover { background: #ebecf0; border-color: #c1c7d0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 
         .board { display: flex; gap: 20px; align-items: flex-start; overflow-x: auto; padding-bottom: 10px; }
         .column { flex: 1; min-width: 260px; background: #ebecf0; padding: 12px; border-radius: 6px; min-height: 400px; display: flex; flex-direction: column; }
@@ -85,6 +96,10 @@
         
         .card .actions { opacity: 0; transition: opacity 0.2s ease; display: flex; gap: 2px; }
         .card:hover .actions { opacity: 1; }
+
+        .context-crumb { font-size: 10px; color: #8993a4; margin-bottom: 4px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
+        .clickable-crumb { cursor: pointer; transition: color 0.2s ease; display: inline-block; }
+        .clickable-crumb:hover { color: #0052cc; text-decoration: underline; }
 
         /* SIZES */
         .board-container.size-big .card { padding: 16px; gap: 12px; }
@@ -132,6 +147,15 @@
         
         .mobile-fab { display: none; } 
         .card-menu-btn { display: none; } 
+        
+        /* Global Indicator for Background Timers */
+        #global-timer-indicator {
+            display: none; position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: #172b4d; color: white; padding: 10px 24px; border-radius: 30px; font-weight: bold; 
+            font-size: 14px; z-index: 9999; box-shadow: 0 8px 16px rgba(0,0,0,0.2); cursor: pointer;
+            align-items: center; gap: 8px; border: 2px solid #ffffff; transition: transform 0.2s ease;
+        }
+        #global-timer-indicator:hover { transform: translateX(-50%) scale(1.05); }
 
         /* --- MOBILE OPTIMIZATIONS --- */
         @media (max-width: 768px) {
@@ -139,9 +163,9 @@
             .header { flex-direction: column; align-items: stretch; gap: 15px; }
             .header-controls { justify-content: space-between; width: 100%; flex-wrap: nowrap; }
             .header-controls .desktop-add-task { display: none; } 
+            
             .tools-row { flex-direction: column; align-items: stretch; gap: 10px; }
-            .filters-bar { flex-direction: column; width: 100%; align-items: stretch;}
-            .filters-bar input, .filters-bar select { width: 100%; box-sizing: border-box; }
+            .filters-bar { flex-direction: column; width: 100%; align-items: stretch; gap: 10px; }
             
             .mobile-fab {
                 display: flex; position: fixed; bottom: 24px; right: 24px;
@@ -151,6 +175,8 @@
                 box-shadow: 0 4px 12px rgba(0,82,204,0.4);
                 z-index: 1000; cursor: pointer; border: none;
             }
+
+            #global-timer-indicator { bottom: 90px; } /* Prevent overlap with FAB */
 
             .card .actions { display: none !important; } 
             .card-menu-btn { 
@@ -173,7 +199,6 @@
             }
             .custom-context-menu button { padding: 16px; font-size: 16px; text-align: center; border-bottom: 1px solid #ebecf0; }
             
-            /* Full-Screen Mobile Modals to Bypass Safari Keyboard Trap */
             dialog { 
                 position: fixed !important; 
                 top: 0 !important; 
@@ -204,10 +229,14 @@
         <div id="sign-in"></div>
     </div>
 
+    <div id="global-timer-indicator">
+        <span style="font-size: 16px;">⏱️</span> <span id="global-timer-text">00:00:00</span>
+    </div>
+
     <div id="app-container" style="display: none;">
         <div class="header">
             <div class="title-container" style="display: flex; align-items: center; position: relative;">
-                <h1 id="app-title" style="margin: 0;">Loading...</h1>
+                <h1 id="app-title" class="clickable-title" onclick="toggleMasterView()" title="Open Master Schedule">Loading...</h1>
                 <button class="gear-btn" onclick="toggleWorkspaceMenu(event)" title="Workspace Options" style="font-weight: bold; margin-left: 8px; font-size: 24px; padding: 0 8px;">⋮</button>
                 
                 <div id="workspace-context-menu" class="custom-context-menu" style="position: absolute; top: 100%; left: 0; margin-top: 8px;">
@@ -220,59 +249,119 @@
             </div>
             
             <div class="header-controls">
-                <div id="user-button"></div> <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
+                <div id="user-button"></div>
+                <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
                 <button class="desktop-add-task" onclick="openModal()">+ Add New Task</button>
             </div>
         </div>
 
-        <div class="project-tabs" id="project-tabs"></div>
+        <div id="kanban-view-container">
+            <div class="project-tabs" id="project-tabs"></div>
 
-        <div class="tools-row">
-            <div class="view-toggles">
-                <button class="view-toggle active" id="btn-view-active" onclick="switchView('active')">📊 Active Board</button>
-                <button class="view-toggle" id="btn-view-future" onclick="switchView('future')">⏳ Future</button>
-                <button class="view-toggle" id="btn-view-archive" onclick="switchView('archive')">🗄️ Archive</button>
+            <div class="tools-row" id="main-tools-row">
+                <div class="view-toggles">
+                    <button class="view-toggle active" id="btn-view-active" onclick="switchView('active')">📊 Active</button>
+                    <button class="view-toggle" id="btn-view-recurring" onclick="switchView('recurring')">Recurring</button>
+                    <button class="view-toggle" id="btn-view-future" onclick="switchView('future')">Future</button>
+                    <button class="view-toggle" id="btn-view-archive" onclick="switchView('archive')">Archive</button>
+                </div>
+
+                <div class="filters-bar">
+                    <input type="text" id="filter-search" placeholder="Search tasks..." oninput="renderBoard()" spellcheck="true">
+                    <select id="filter-assignee" onchange="renderBoard()"><option value="All">All Assignees</option></select>
+                    
+                    <div style="display: flex; gap: 10px; width: 100%;">
+                        <select id="filter-urgency" onchange="renderBoard()" style="flex: 1;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+                        <button type="button" class="icon-btn" onclick="window.open('https://calendar.google.com', '_blank')" title="Open Google Calendar">📅</button>
+                    </div>
+                </div>
             </div>
 
-            <div class="filters-bar">
-                <input type="text" id="filter-search" placeholder="Search tasks..." oninput="renderBoard()">
-                <select id="filter-assignee" onchange="renderBoard()"><option value="All">All Assignees</option></select>
-                <select id="filter-urgency" onchange="renderBoard()"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+            <div id="master-board-wrapper" class="board-container size-big">
+                <div class="board" id="view-active">
+                    <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'todo')">
+                        <div class="column-header"><h2>To Do</h2><button class="add-icon" onclick="openModal('todo')" title="Add To Do">+</button></div>
+                        <div id="todo-list" class="task-list"></div>
+                    </div>
+                    <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'doing')">
+                        <div class="column-header"><h2>Doing</h2><button class="add-icon" onclick="openModal('doing')" title="Add Doing">+</button></div>
+                        <div id="doing-list" class="task-list"></div>
+                    </div>
+                    <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'done')">
+                        <div class="column-header"><h2>Done</h2><button class="add-icon" onclick="openModal('done')" title="Add Done">+</button></div>
+                        <div id="done-list" class="task-list"></div>
+                    </div>
+                </div>
+
+                <div class="single-column-board" id="view-recurring">
+                    <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'recurring')">
+                        <div class="column-header"><h2>Recurring Tasks</h2><button class="add-icon" onclick="openModal('recurring')" title="Add Recurring Task">+</button></div>
+                        <div id="recurring-list" class="task-list"></div>
+                    </div>
+                </div>
+
+                <div class="single-column-board" id="view-future">
+                    <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'future')">
+                        <div class="column-header"><h2>Future Tasks</h2><button class="add-icon" onclick="openModal('future')" title="Add Future Task">+</button></div>
+                        <div id="future-list" class="task-list"></div>
+                    </div>
+                </div>
+
+                <div class="single-column-board" id="view-archive">
+                    <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'complete')">
+                        <div class="column-header"><h2>Completed (Archived)</h2></div>
+                        <div id="complete-list" class="task-list"></div>
+                    </div>
+                </div>
             </div>
+            
+            <button class="mobile-fab" onclick="openModal()">+</button>
         </div>
 
-        <div id="master-board-wrapper" class="board-container size-big">
-            <div class="board" id="view-active">
-                <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'todo')">
-                    <div class="column-header"><h2>To Do</h2><button class="add-icon" onclick="openModal('todo')" title="Add To Do">+</button></div>
-                    <div id="todo-list" class="task-list"></div>
+        <div id="master-schedule-container" style="display: none;">
+            
+            <div class="modal-header-row" style="margin-top: 10px; border-bottom: none; padding-bottom: 0;">
+                <h2 style="margin:0; color: #0052cc;">Master Schedule</h2>
+                <button class="secondary" onclick="toggleMasterView()">← Back to Board</button>
+            </div>
+
+            <div class="tools-row" style="background: white; padding: 15px; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-top: 15px; display: flex; gap: 15px; flex-wrap: wrap;">
+                <div class="view-toggles" style="flex: 1; min-width: 200px;">
+                    <button class="view-toggle active" id="mv-time-today" onclick="setMasterTime('today')" style="flex: 1; justify-content: center;">Today</button>
+                    <button class="view-toggle" id="mv-time-week" onclick="setMasterTime('week')" style="flex: 1; justify-content: center;">This Week</button>
                 </div>
-                <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'doing')">
-                    <div class="column-header"><h2>Doing</h2><button class="add-icon" onclick="openModal('doing')" title="Add Doing">+</button></div>
-                    <div id="doing-list" class="task-list"></div>
-                </div>
-                <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'done')">
-                    <div class="column-header"><h2>Done</h2><button class="add-icon" onclick="openModal('done')" title="Add Done">+</button></div>
-                    <div id="done-list" class="task-list"></div>
+                <div class="view-toggles" style="flex: 2; min-width: 300px;">
+                    <button class="view-toggle" id="mv-scope-project" onclick="setMasterScope('project')" style="flex: 1; justify-content: center;">This Project</button>
+                    <button class="view-toggle active-blue" id="mv-scope-workspace" onclick="setMasterScope('workspace')" style="flex: 1; justify-content: center;">This Workspace</button>
+                    <button class="view-toggle" id="mv-scope-all" onclick="setMasterScope('all')" style="flex: 1; justify-content: center;">All Workspaces</button>
                 </div>
             </div>
 
-            <div class="single-column-board" id="view-future">
-                <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'future')">
-                    <div class="column-header"><h2>Future Tasks</h2><button class="add-icon" onclick="openModal('future')" title="Add Future Task">+</button></div>
-                    <div id="future-list" class="task-list"></div>
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+                <div style="display: flex; gap: 10px; align-items: center; width: 100%; overflow-x: auto; padding-bottom: 4px;">
+                    <input type="text" id="mv-filter-search" placeholder="Search schedule..." oninput="renderMasterView()" style="flex: 1; min-width: 140px; padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; box-sizing: border-box; outline: none; font-family: inherit; font-size: 14px;" spellcheck="true">
+                    <select id="mv-filter-assignee" onchange="renderMasterView()" style="padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px;"><option value="All">All Assignees</option></select>
+                    <select id="mv-filter-urgency" onchange="renderMasterView()" style="padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+                    
+                    <div style="position: relative; flex-shrink: 0;">
+                        <button type="button" class="secondary" onclick="toggleStatusDropdown(event)" style="padding: 6px 12px; font-size: 14px; margin: 0; height: 35px; border: 1px solid #dfe1e6; background: white;">Status ▼</button>
+                        <div id="mv-status-dropdown" class="custom-context-menu" style="top: 100%; right: 0; margin-top: 4px; padding: 12px; min-width: 150px;" onclick="event.stopPropagation()">
+                            <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="todo" checked onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> To Do</label>
+                            <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="doing" checked onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Doing</label>
+                            <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="recurring" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Recurring</label>
+                            <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="done" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Done</label>
+                            <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="future" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Future</label>
+                            <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;"><input type="checkbox" class="mv-status-check" value="complete" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Archived</label>
+                        </div>
+                    </div>
+
+                    <button type="button" class="icon-btn" onclick="window.open('https://calendar.google.com', '_blank')" title="Open Google Calendar" style="flex-shrink: 0; height: 35px; padding: 0 12px;">📅</button>
                 </div>
             </div>
 
-            <div class="single-column-board" id="view-archive">
-                <div class="column" ondrop="event.preventDefault()" ondragover="allowDrop(event, 'complete')">
-                    <div class="column-header"><h2>Completed (Archived)</h2></div>
-                    <div id="complete-list" class="task-list"></div>
+            <div id="master-task-list" class="board-container size-small" style="display: flex; flex-direction: column; gap: 8px; max-width: 800px; margin: 0 auto; padding-bottom: 60px;">
                 </div>
-            </div>
         </div>
-        
-        <button class="mobile-fab" onclick="openModal()">+</button>
     </div>
 
     <div id="active-context-menu" class="custom-context-menu">
@@ -321,6 +410,9 @@
         <div class="checkbox-group"><input type="checkbox" id="setting-show-desc"><label for="setting-show-desc">Show Description</label></div>
         <div class="checkbox-group"><input type="checkbox" id="setting-show-assignee"><label for="setting-show-assignee">Show Assignees</label></div>
         
+        <div class="settings-section-title">Support</div>
+        <button type="button" class="secondary" style="width: 100%; font-size: 13px; margin-bottom: 10px;" onclick="window.location.href='mailto:support@yourdomain.com?subject=TaskBoard%20Bug%20Report'">🐞 Report a Bug</button>
+
         <div class="dialog-actions">
             <button type="button" class="secondary" onclick="closeSettings()">Cancel</button>
             <button type="button" onclick="saveSettings()">Save Settings</button>
@@ -331,7 +423,7 @@
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">Invite User</h2>
         <form id="add-user-form">
-            <div class="form-group"><label>Name</label><input type="text" id="new-ws-user-name" required placeholder="E.g., Sarah" autocomplete="off"></div>
+            <div class="form-group"><label>Name</label><input type="text" id="new-ws-user-name" required placeholder="E.g., Sarah" autocomplete="off" spellcheck="false"></div>
             <div class="form-group"><label>Email</label><input type="email" id="new-ws-user-email" required placeholder="sarah@example.com" autocomplete="off"></div>
             <div class="form-group"><label>Role</label><select id="new-ws-user-role"><option value="Member">Member</option><option value="Admin">Admin</option></select></div>
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeAddUserModal()">Cancel</button><button type="submit">Add User</button></div>
@@ -342,7 +434,7 @@
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">Create Workspace</h2>
         <form id="create-workspace-form">
-            <div class="form-group"><label>Workspace Name</label><input type="text" id="create-workspace-name" required autocomplete="off" placeholder="e.g. Acme Corp"></div>
+            <div class="form-group"><label>Workspace Name</label><input type="text" id="create-workspace-name" required autocomplete="off" placeholder="e.g. Acme Corp" spellcheck="true"></div>
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeCreateWorkspaceModal()">Cancel</button><button type="submit">Create</button></div>
         </form>
     </dialog>
@@ -351,7 +443,7 @@
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">Edit Workspace</h2>
         <form id="edit-workspace-form">
-            <div class="form-group"><label>Workspace Name</label><input type="text" id="edit-workspace-name" required autocomplete="off"></div>
+            <div class="form-group"><label>Workspace Name</label><input type="text" id="edit-workspace-name" required autocomplete="off" spellcheck="true"></div>
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeEditWorkspaceModal()">Cancel</button><button type="submit">Save Changes</button></div>
         </form>
     </dialog>
@@ -360,7 +452,7 @@
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">New Project</h2>
         <form id="prompt-form">
-            <div class="form-group"><label>Project Name</label><input type="text" id="new-project-name" required placeholder="E.g., Vacation Planning" autocomplete="off"></div>
+            <div class="form-group"><label>Project Name</label><input type="text" id="new-project-name" required placeholder="E.g., Vacation Planning" autocomplete="off" spellcheck="true"></div>
             <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;">
                 <input type="checkbox" id="new-project-secret"><label for="new-project-secret" style="margin:0; font-weight:bold; color: #006644;">🔒 Make Secret (Only visible to me)</label>
             </div>
@@ -372,14 +464,14 @@
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">Edit Project</h2>
         <form id="edit-project-form">
-            <div class="form-group"><label>Project Name</label><input type="text" id="edit-project-name" required autocomplete="off"></div>
+            <div class="form-group"><label>Project Name</label><input type="text" id="edit-project-name" required autocomplete="off" spellcheck="true"></div>
             
             <div class="form-group">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                     <label style="margin: 0;">Project Notes / Scratchpad</label>
                     <button type="button" class="danger" onclick="document.getElementById('edit-project-notes').value = ''" title="Clear text (Requires Save to commit)">Clear</button>
                 </div>
-                <textarea id="edit-project-notes" rows="6" placeholder="Jot down quick ideas, meeting notes, or draft future tasks here..." style="resize: vertical;"></textarea>
+                <textarea id="edit-project-notes" rows="6" placeholder="Jot down quick ideas, meeting notes, or draft future tasks here..." style="resize: vertical;" spellcheck="true"></textarea>
             </div>
 
             <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;">
@@ -393,7 +485,7 @@
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">New Subtask</h2>
         <form id="subtask-prompt-form">
-            <div class="form-group"><label>Subtask Title</label><input type="text" id="new-subtask-name" required placeholder="E.g., Buy groceries" autocomplete="off"></div>
+            <div class="form-group"><label>Subtask Title</label><input type="text" id="new-subtask-name" required placeholder="E.g., Buy groceries" autocomplete="off" spellcheck="true"></div>
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeSubtaskPromptModal()">Cancel</button><button type="submit">Add</button></div>
         </form>
     </dialog>
@@ -431,8 +523,8 @@
         </div>
         
         <form id="task-form">
-            <div class="form-group"><label>Title</label><input type="text" id="task-title" required placeholder="E.g., Take out recycling"></div>
-            <div class="form-group"><label>Description</label><textarea id="task-desc" rows="2" placeholder="Details go here..."></textarea></div>
+            <div class="form-group"><label>Title</label><input type="text" id="task-title" required placeholder="E.g., Take out recycling" spellcheck="true"></div>
+            <div class="form-group"><label>Description</label><textarea id="task-desc" rows="2" placeholder="Details go here..." spellcheck="true"></textarea></div>
             
             <div class="form-group" id="subtasks-form-section">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
@@ -448,21 +540,55 @@
                         <label style="margin: 0;">Assignees</label>
                         <button type="button" class="add-icon" onclick="openAssigneePromptModal()" title="Add Assignee">+</button>
                     </div>
-                    <div class="list-container" id="task-assignees-display" style="border:none; padding:0; background:transparent;"></div>
+                    <div class="list-container" id="task-assignees-display" style="border:none; padding:0; background:transparent; margin-bottom: 10px;"></div>
+                    
+                    <div id="dynamic-tools-section" style="margin-top: 15px; background: #fafbfc; padding: 10px; border-radius: 4px; border: 1px solid #dfe1e6; display: none;">
+                        
+                        <div id="counter-section" style="display: none;">
+                            <label style="margin: 0 0 6px 0; font-size: 12px; color: #5e6c84;">Repetitions</label>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <button type="button" class="secondary" style="padding: 4px 12px; font-size: 16px;" onclick="adjustCounter(-1)">-</button>
+                                <span id="task-counter-display" style="font-weight: bold; font-size: 16px; min-width: 30px; text-align: center;">0</span>
+                                <button type="button" class="secondary" style="padding: 4px 12px; font-size: 16px;" onclick="adjustCounter(1)">+</button>
+                            </div>
+                        </div>
+
+                        <div id="timer-section" style="display: none;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <label style="margin: 0; font-size: 12px; color: #5e6c84;">Time Spent</label>
+                                <button type="button" class="danger" style="padding: 0; font-size: 11px;" onclick="clearTimer()">Clear</button>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <button type="button" id="timer-toggle-btn" class="action-success" onclick="toggleTimer()" style="font-size: 12px; padding: 6px 12px; background: #e3fcef; color: #006644; border: 1px solid #36b37e;">▶ Start</button>
+                                <span id="task-timer-display" style="font-weight: bold; font-size: 16px; font-variant-numeric: tabular-nums;">00:00:00</span>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
                 
                 <div class="form-group" style="flex: 1; min-width: 140px;">
-                    <label>Due Date</label><input type="date" id="task-due-date" style="margin-bottom: 12px;">
+                    <label id="date-label">Due Date</label><input type="date" id="task-due-date" style="margin-bottom: 12px;">
                     <label>Urgency</label>
                     <select id="task-urgency" style="margin-bottom: 12px;"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
                     <div id="status-form-section">
                         <label>Status</label>
-                        <select id="task-status">
-                            <option value="future">Future</option><option value="todo">To Do</option><option value="doing">Doing</option><option value="done">Done</option><option value="complete">Complete (Archived)</option>
+                        <select id="task-status" onchange="handleStatusChange(this.value)">
+                            <option value="future">Future</option>
+                            <option value="todo">To Do</option>
+                            <option value="doing">Doing</option>
+                            <option value="recurring">Recurring</option>
+                            <option value="done">Done</option>
+                            <option value="complete">Complete (Archived)</option>
                         </select>
                     </div>
                 </div>
             </div>
+            
+            <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;" id="gcal-checkbox-container">
+                <input type="checkbox" id="task-gcal-sync"><label for="task-gcal-sync" style="margin:0; font-weight:bold; color: #0052cc;">📅 Add to Google Calendar on Save</label>
+            </div>
+            
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeModal()">Cancel</button><button type="submit" id="save-task-btn">Save Task</button></div>
         </form>
     </dialog>
@@ -470,13 +596,11 @@
     <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_YnJpZWYtc2F3ZmlzaC02MS5jbGVyay5hY2NvdW50cy5kZXYk" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@4/dist/clerk.browser.js"></script>
 
     <script>
-        // --- 0. UTILS, MODAL LOCKS, & URL LINKIFIER ---
         function sanitize(str) {
             if (!str) return '';
             return String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
         }
 
-        // Detects web URLs and safely converts them to clickable links
         function linkify(text) {
             if (!text) return '';
             const urlPattern = /(\b(https?):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gim;
@@ -491,11 +615,9 @@
             });
         }
 
-        // Stops the background from sliding around on iOS when a modal is open
         function lockBody() { document.body.style.overflow = 'hidden'; }
         function unlockBody() { document.body.style.overflow = 'auto'; }
 
-        // --- ALL MODALS NOW RESET SCROLLTOP ON OPEN ---
         function openCreateWorkspaceModal() { lockBody(); document.getElementById('create-workspace-form').reset(); const m = document.getElementById('create-workspace-modal'); m.showModal(); setTimeout(() => m.scrollTop = 0, 10); }
         function closeCreateWorkspaceModal() { unlockBody(); document.getElementById('create-workspace-modal').close(); }
         
@@ -505,7 +627,6 @@
         function openPromptModal() { lockBody(); document.getElementById('prompt-form').reset(); const m = document.getElementById('prompt-modal'); m.showModal(); setTimeout(() => m.scrollTop = 0, 10); }
         function closePromptModal() { unlockBody(); document.getElementById('prompt-modal').close(); }
 
-        // --- 1. API CONFIGURATION & STATE ---
         const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
 
         let workspaces = []; let workspaceUsers = []; let projects = []; let tasks = [];
@@ -520,11 +641,16 @@
         let currentView = 'active'; let draftTask = null; let draftSubtasks = []; let pendingConfirmAction = null; 
         let contextTargetMainId = null; let contextTargetSubtaskId = null; let contextTargetProjectId = null;
 
-        const lists = { future: document.getElementById('future-list'), todo: document.getElementById('todo-list'), doing: document.getElementById('doing-list'), done: document.getElementById('done-list'), complete: document.getElementById('complete-list') };
+        let isMasterView = false;
+        let masterTimeframe = 'today';
+        let masterScope = 'workspace'; 
+
+        let activeTimerInterval = null;
+
+        const lists = { future: document.getElementById('future-list'), todo: document.getElementById('todo-list'), doing: document.getElementById('doing-list'), done: document.getElementById('done-list'), recurring: document.getElementById('recurring-list'), complete: document.getElementById('complete-list') };
         const workspaceContextMenu = document.getElementById('workspace-context-menu'); const activeContextMenu = document.getElementById('active-context-menu'); const futureContextMenu = document.getElementById('future-context-menu'); const archiveContextMenu = document.getElementById('archive-context-menu'); const subtaskContextMenu = document.getElementById('subtask-context-menu');
         const projectContextMenu = document.getElementById('project-context-menu');
 
-        // --- CLERK BOOTSTRAP ---
         window.addEventListener('load', async function () {
             await Clerk.load();
 
@@ -546,7 +672,7 @@
                         wsId = generateUUID();
                         await apiCall('/workspaces', 'POST', { id: wsId, name: 'Personal Workspace', userId: null });
                         await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
-                        await apiCall('/projects', 'POST', { id: generateUUID(), workspace_id: wsId, name: 'Me', isSecret: false, owner_id: newUserId });
+                        await apiCall('/projects', 'POST', { id: generateUUID(), workspace_id: wsId, name: 'My Project', isSecret: false, owner_id: newUserId });
                     } else {
                         if (!wsId || !workspaces.find(w => w.id === wsId)) wsId = workspaces[0].id;
                         await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
@@ -558,9 +684,11 @@
                 document.getElementById('sign-in-container').style.display = 'flex';
                 Clerk.mountSignIn(document.getElementById('sign-in'));
             }
+
+            // Start the global timer indicator logic
+            setInterval(updateGlobalTimer, 1000);
         });
 
-        // --- 2. ASYNC DATA ENGINE ---
         async function loadDataFromDB() {
             try {
                 document.getElementById('app-title').innerHTML = "Loading...";
@@ -592,13 +720,20 @@
                     return t;
                 });
 
+                const todayStr = new Date().toISOString().split('T')[0];
+                tasks.forEach(t => {
+                    if (t.status === 'recurring' && t.due_date && t.due_date < todayStr) {
+                        t.status = 'complete';
+                        apiCall('/tasks', 'POST', t);
+                    }
+                });
+
                 initValidation();
                 renderAll(); 
 
             } catch (error) { console.error("Database connection failed.", error); }
         }
 
-        // --- SAFE USER PARSING LOGIC ---
         function getActiveUserObj() { 
             let u = workspaceUsers.find(u => u.email === activeUserEmail);
             if (!u) u = { id: null, workspace_ids: [] };
@@ -618,21 +753,21 @@
             if (myWorkspaces.length > 0 && (!currentWorkspaceId || !myWorkspaces.find(w => w.id === currentWorkspaceId))) {
                 currentWorkspaceId = myWorkspaces[0].id; 
                 localStorage.setItem('currentWorkspaceId', currentWorkspaceId);
-                return; 
             }
             
             const activeWorkspaceProjects = projects.filter(p => p.workspace_id === currentWorkspaceId);
-            if (activeWorkspaceProjects.length > 0 && (!currentProjectId || !activeWorkspaceProjects.find(p => p.id === currentProjectId))) {
-                
-                // NEW: Sort by the user's preferences first, so it defaults to their chosen left-most tab!
-                activeWorkspaceProjects.sort((a, b) => {
-                    let idxA = (me.preferences.projectOrder || []).indexOf(a.id); 
-                    let idxB = (me.preferences.projectOrder || []).indexOf(b.id);
-                    if (idxA === -1) idxA = 99999; if (idxB === -1) idxB = 99999; return idxA - idxB;
-                });
-                
-                currentProjectId = activeWorkspaceProjects[0].id; 
-                localStorage.setItem('currentProjectId', currentProjectId);
+            if (activeWorkspaceProjects.length > 0) {
+                if (!currentProjectId || !activeWorkspaceProjects.find(p => p.id === currentProjectId)) {
+                    activeWorkspaceProjects.sort((a, b) => {
+                        let idxA = (me.preferences.projectOrder || []).indexOf(a.id); 
+                        let idxB = (me.preferences.projectOrder || []).indexOf(b.id);
+                        if (idxA === -1) idxA = 99999; if (idxB === -1) idxB = 99999; return idxA - idxB;
+                    });
+                    currentProjectId = activeWorkspaceProjects[0].id; 
+                    localStorage.setItem('currentProjectId', currentProjectId);
+                }
+            } else {
+                currentProjectId = null;
             }
 
             uiSize = me.preferences.uiSize;
@@ -644,13 +779,17 @@
             renderWorkspaceUsers(); 
             renderProjects(); 
             updateAssigneeFilterOptions(); 
-            renderBoard();
+            
+            if (isMasterView) {
+                renderMasterView();
+            } else {
+                renderBoard();
+            }
         }
 
         function getVisibleUsers() { return workspaceUsers.filter(u => u.workspace_ids && u.workspace_ids.includes(currentWorkspaceId)); }
         function getUserName(id) { const u = workspaceUsers.find(x => x.id === id); return u ? u.name : 'Unknown'; }
 
-        // --- 3. API WRITE WRAPPERS ---
         async function apiCall(endpoint, method, body = null) {
             try {
                 const options = { method, headers: { 'Content-Type': 'application/json' } };
@@ -661,12 +800,19 @@
 
         async function saveTaskDB(t) {
             const idx = tasks.findIndex(x => x.id === t.id); if (idx > -1) tasks[idx] = t; else tasks.push(t);
-            renderBoard(); await apiCall('/tasks', 'POST', t);
+            renderAll(); 
+            await apiCall('/tasks', 'POST', t);
+        }
+        
+        // NEW: Background save that completely skips the heavy UI re-rendering process
+        async function silentSaveTaskDB(t) {
+            const idx = tasks.findIndex(x => x.id === t.id); if (idx > -1) tasks[idx] = t; else tasks.push(t);
+            await apiCall('/tasks', 'POST', t);
         }
 
         async function deleteTaskDB(id) {
             tasks = tasks.filter(t => t.id !== id && t.parent_task_id !== id);
-            renderBoard(); await apiCall(`/tasks/${id}`, 'DELETE');
+            renderAll(); await apiCall(`/tasks/${id}`, 'DELETE');
         }
 
         async function saveProjectDB(p) {
@@ -680,7 +826,6 @@
             renderAll(); await apiCall(`/projects/${id}`, 'DELETE');
         }
 
-        // --- 4. UI RENDERERS ---
         function renderWorkspaceMenu() {
             const list = document.getElementById('workspace-list-menu'); list.innerHTML = '';
             const myWorkspaces = workspaces.filter(ws => getActiveUserObj().workspace_ids.includes(ws.id));
@@ -733,6 +878,7 @@
                     } else {
                         currentProjectId = project.id; 
                         localStorage.setItem('currentProjectId', project.id);
+                        if(isMasterView) toggleMasterView(); 
                         renderBoard(); 
                         renderProjects(); 
                         updateAssigneeFilterOptions(); 
@@ -755,8 +901,18 @@
         }
 
         function updateAssigneeFilterOptions() {
-            const filterSelect = document.getElementById('filter-assignee'); const currentSelection = filterSelect.value; filterSelect.innerHTML = '<option value="All">All Assignees</option>';
-            const activeAssignees = new Set(); tasks.filter(t => t.project_id === currentProjectId).forEach(t => { if (t.assignees) t.assignees.forEach(a => activeAssignees.add(a)); });
+            const filterSelect = document.getElementById(isMasterView ? 'mv-filter-assignee' : 'filter-assignee'); 
+            const currentSelection = filterSelect.value; filterSelect.innerHTML = '<option value="All">All Assignees</option>';
+            
+            let activeAssignees = new Set(); 
+            if(isMasterView) {
+                const allowedWsIds = getActiveUserObj().workspace_ids || [];
+                const allowedProjIds = projects.filter(p => allowedWsIds.includes(p.workspace_id)).map(p => p.id);
+                tasks.filter(t => allowedProjIds.includes(t.project_id)).forEach(t => { if (t.assignees) t.assignees.forEach(a => activeAssignees.add(a)); });
+            } else {
+                tasks.filter(t => t.project_id === currentProjectId).forEach(t => { if (t.assignees) t.assignees.forEach(a => activeAssignees.add(a)); });
+            }
+
             Array.from(activeAssignees).sort().forEach(id => { 
                 const option = document.createElement('option'); option.value = id; 
                 option.innerHTML = sanitize(getUserName(id)); 
@@ -766,7 +922,7 @@
         }
 
         function renderBoard() {
-            lists.future.innerHTML = ''; lists.todo.innerHTML = ''; lists.doing.innerHTML = ''; lists.done.innerHTML = ''; lists.complete.innerHTML = '';
+            lists.future.innerHTML = ''; lists.todo.innerHTML = ''; lists.doing.innerHTML = ''; lists.done.innerHTML = ''; lists.recurring.innerHTML = ''; lists.complete.innerHTML = '';
             const searchQ = document.getElementById('filter-search').value.toLowerCase(); const assigneeQ = document.getElementById('filter-assignee').value; const urgencyQ = document.getElementById('filter-urgency').value;
             const activeMainTasks = tasks.filter(task => task.project_id === currentProjectId && task.parent_task_id === null);
             
@@ -775,7 +931,6 @@
                 return (titleStr.includes(searchQ) || descStr.includes(searchQ)) && (assigneeQ === "All" || assigneesArray.includes(assigneeQ)) && (urgencyQ === "All" || urgencyStr === urgencyQ);
             });
 
-            // NEW: Sort by User's custom Task Order preferences!
             const userPrefs = getActiveUserObj().preferences;
             const taskOrder = userPrefs.taskOrder || [];
             allMatches.sort((a, b) => {
@@ -787,10 +942,20 @@
             });
 
             if (searchQ || assigneeQ !== 'All' || urgencyQ !== 'All') {
-                const aHits = allMatches.filter(t => ['todo', 'doing', 'done'].includes(t.status)).length; const fHits = allMatches.filter(t => t.status === 'future').length; const cHits = allMatches.filter(t => t.status === 'complete').length;
-                document.getElementById('btn-view-active').innerHTML = `📊 Active Board ${aHits > 0 ? `<span class="search-badge">${aHits}</span>` : ''}`; document.getElementById('btn-view-future').innerHTML = `⏳ Future ${fHits > 0 ? `<span class="search-badge">${fHits}</span>` : ''}`; document.getElementById('btn-view-archive').innerHTML = `🗄️ Archive ${cHits > 0 ? `<span class="search-badge">${cHits}</span>` : ''}`;
+                const aHits = allMatches.filter(t => ['todo', 'doing', 'done'].includes(t.status)).length; 
+                const fHits = allMatches.filter(t => t.status === 'future').length; 
+                const cHits = allMatches.filter(t => t.status === 'complete').length;
+                const rHits = allMatches.filter(t => t.status === 'recurring').length;
+                
+                document.getElementById('btn-view-active').innerHTML = `📊 Active ${aHits > 0 ? `<span class="search-badge">${aHits}</span>` : ''}`; 
+                document.getElementById('btn-view-recurring').innerHTML = `Recurring ${rHits > 0 ? `<span class="search-badge">${rHits}</span>` : ''}`; 
+                document.getElementById('btn-view-future').innerHTML = `Future ${fHits > 0 ? `<span class="search-badge">${fHits}</span>` : ''}`; 
+                document.getElementById('btn-view-archive').innerHTML = `Archive ${cHits > 0 ? `<span class="search-badge">${cHits}</span>` : ''}`;
             } else {
-                document.getElementById('btn-view-active').innerHTML = `📊 Active Board`; document.getElementById('btn-view-future').innerHTML = `⏳ Future`; document.getElementById('btn-view-archive').innerHTML = `🗄️ Archive`;
+                document.getElementById('btn-view-active').innerHTML = `📊 Active`; 
+                document.getElementById('btn-view-recurring').innerHTML = `Recurring`; 
+                document.getElementById('btn-view-future').innerHTML = `Future`; 
+                document.getElementById('btn-view-archive').innerHTML = `Archive`;
             }
 
             let activeSize = uiSize;
@@ -804,6 +969,7 @@
             allMatches.forEach(task => {
                 let desktopActions = '';
                 if (['todo', 'doing', 'done'].includes(task.status)) { desktopActions = `<button type="button" class="action-success" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'complete')" title="Archive">✓</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; } 
+                else if (task.status === 'recurring') { desktopActions = `<button type="button" class="action-success" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'complete')" title="Archive">✓</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; } 
                 else if (task.status === 'future') { desktopActions = `<button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'todo')" title="Move to Active Board">🚀</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; } 
                 else if (task.status === 'complete') { desktopActions = `<button type="button" class="action-warning" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'done')" title="Restore to Board">⏪</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; }
                 
@@ -851,6 +1017,153 @@
             }
         }
 
+        async function navigateToProject(wsId, projId) {
+            if (!wsId || !projId) return;
+            if (currentWorkspaceId !== wsId) {
+                currentWorkspaceId = wsId;
+                localStorage.setItem('currentWorkspaceId', wsId);
+                await loadDataFromDB(); 
+            } 
+            
+            currentProjectId = projId;
+            localStorage.setItem('currentProjectId', projId);
+            
+            if (isMasterView) toggleMasterView();
+            else renderAll();
+        }
+        
+        function setMasterTime(time) {
+            masterTimeframe = time;
+            document.getElementById('mv-time-today').classList.toggle('active', time === 'today');
+            document.getElementById('mv-time-week').classList.toggle('active', time === 'week');
+            renderMasterView();
+        }
+
+        function setMasterScope(scope) {
+            masterScope = scope;
+            document.getElementById('mv-scope-project').classList.toggle('active-blue', scope === 'project');
+            document.getElementById('mv-scope-workspace').classList.toggle('active-blue', scope === 'workspace');
+            document.getElementById('mv-scope-all').classList.toggle('active-blue', scope === 'all');
+            updateAssigneeFilterOptions();
+            renderMasterView();
+        }
+
+        function toggleStatusDropdown(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const dropdown = document.getElementById('mv-status-dropdown');
+            const isCurrentlyOpen = dropdown.style.display === 'block';
+            closeMenus(); 
+            dropdown.style.display = isCurrentlyOpen ? 'none' : 'block';
+        }
+
+        function toggleMasterView() {
+            isMasterView = !isMasterView;
+            document.getElementById('kanban-view-container').style.display = isMasterView ? 'none' : 'block';
+            document.getElementById('master-schedule-container').style.display = isMasterView ? 'block' : 'none';
+
+            if (isMasterView) {
+                updateAssigneeFilterOptions();
+                renderMasterView();
+            } else {
+                updateAssigneeFilterOptions();
+                renderBoard();
+            }
+        }
+
+        function renderMasterView() {
+            const list = document.getElementById('master-task-list');
+            list.innerHTML = '';
+
+            const searchQ = document.getElementById('mv-filter-search').value.toLowerCase();
+            const assigneeQ = document.getElementById('mv-filter-assignee').value;
+            const urgencyQ = document.getElementById('mv-filter-urgency').value;
+
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            const activeStatuses = Array.from(document.querySelectorAll('.mv-status-check:checked')).map(cb => cb.value);
+            let scopedTasks = tasks.filter(t => t.parent_task_id === null && activeStatuses.includes(t.status));
+
+            if (masterScope === 'project') {
+                scopedTasks = scopedTasks.filter(t => t.project_id === currentProjectId);
+            } else if (masterScope === 'workspace') {
+                const wsProjectIds = projects.filter(p => p.workspace_id === currentWorkspaceId).map(p => p.id);
+                scopedTasks = scopedTasks.filter(t => wsProjectIds.includes(t.project_id));
+            } else {
+                const allowedWsIds = getActiveUserObj().workspace_ids || [];
+                const allowedProjIds = projects.filter(p => allowedWsIds.includes(p.workspace_id)).map(p => p.id);
+                scopedTasks = scopedTasks.filter(t => allowedProjIds.includes(t.project_id));
+            }
+
+            let timeFiltered = scopedTasks.filter(t => {
+                if (!t.due_date) return false;
+
+                const [y, m, d] = t.due_date.split('-');
+                const taskDate = new Date(y, m - 1, d);
+                taskDate.setHours(0,0,0,0);
+
+                const diffTime = taskDate - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                if (masterTimeframe === 'today') return diffDays <= 0; 
+                if (masterTimeframe === 'week') return diffDays <= 7;
+                return true;
+            });
+
+            let finalMatches = timeFiltered.filter(task => {
+                const titleStr = (task.title || '').toLowerCase();
+                const descStr = (task.description || '').toLowerCase();
+                const urgencyStr = (task.urgency || '');
+                const assigneesArray = task.assignees || [];
+                return (titleStr.includes(searchQ) || descStr.includes(searchQ)) &&
+                       (assigneeQ === "All" || assigneesArray.includes(assigneeQ)) &&
+                       (urgencyQ === "All" || urgencyStr === urgencyQ);
+            });
+
+            finalMatches.sort((a, b) => {
+                if (!a.due_date) return 1;
+                if (!b.due_date) return -1;
+                return new Date(a.due_date) - new Date(b.due_date);
+            });
+
+            if (finalMatches.length === 0) {
+                list.innerHTML = `<div style="padding: 40px 20px; color: #5e6c84; font-size: 16px; text-align: center; width: 100%;">You have no tasks scheduled for this timeframe. Enjoy your free time! 🎉</div>`;
+                return;
+            }
+
+            finalMatches.forEach(task => {
+                const card = document.createElement('div'); 
+                card.className = 'card'; 
+                card.setAttribute('data-id', task.id); 
+                card.setAttribute('onclick', `editTask('${task.id}')`); 
+                card.setAttribute('oncontextmenu', `showContextMenuMain(event, '${task.id}')`);
+                
+                const proj = projects.find(p => p.id === task.project_id);
+                const ws = workspaces.find(w => w.id === (proj ? proj.workspace_id : null));
+                
+                const contextHtml = `<div class="context-crumb clickable-crumb" onclick="event.stopPropagation(); navigateToProject('${ws ? ws.id : ''}', '${proj ? proj.id : ''}')">${sanitize(ws ? ws.name : '')} › ${sanitize(proj ? proj.name : '')}</div>`;
+
+                const urgencyHtml = displayConfig.showUrgency ? `<span class="dot ${task.urgency}" title="Urgency: ${task.urgency}"></span>` : ''; 
+
+                let dateHtml = ''; 
+                if (task.due_date) { 
+                    const d = new Date(task.due_date + 'T12:00:00'); 
+                    dateHtml = `<span class="date-badge" style="margin:0; background: transparent; border: none; padding: 0;">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; 
+                }
+                
+                card.innerHTML = `
+                    <div style="padding: 8px 12px;">
+                        ${contextHtml}
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                            <h3 style="font-size: 14px; margin: 0; color: #172b4d; flex: 1; display: flex; align-items: center; gap: 6px;">${urgencyHtml} ${sanitize(task.title)}</h3>
+                            ${dateHtml}
+                        </div>
+                    </div>`; 
+                list.appendChild(card);
+            });
+        }
+
         // --- 5. SETTINGS ---
         function openSettings() {
             lockBody();
@@ -890,13 +1203,30 @@
         // --- 6. INTERACTION LOGIC ---
         function switchView(v) {
             currentView = v;
-            document.getElementById('btn-view-active').classList.toggle('active', v === 'active'); document.getElementById('btn-view-future').classList.toggle('active', v === 'future'); document.getElementById('btn-view-archive').classList.toggle('active', v === 'archive');
-            document.getElementById('view-active').style.display = (v === 'active') ? 'flex' : 'none'; document.getElementById('view-future').style.display = (v === 'future') ? 'block' : 'none'; document.getElementById('view-archive').style.display = (v === 'archive') ? 'block' : 'none';
+            document.getElementById('btn-view-active').classList.toggle('active', v === 'active'); 
+            document.getElementById('btn-view-recurring').classList.toggle('active', v === 'recurring'); 
+            document.getElementById('btn-view-future').classList.toggle('active', v === 'future'); 
+            document.getElementById('btn-view-archive').classList.toggle('active', v === 'archive');
+            
+            document.getElementById('view-active').style.display = (v === 'active') ? 'flex' : 'none'; 
+            document.getElementById('view-recurring').style.display = (v === 'recurring') ? 'block' : 'none'; 
+            document.getElementById('view-future').style.display = (v === 'future') ? 'block' : 'none'; 
+            document.getElementById('view-archive').style.display = (v === 'archive') ? 'block' : 'none';
             renderBoard();
         }
 
         function toggleWorkspaceMenu(e) { e.preventDefault(); e.stopPropagation(); closeMenus(); workspaceContextMenu.style.display = workspaceContextMenu.style.display === 'block' ? 'none' : 'block'; }
-        function closeMenus() { activeContextMenu.style.display = 'none'; futureContextMenu.style.display = 'none'; archiveContextMenu.style.display = 'none'; subtaskContextMenu.style.display = 'none'; workspaceContextMenu.style.display = 'none'; if(projectContextMenu) projectContextMenu.style.display = 'none'; }
+        
+        function closeMenus() { 
+            activeContextMenu.style.display = 'none'; 
+            futureContextMenu.style.display = 'none'; 
+            archiveContextMenu.style.display = 'none'; 
+            subtaskContextMenu.style.display = 'none'; 
+            workspaceContextMenu.style.display = 'none'; 
+            if(projectContextMenu) projectContextMenu.style.display = 'none'; 
+            const statusDropdown = document.getElementById('mv-status-dropdown');
+            if(statusDropdown) statusDropdown.style.display = 'none';
+        }
         document.addEventListener('click', closeMenus);
 
         function showContextMenuMain(e, id) { 
@@ -953,7 +1283,7 @@
         function dragStart(e, id) { e.dataTransfer.setData("taskId", id); setTimeout(() => e.target.classList.add('dragging'), 0); }
         function dragEnd(e) {
             e.target.classList.remove('dragging'); const draggedId = e.target.getAttribute('data-id'); const t = tasks.find(t => t.id === draggedId); if (!t) return;
-            let statuses = (currentView === 'active') ? ['todo', 'doing', 'done'] : (currentView === 'future') ? ['future'] : ['complete'];
+            let statuses = (currentView === 'active') ? ['todo', 'doing', 'done'] : (currentView === 'future') ? ['future'] : (currentView === 'recurring') ? ['recurring'] : ['complete'];
             
             statuses.forEach(status => { 
                 const list = document.getElementById(status + '-list'); 
@@ -966,7 +1296,6 @@
                     t.status = status; 
                     saveTaskDB(t); 
                     
-                    // NEW: Save the visual task order directly to user preferences!
                     const user = getActiveUserObj();
                     if (!user.preferences.taskOrder) user.preferences.taskOrder = [];
                     
@@ -980,16 +1309,147 @@
         }
         function allowDrop(e, status) { e.preventDefault(); const list = document.getElementById(status + '-list'); const dragEl = document.querySelector('.dragging'); if (!dragEl) return; const afterEl = [...list.querySelectorAll('.card:not(.dragging)')].reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = e.clientY - box.top - box.height / 2; return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest; }, { offset: Number.NEGATIVE_INFINITY }).element; if (afterEl == null) list.appendChild(dragEl); else list.insertBefore(dragEl, afterEl); }
 
-        // --- 7. FORMS & MODALS ---
+        // --- 7. FORMS & MODALS (INCLUDES OPTIMIZED TIMER LOGIC) ---
         
-        // NEW: Automatically defaults task to the current view you are on!
+        function handleStatusChange(status) {
+            document.getElementById('date-label').innerText = (status === 'recurring') ? 'End Recurring Date' : 'Due Date';
+            
+            document.getElementById('counter-section').style.display = (status === 'recurring' && !draftSubtaskId) ? 'block' : 'none';
+            document.getElementById('timer-section').style.display = (status === 'doing' && !draftSubtaskId) ? 'block' : 'none';
+
+            if (status !== 'doing' && draftTask && draftTask.timer_running) {
+                toggleTimer(); 
+            }
+        }
+
+        // Timer/Counter updates now use the silent background save to prevent the UI from freezing
+        function adjustCounter(amount) {
+            if (!draftTask) return;
+            syncFormToDraft(); // Prevents you from losing typed text before the silent save!
+            draftTask.counter = (draftTask.counter || 0) + amount;
+            if (draftTask.counter < 0) draftTask.counter = 0;
+            document.getElementById('task-counter-display').innerText = draftTask.counter;
+            silentSaveTaskDB(draftTask);
+        }
+        
+        function clearTimer() {
+            if (!draftTask) return;
+            syncFormToDraft(); // Prevents you from losing typed text!
+            draftTask.timer_elapsed = 0;
+            draftTask.timer_running = false;
+            draftTask.timer_started_at = null;
+            clearInterval(activeTimerInterval);
+            document.getElementById('task-timer-display').innerText = "00:00:00";
+            
+            const btn = document.getElementById('timer-toggle-btn');
+            btn.innerText = '▶ Start';
+            btn.className = 'action-success';
+            btn.style.background = '#e3fcef';
+            btn.style.color = '#006644';
+            btn.style.border = '1px solid #36b37e';
+            
+            silentSaveTaskDB(draftTask);
+        }
+
+        function toggleTimer() {
+            if (!draftTask) return;
+            syncFormToDraft(); // Prevents you from losing typed text before the silent save!
+            const btn = document.getElementById('timer-toggle-btn');
+            
+            if (draftTask.timer_running) {
+                const now = Date.now();
+                const start = draftTask.timer_started_at || now;
+                draftTask.timer_elapsed = (draftTask.timer_elapsed || 0) + (now - start);
+                draftTask.timer_running = false;
+                draftTask.timer_started_at = null;
+                
+                btn.innerText = '▶ Start';
+                btn.className = 'action-success';
+                btn.style.background = '#e3fcef';
+                btn.style.color = '#006644';
+                btn.style.border = '1px solid #36b37e';
+                
+                clearInterval(activeTimerInterval);
+            } else {
+                draftTask.timer_running = true;
+                draftTask.timer_started_at = Date.now();
+                
+                btn.innerText = '⏸ Pause';
+                btn.className = 'danger-solid';
+                btn.style.background = '#de350b';
+                btn.style.color = 'white';
+                btn.style.border = '1px solid #de350b';
+                
+                startTimerInterval();
+            }
+            silentSaveTaskDB(draftTask); // Background save
+        }
+
+        function formatTime(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function updateTimerDisplay() {
+            if (!draftTask) return;
+            let elapsed = draftTask.timer_elapsed || 0;
+            if (draftTask.timer_running && draftTask.timer_started_at) {
+                elapsed += (Date.now() - draftTask.timer_started_at);
+            }
+            document.getElementById('task-timer-display').innerText = formatTime(elapsed);
+        }
+
+        function startTimerInterval() {
+            clearInterval(activeTimerInterval);
+            updateTimerDisplay();
+            activeTimerInterval = setInterval(updateTimerDisplay, 1000);
+        }
+        
+        // Dynamic Global Timer Indicator
+        function updateGlobalTimer() {
+            const indicator = document.getElementById('global-timer-indicator');
+            const runningTask = tasks.find(t => t.timer_running);
+            
+            if (!runningTask) {
+                indicator.style.display = 'none';
+                return;
+            }
+            
+            indicator.style.display = 'flex';
+            let elapsed = runningTask.timer_elapsed || 0;
+            if (runningTask.timer_started_at) {
+                elapsed += (Date.now() - runningTask.timer_started_at);
+            }
+            document.getElementById('global-timer-text').innerText = runningTask.title + " - " + formatTime(elapsed);
+            indicator.onclick = () => editTask(runningTask.id);
+        }
+
         function openModal(defaultStatus) {
             lockBody();
-            if (typeof defaultStatus !== 'string') {
-                defaultStatus = (currentView === 'future') ? 'future' : (currentView === 'archive' ? 'complete' : 'todo');
+            clearInterval(activeTimerInterval);
+            
+            if (!currentProjectId) {
+                unlockBody();
+                alert("Please select or create a Project before adding a task.");
+                return;
             }
-            draftTask = { id: generateUUID(), title: '', description: '', assignees: [], due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null };
+            
+            if (typeof defaultStatus !== 'string') {
+                defaultStatus = (currentView === 'future') ? 'future' : (currentView === 'archive' ? 'complete' : (currentView === 'recurring' ? 'recurring' : 'todo'));
+            }
+            
+            draftTask = { 
+                id: generateUUID(), title: '', description: '', assignees: [], due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null,
+                counter: 0, timer_running: false, timer_started_at: null, timer_elapsed: 0 
+            };
+            
             draftSubtasks = []; draftSubtaskId = null; document.getElementById('task-form').reset(); updateFormUI(); 
+            
+            document.getElementById('gcal-checkbox-container').style.display = 'flex';
+            document.getElementById('task-gcal-sync').checked = false;
             
             const modal = document.getElementById('task-modal');
             modal.showModal();
@@ -998,15 +1458,26 @@
 
         function editTask(id) {
             lockBody();
-            draftTask = JSON.parse(JSON.stringify(tasks.find(t => t.id === id))); draftSubtasks = tasks.filter(t => t.parent_task_id === id).map(st => JSON.parse(JSON.stringify(st)));
+            clearInterval(activeTimerInterval);
+            
+            draftTask = JSON.parse(JSON.stringify(tasks.find(t => t.id === id))); 
+            draftSubtasks = tasks.filter(t => t.parent_task_id === id).map(st => JSON.parse(JSON.stringify(st)));
             draftSubtaskId = null; updateFormUI(); 
+            
+            document.getElementById('gcal-checkbox-container').style.display = 'flex';
+            document.getElementById('task-gcal-sync').checked = false;
             
             const modal = document.getElementById('task-modal');
             modal.showModal();
             setTimeout(() => { modal.scrollTop = 0; }, 10);
         }
 
-        function closeModal() { unlockBody(); document.getElementById('task-modal').close(); draftTask = null; draftSubtasks = []; }
+        function closeModal() { 
+            unlockBody(); 
+            clearInterval(activeTimerInterval);
+            document.getElementById('task-modal').close(); 
+            draftTask = null; draftSubtasks = []; 
+        }
 
         function syncFormToDraft() {
             if (!draftTask) return;
@@ -1018,16 +1489,68 @@
             if (!draftTask) return; const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask; if (!data) return;
             document.getElementById('task-title').value = data.title || ''; document.getElementById('task-desc').value = data.description || ''; document.getElementById('task-due-date').value = data.due_date || ''; document.getElementById('task-status').value = data.status || 'todo'; document.getElementById('task-urgency').value = data.urgency || 'low';
             
+            handleStatusChange(data.status || 'todo');
+            
+            document.getElementById('task-counter-display').innerText = data.counter || 0;
+            const btn = document.getElementById('timer-toggle-btn');
+            if (data.timer_running) {
+                btn.innerText = '⏸ Pause';
+                btn.className = 'danger-solid';
+                btn.style.background = '#de350b';
+                btn.style.color = 'white';
+                btn.style.border = '1px solid #de350b';
+                startTimerInterval();
+            } else {
+                btn.innerText = '▶ Start';
+                btn.className = 'action-success';
+                btn.style.background = '#e3fcef';
+                btn.style.color = '#006644';
+                btn.style.border = '1px solid #36b37e';
+                updateTimerDisplay();
+            }
+
             renderAssigneeCheckboxes(data.assignees || []);
             const badgeContainer = document.getElementById('task-assignees-display'); badgeContainer.innerHTML = '';
             (data.assignees || []).forEach(id => { badgeContainer.innerHTML += `<span class="badge" style="margin-right:4px;">👤 ${sanitize(getUserName(id))}</span>`; });
             
-            document.getElementById('subtasks-form-section').style.display = draftSubtaskId ? 'none' : 'block'; document.getElementById('status-form-section').style.display = draftSubtaskId ? 'none' : 'block'; document.getElementById('modal-back-btn').style.display = draftSubtaskId ? 'inline-block' : 'none'; document.getElementById('modal-title').innerText = draftSubtaskId ? "Subtask Details" : 'Task Configuration';
+            document.getElementById('dynamic-tools-section').style.display = draftSubtaskId ? 'none' : 'block';
+            document.getElementById('subtasks-form-section').style.display = draftSubtaskId ? 'none' : 'block'; 
+            document.getElementById('status-form-section').style.display = draftSubtaskId ? 'none' : 'block'; 
+            document.getElementById('modal-back-btn').style.display = draftSubtaskId ? 'inline-block' : 'none'; 
+            document.getElementById('modal-title').innerText = draftSubtaskId ? "Subtask Details" : 'Task Configuration';
+            
+            if (draftSubtaskId) document.getElementById('gcal-checkbox-container').style.display = 'none';
+            
             if(!draftSubtaskId) renderSubtasks();
         }
 
         document.getElementById('task-form').addEventListener('submit', async function(e) {
             e.preventDefault(); syncFormToDraft(); 
+            
+            const syncGcal = document.getElementById('task-gcal-sync').checked;
+            if (syncGcal && !draftSubtaskId) {
+                let gcalDesc = draftTask.description || '';
+                
+                if (draftSubtasks && draftSubtasks.length > 0) {
+                    gcalDesc += '\n\nSubtasks:\n' + draftSubtasks.map(st => '• ' + st.title).join('\n');
+                }
+                
+                const title = encodeURIComponent(draftTask.title || 'New Task');
+                const desc = encodeURIComponent(gcalDesc);
+                let dateParam = '';
+                
+                if (draftTask.due_date) {
+                    const dStr1 = draftTask.due_date.replace(/-/g, '');
+                    const dObj = new Date(draftTask.due_date + 'T12:00:00');
+                    dObj.setDate(dObj.getDate() + 1);
+                    const dStr2 = dObj.toISOString().split('T')[0].replace(/-/g, '');
+                    dateParam = `&dates=${dStr1}/${dStr2}`;
+                }
+                
+                const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${desc}${dateParam}`;
+                window.open(gcalUrl, '_blank');
+            }
+
             await saveTaskDB(draftTask);
             for (const st of draftSubtasks) { if (st.id.includes('sub_') || st.id.includes('temp')) st.id = generateUUID(); st.parent_task_id = draftTask.id; await saveTaskDB(st); }
             closeModal();
