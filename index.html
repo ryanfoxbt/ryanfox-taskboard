@@ -544,15 +544,6 @@
                     
                     <div id="dynamic-tools-section" style="margin-top: 15px; background: #fafbfc; padding: 10px; border-radius: 4px; border: 1px solid #dfe1e6; display: none;">
                         
-                        <div id="counter-section" style="display: none;">
-                            <label style="margin: 0 0 6px 0; font-size: 12px; color: #5e6c84;">Repetitions</label>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <button type="button" class="secondary" style="padding: 4px 12px; font-size: 16px;" onclick="adjustCounter(-1)">-</button>
-                                <span id="task-counter-display" style="font-weight: bold; font-size: 16px; min-width: 30px; text-align: center;">0</span>
-                                <button type="button" class="secondary" style="padding: 4px 12px; font-size: 16px;" onclick="adjustCounter(1)">+</button>
-                            </div>
-                        </div>
-
                         <div id="timer-section" style="display: none;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                                 <label style="margin: 0; font-size: 12px; color: #5e6c84;">Time Spent</label>
@@ -989,12 +980,26 @@
                 let dateHtml = ''; if (displayConfig.showDate && task.due_date) { const d = new Date(task.due_date + 'T12:00:00'); dateHtml = `<span class="date-badge" title="Due Date">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; }
                 const childTasks = tasks.filter(t => t.parent_task_id === task.id); let subtaskHtml = ''; if (childTasks.length > 0) { subtaskHtml = `<span class="badge subtask-badge" title="Subtasks">☑ ${childTasks.filter(s => s.status === 'complete').length}/${childTasks.length}</span>`; }
                 
+                let recurringCounterHtml = '';
+                if (task.status === 'recurring') {
+                    const count = task.counter || 0;
+                    recurringCounterHtml = `
+                        <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #dfe1e6;" onclick="event.stopPropagation()">
+                            <span style="font-size: 11px; color: #5e6c84; font-weight: bold; text-transform: uppercase;">Repetitions:</span>
+                            <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="event.stopPropagation(); inlineAdjustCounter('${task.id}', -1)">-</button>
+                            <span class="inline-counter-val-${task.id}" style="font-weight: bold; font-size: 14px; min-width: 24px; text-align: center; color: #172b4d;">${count}</span>
+                            <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="event.stopPropagation(); inlineAdjustCounter('${task.id}', 1)">+</button>
+                        </div>
+                    `;
+                }
+
                 card.innerHTML = `
                     <div class="card-header-row">
                         <h3>${urgencyHtml} ${sanitize(task.title)}</h3>
                         <button type="button" class="card-menu-btn" onclick="event.stopPropagation(); showContextMenuMain(event, '${task.id}')">⋮</button>
                     </div>
                     ${descHtml}
+                    ${recurringCounterHtml}
                     <div class="card-footer">
                         <div class="meta-group">${assigneesHtml}${dateHtml}${subtaskHtml}</div>
                         <div class="actions">${desktopActions}</div>
@@ -1149,6 +1154,19 @@
                     const d = new Date(task.due_date + 'T12:00:00'); 
                     dateHtml = `<span class="date-badge" style="margin:0; background: transparent; border: none; padding: 0;">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; 
                 }
+
+                let recurringCounterHtml = '';
+                if (task.status === 'recurring') {
+                    const count = task.counter || 0;
+                    recurringCounterHtml = `
+                        <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #dfe1e6;" onclick="event.stopPropagation()">
+                            <span style="font-size: 11px; color: #5e6c84; font-weight: bold; text-transform: uppercase;">Repetitions:</span>
+                            <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="event.stopPropagation(); inlineAdjustCounter('${task.id}', -1)">-</button>
+                            <span class="inline-counter-val-${task.id}" style="font-weight: bold; font-size: 14px; min-width: 24px; text-align: center; color: #172b4d;">${count}</span>
+                            <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="event.stopPropagation(); inlineAdjustCounter('${task.id}', 1)">+</button>
+                        </div>
+                    `;
+                }
                 
                 card.innerHTML = `
                     <div style="padding: 8px 12px;">
@@ -1157,6 +1175,7 @@
                             <h3 style="font-size: 14px; margin: 0; color: #172b4d; flex: 1; display: flex; align-items: center; gap: 6px;">${urgencyHtml} ${sanitize(task.title)}</h3>
                             ${dateHtml}
                         </div>
+                        ${recurringCounterHtml}
                     </div>`; 
                 list.appendChild(card);
             });
@@ -1307,20 +1326,23 @@
 
         function handleStatusChange(status) {
             document.getElementById('date-label').innerText = (status === 'recurring') ? 'End Recurring Date' : 'Due Date';
-            
-            document.getElementById('counter-section').style.display = (status === 'recurring' && !draftSubtaskId) ? 'block' : 'none';
-            
-            // Timer is now visible across ALL statuses
             document.getElementById('timer-section').style.display = (!draftSubtaskId) ? 'block' : 'none';
         }
 
-        function adjustCounter(amount) {
-            if (!draftTask) return;
-            syncFormToDraft(); 
-            draftTask.counter = (draftTask.counter || 0) + amount;
-            if (draftTask.counter < 0) draftTask.counter = 0;
-            document.getElementById('task-counter-display').innerText = draftTask.counter;
-            silentSaveTaskDB(draftTask);
+        // NEW: Inline counter function to handle clicks directly from the task card!
+        function inlineAdjustCounter(id, amount) {
+            const t = tasks.find(x => x.id === id);
+            if (!t) return;
+            t.counter = (t.counter || 0) + amount;
+            if (t.counter < 0) t.counter = 0;
+
+            // Instantly update ALL DOM nodes with this counter class (Main board + Master board)
+            document.querySelectorAll(`.inline-counter-val-${id}`).forEach(el => {
+                el.innerText = t.counter;
+            });
+
+            // Save silently so the screen doesn't jitter
+            silentSaveTaskDB(t);
         }
         
         function clearTimer() {
@@ -1481,7 +1503,6 @@
             
             handleStatusChange(data.status || 'todo');
             
-            document.getElementById('task-counter-display').innerText = data.counter || 0;
             const btn = document.getElementById('timer-toggle-btn');
             if (data.timer_running) {
                 btn.innerText = '⏸ Pause';
