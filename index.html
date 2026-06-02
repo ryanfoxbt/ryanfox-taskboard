@@ -685,7 +685,6 @@
                 Clerk.mountSignIn(document.getElementById('sign-in'));
             }
 
-            // Start the global timer indicator logic
             setInterval(updateGlobalTimer, 1000);
         });
 
@@ -804,7 +803,6 @@
             await apiCall('/tasks', 'POST', t);
         }
         
-        // NEW: Background save that completely skips the heavy UI re-rendering process
         async function silentSaveTaskDB(t) {
             const idx = tasks.findIndex(x => x.id === t.id); if (idx > -1) tasks[idx] = t; else tasks.push(t);
             await apiCall('/tasks', 'POST', t);
@@ -1164,7 +1162,6 @@
             });
         }
 
-        // --- 5. SETTINGS ---
         function openSettings() {
             lockBody();
             const prefs = getActiveUserObj().preferences;
@@ -1200,7 +1197,6 @@
             renderAll(); 
         }
 
-        // --- 6. INTERACTION LOGIC ---
         function switchView(v) {
             currentView = v;
             document.getElementById('btn-view-active').classList.toggle('active', v === 'active'); 
@@ -1309,23 +1305,18 @@
         }
         function allowDrop(e, status) { e.preventDefault(); const list = document.getElementById(status + '-list'); const dragEl = document.querySelector('.dragging'); if (!dragEl) return; const afterEl = [...list.querySelectorAll('.card:not(.dragging)')].reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = e.clientY - box.top - box.height / 2; return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest; }, { offset: Number.NEGATIVE_INFINITY }).element; if (afterEl == null) list.appendChild(dragEl); else list.insertBefore(dragEl, afterEl); }
 
-        // --- 7. FORMS & MODALS (INCLUDES OPTIMIZED TIMER LOGIC) ---
-        
         function handleStatusChange(status) {
             document.getElementById('date-label').innerText = (status === 'recurring') ? 'End Recurring Date' : 'Due Date';
             
             document.getElementById('counter-section').style.display = (status === 'recurring' && !draftSubtaskId) ? 'block' : 'none';
-            document.getElementById('timer-section').style.display = (status === 'doing' && !draftSubtaskId) ? 'block' : 'none';
-
-            if (status !== 'doing' && draftTask && draftTask.timer_running) {
-                toggleTimer(); 
-            }
+            
+            // Timer is now visible across ALL statuses
+            document.getElementById('timer-section').style.display = (!draftSubtaskId) ? 'block' : 'none';
         }
 
-        // Timer/Counter updates now use the silent background save to prevent the UI from freezing
         function adjustCounter(amount) {
             if (!draftTask) return;
-            syncFormToDraft(); // Prevents you from losing typed text before the silent save!
+            syncFormToDraft(); 
             draftTask.counter = (draftTask.counter || 0) + amount;
             if (draftTask.counter < 0) draftTask.counter = 0;
             document.getElementById('task-counter-display').innerText = draftTask.counter;
@@ -1334,7 +1325,7 @@
         
         function clearTimer() {
             if (!draftTask) return;
-            syncFormToDraft(); // Prevents you from losing typed text!
+            syncFormToDraft(); 
             draftTask.timer_elapsed = 0;
             draftTask.timer_running = false;
             draftTask.timer_started_at = null;
@@ -1353,7 +1344,7 @@
 
         function toggleTimer() {
             if (!draftTask) return;
-            syncFormToDraft(); // Prevents you from losing typed text before the silent save!
+            syncFormToDraft(); 
             const btn = document.getElementById('timer-toggle-btn');
             
             if (draftTask.timer_running) {
@@ -1382,7 +1373,7 @@
                 
                 startTimerInterval();
             }
-            silentSaveTaskDB(draftTask); // Background save
+            silentSaveTaskDB(draftTask); 
         }
 
         function formatTime(ms) {
@@ -1408,7 +1399,6 @@
             activeTimerInterval = setInterval(updateTimerDisplay, 1000);
         }
         
-        // Dynamic Global Timer Indicator
         function updateGlobalTimer() {
             const indicator = document.getElementById('global-timer-indicator');
             const runningTask = tasks.find(t => t.timer_running);
@@ -1594,7 +1584,6 @@
             });
         }
 
-        // --- NEW PROJECT CREATION & EDITING ---
         document.getElementById('prompt-form').addEventListener('submit', async function(e) {
             e.preventDefault(); const name = document.getElementById('new-project-name').value.trim();
             if (name) { 
@@ -1636,7 +1625,6 @@
             closeEditProjectModal();
         });
 
-        // --- WORKSPACE & USER ROUTING ---
         document.getElementById('create-workspace-form').addEventListener('submit', async function(e) {
             e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
             if (name) { 
