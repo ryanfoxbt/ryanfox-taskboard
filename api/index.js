@@ -35,23 +35,22 @@ app.get('/api/data', async (req, res) => {
     } catch (err) { res.status(500).json({ error: 'Failed to fetch data' }); }
 });
 
-// 2. TASKS & ASSIGNEES (PERFORMANCE OPTIMIZED)
+// --- 2. TASKS & ASSIGNEES ---
 app.post('/api/tasks', async (req, res) => {
     const { 
         id, project_id, parent_task_id, title, description, status, urgency, due_date, assignees,
-        counter, timer_running, timer_started_at, timer_elapsed 
+        counter, timer_running, timer_started_at, timer_elapsed, completed_at // <-- Added completed_at
     } = req.body;
     
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
         
-        // OPTIMIZATION 1: Use COALESCE so missing fields keep their existing database values
         await client.query(
             `INSERT INTO tasks (
                 id, project_id, parent_task_id, title, description, status, urgency, due_date,
-                counter, timer_running, timer_started_at, timer_elapsed
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                counter, timer_running, timer_started_at, timer_elapsed, completed_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
              ON CONFLICT (id) DO UPDATE SET 
                 title = COALESCE($4, tasks.title), 
                 description = COALESCE($5, tasks.description), 
@@ -61,24 +60,18 @@ app.post('/api/tasks', async (req, res) => {
                 counter = COALESCE($9, tasks.counter), 
                 timer_running = COALESCE($10, tasks.timer_running), 
                 timer_started_at = COALESCE($11, tasks.timer_started_at), 
-                timer_elapsed = COALESCE($12, tasks.timer_elapsed)`,
+                timer_elapsed = COALESCE($12, tasks.timer_elapsed),
+                completed_at = $13`, // Explicitly update completed_at (allows setting to null if reopened)
             [
-                id, 
-                project_id, 
-                parent_task_id || null, 
-                title || null, 
-                description !== undefined ? description : null, 
-                status || null, 
-                urgency || null, 
-                due_date || null,
-                counter !== undefined ? counter : null, 
-                timer_running !== undefined ? timer_running : null, 
-                timer_started_at !== undefined ? timer_started_at : null, 
-                timer_elapsed !== undefined ? timer_elapsed : null
+                id, project_id, parent_task_id || null, title || null, 
+                description !== undefined ? description : null, status || null, 
+                urgency || null, due_date || null,
+                counter !== undefined ? counter : null, timer_running !== undefined ? timer_running : null, 
+                timer_started_at !== undefined ? timer_started_at : null, timer_elapsed !== undefined ? timer_elapsed : null,
+                completed_at !== undefined ? completed_at : null
             ]
         );
         
-        // OPTIMIZATION 2: Only wipe & re-link assignees if they are explicitly sent in the payload
         if (assignees !== undefined) {
             await client.query('DELETE FROM task_assignees WHERE task_id = $1', [id]);
             if (assignees && assignees.length > 0) {
@@ -87,15 +80,36 @@ app.post('/api/tasks', async (req, res) => {
                 }
             }
         }
-        
         await client.query('COMMIT');
         res.json({ success: true });
     } catch (err) { 
         await client.query('ROLLBACK'); 
         res.status(500).json({ error: err.message }); 
-    } finally { 
-        client.release(); 
-    }
+    } finally { client.release(); }
+});
+
+// --- NEW: TIME LOGS (PATH B) ---
+app.post('/api/time_logs', async (req, res) => {
+    const { id, user_id, workspace_id, project_id, task_id, duration_ms } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO time_logs (id, user_id, workspace_id, project_id, task_id, duration_ms) VALUES ($1, $2, $3, $4, $5, $6)`,
+            [id, user_id, workspace_id, project_id, task_id, duration_ms]
+        );
+        res.json({ success: true });
+    } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- NEW: FEEDBACK ---
+app.post('/api/feedback', async (req, res) => {
+    const { id, user_id, type, title, description } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO feedback (id, user_id, type, title, description) VALUES ($1, $2, $3, $4, $5)`,
+            [id, user_id, type, title, description]
+        );
+        res.json({ success: true });
+    } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
 // 3. PROJECTS
