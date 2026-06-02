@@ -411,12 +411,26 @@
         <div class="checkbox-group"><input type="checkbox" id="setting-show-assignee"><label for="setting-show-assignee">Show Assignees</label></div>
         
         <div class="settings-section-title">Support</div>
-        <button type="button" class="secondary" style="width: 100%; font-size: 13px; margin-bottom: 10px;" onclick="window.location.href='mailto:support@yourdomain.com?subject=TaskBoard%20Bug%20Report'">🐞 Report a Bug</button>
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <button type="button" class="secondary" style="flex: 1; font-size: 13px;" onclick="openFeedbackModal('bug')">🐞 Report Bug</button>
+            <button type="button" class="secondary" style="flex: 1; font-size: 13px;" onclick="openFeedbackModal('feature')">💡 Request Feature</button>
+        </div>
 
         <div class="dialog-actions">
             <button type="button" class="secondary" onclick="closeSettings()">Cancel</button>
             <button type="button" onclick="saveSettings()">Save Settings</button>
         </div>
+    </dialog>
+
+    <dialog id="feedback-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
+        <h2 id="feedback-title" style="margin-top:0;">Submit Feedback</h2>
+        <form id="feedback-form">
+            <input type="hidden" id="feedback-type">
+            <div class="form-group"><label>Title</label><input type="text" id="feedback-subject" required autocomplete="off" spellcheck="true"></div>
+            <div class="form-group"><label>Description</label><textarea id="feedback-desc" rows="4" required spellcheck="true"></textarea></div>
+            <div class="dialog-actions"><button type="button" class="secondary" onclick="closeFeedbackModal()">Cancel</button><button type="submit">Submit</button></div>
+        </form>
     </dialog>
 
     <dialog id="add-user-modal">
@@ -714,6 +728,8 @@
                 tasks.forEach(t => {
                     if (t.status === 'recurring' && t.due_date && t.due_date < todayStr) {
                         t.status = 'complete';
+                        // Generate the completed timestamp
+                        t.completed_at = new Date().toISOString();
                         apiCall('/tasks', 'POST', t);
                     }
                 });
@@ -1181,6 +1197,7 @@
             });
         }
 
+        // --- 5. SETTINGS & FEEDBACK ---
         function openSettings() {
             lockBody();
             const prefs = getActiveUserObj().preferences;
@@ -1215,7 +1232,41 @@
             await apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: user.id, preferences: user.preferences });
             renderAll(); 
         }
+        
+        function openFeedbackModal(type) {
+            lockBody();
+            document.getElementById('feedback-form').reset();
+            document.getElementById('feedback-type').value = type;
+            document.getElementById('feedback-title').innerText = type === 'bug' ? 'Report a Bug' : 'Request a Feature';
+            const m = document.getElementById('feedback-modal');
+            m.showModal();
+            closeSettings(); 
+        }
+        
+        function closeFeedbackModal() { 
+            unlockBody(); 
+            document.getElementById('feedback-modal').close(); 
+        }
 
+        document.getElementById('feedback-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const type = document.getElementById('feedback-type').value;
+            const title = document.getElementById('feedback-subject').value;
+            const desc = document.getElementById('feedback-desc').value;
+            
+            await apiCall('/feedback', 'POST', {
+                id: generateUUID(),
+                user_id: getActiveUserObj().id,
+                type: type,
+                title: title,
+                description: desc
+            });
+            
+            closeFeedbackModal();
+            alert("Thank you for your feedback!");
+        });
+
+        // --- 6. INTERACTION LOGIC ---
         function switchView(v) {
             currentView = v;
             document.getElementById('btn-view-active').classList.toggle('active', v === 'active'); 
@@ -1285,7 +1336,22 @@
         function contextActionEditSubtask() { openSubtaskDetails(contextTargetSubtaskId); closeMenus(); } 
         function contextActionDeleteSubtask() { removeSubtask(contextTargetSubtaskId); closeMenus(); }
 
-        function moveTaskStatus(id, newStatus) { const t = tasks.find(t => t.id === id); if (t) { t.status = newStatus; saveTaskDB(t); } }
+        function moveTaskStatus(id, newStatus) { 
+            const t = tasks.find(t => t.id === id); 
+            if (t) { 
+                const oldStatus = t.status;
+                t.status = newStatus; 
+                
+                // TIMESTAMP COMPLETED LOGIC
+                if ((newStatus === 'done' || newStatus === 'complete') && (oldStatus !== 'done' && oldStatus !== 'complete')) {
+                    t.completed_at = new Date().toISOString();
+                } else if (newStatus !== 'done' && newStatus !== 'complete') {
+                    t.completed_at = null;
+                }
+                
+                saveTaskDB(t); 
+            } 
+        }
 
         function handleTabDragStart(e, id) { e.dataTransfer.setData("projectId", id); setTimeout(() => e.target.classList.add('dragging-tab'), 0); }
         function handleTabDrop(e, targetId) {
@@ -1308,7 +1374,15 @@
                 cards.forEach(card => { if (card.getAttribute('data-id') === draggedId) isHere = true; });
                 
                 if (isHere) { 
+                    const oldStatus = t.status;
                     t.status = status; 
+                    
+                    if ((status === 'done' || status === 'complete') && (oldStatus !== 'done' && oldStatus !== 'complete')) {
+                        t.completed_at = new Date().toISOString();
+                    } else if (status !== 'done' && status !== 'complete') {
+                        t.completed_at = null;
+                    }
+                    
                     saveTaskDB(t); 
                     
                     const user = getActiveUserObj();
@@ -1329,19 +1403,16 @@
             document.getElementById('timer-section').style.display = (!draftSubtaskId) ? 'block' : 'none';
         }
 
-        // NEW: Inline counter function to handle clicks directly from the task card!
         function inlineAdjustCounter(id, amount) {
             const t = tasks.find(x => x.id === id);
             if (!t) return;
             t.counter = (t.counter || 0) + amount;
             if (t.counter < 0) t.counter = 0;
 
-            // Instantly update ALL DOM nodes with this counter class (Main board + Master board)
             document.querySelectorAll(`.inline-counter-val-${id}`).forEach(el => {
                 el.innerText = t.counter;
             });
 
-            // Save silently so the screen doesn't jitter
             silentSaveTaskDB(t);
         }
         
@@ -1372,9 +1443,23 @@
             if (draftTask.timer_running) {
                 const now = Date.now();
                 const start = draftTask.timer_started_at || now;
-                draftTask.timer_elapsed = (draftTask.timer_elapsed || 0) + (now - start);
+                const sessionDuration = now - start;
+                
+                draftTask.timer_elapsed = (draftTask.timer_elapsed || 0) + sessionDuration;
                 draftTask.timer_running = false;
                 draftTask.timer_started_at = null;
+                
+                // PATH B: SAVE THE EXACT TIME LOG CHUNK TO THE DATABASE!
+                if (sessionDuration > 1000) { // Only log if they worked for more than a second
+                    apiCall('/time_logs', 'POST', {
+                        id: generateUUID(),
+                        user_id: getActiveUserObj().id,
+                        workspace_id: currentWorkspaceId,
+                        project_id: currentProjectId,
+                        task_id: draftTask.id,
+                        duration_ms: sessionDuration
+                    });
+                }
                 
                 btn.innerText = '▶ Start';
                 btn.className = 'action-success';
@@ -1455,7 +1540,7 @@
             
             draftTask = { 
                 id: generateUUID(), title: '', description: '', assignees: [], due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null,
-                counter: 0, timer_running: false, timer_started_at: null, timer_elapsed: 0 
+                counter: 0, timer_running: false, timer_started_at: null, timer_elapsed: 0, completed_at: null 
             };
             
             draftSubtasks = []; draftSubtaskId = null; document.getElementById('task-form').reset(); updateFormUI(); 
@@ -1494,7 +1579,25 @@
         function syncFormToDraft() {
             if (!draftTask) return;
             const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
-            if (data) { data.title = document.getElementById('task-title').value.trim(); data.description = document.getElementById('task-desc').value; data.due_date = document.getElementById('task-due-date').value; data.status = document.getElementById('task-status').value; data.urgency = document.getElementById('task-urgency').value; data.assignees = Array.from(document.querySelectorAll('.assignee-check:checked')).map(cb => cb.value); }
+            if (data) { 
+                data.title = document.getElementById('task-title').value.trim(); 
+                data.description = document.getElementById('task-desc').value; 
+                data.due_date = document.getElementById('task-due-date').value; 
+                
+                const oldStatus = data.status;
+                const newStatus = document.getElementById('task-status').value;
+                data.status = newStatus;
+                
+                // TIMESTAMP COMPLETED LOGIC (DROPDOWN CHANGE)
+                if ((newStatus === 'done' || newStatus === 'complete') && (oldStatus !== 'done' && oldStatus !== 'complete')) {
+                    data.completed_at = new Date().toISOString();
+                } else if (newStatus !== 'done' && newStatus !== 'complete') {
+                    data.completed_at = null;
+                }
+                
+                data.urgency = document.getElementById('task-urgency').value; 
+                data.assignees = Array.from(document.querySelectorAll('.assignee-check:checked')).map(cb => cb.value); 
+            }
         }
 
         function updateFormUI() {
