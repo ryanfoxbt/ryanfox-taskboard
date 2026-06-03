@@ -9,9 +9,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// <-- NEW: Tell Vercel and Express to serve your HTML, CSS, and JS from the "public" folder
-app.use(express.static(path.join(__dirname, 'public')));
-
 const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
   ssl: { require: true, rejectUnauthorized: false }
@@ -249,4 +246,13 @@ app.post('/api/settings', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Start Server (if running locally)
+const PORT = process.env.PORT || 3000;
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+// THIS LINE IS CRITICAL FOR VERCEL
 module.exports = app;
