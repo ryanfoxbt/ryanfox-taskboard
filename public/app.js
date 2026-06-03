@@ -465,13 +465,55 @@ function renderWorkspaceUsers() {
 }
 
 // NEW: Function to handle the actual edit via prompt
-async function editUserEmail(userId, oldEmail) {
-    const newEmail = prompt("Enter new email address for this user:", oldEmail);
-    if (newEmail && newEmail.trim() !== '' && newEmail !== oldEmail) {
-        await apiCall('/users/email', 'PUT', { id: userId, email: newEmail.trim() });
-        await loadDataFromDB();
-        openSettings(); // Refresh UI
+function openEditUserEmailModal(userId, oldEmail) {
+    document.getElementById('settings-modal').close(); // Hide settings temporarily
+    document.getElementById('edit-user-email-id').value = userId;
+    document.getElementById('edit-user-email-input').value = oldEmail;
+    
+    const m = document.getElementById('edit-user-email-modal');
+    m.showModal();
+}
+
+function closeEditUserEmailModal() { 
+    document.getElementById('edit-user-email-modal').close(); 
+    document.getElementById('settings-modal').showModal(); // Bring settings back
+}
+
+document.getElementById('edit-user-email-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const userId = document.getElementById('edit-user-email-id').value;
+    const newEmail = document.getElementById('edit-user-email-input').value.trim();
+    
+    await apiCall('/users/email', 'PUT', { id: userId, email: newEmail });
+    await loadDataFromDB(); // Fetch updated users
+    
+    closeEditUserEmailModal(); // Closes edit modal and re-opens settings
+    openSettings(); // Force a fresh render of the UI inside settings
+});
+
+// Update the onclick event inside renderWorkspaceUsers() to use the new modal:
+function renderWorkspaceUsers() {
+    const settingsList = document.getElementById('settings-user-list'); 
+    if(settingsList) {
+        settingsList.innerHTML = '';
+        const me = getActiveUserObj();
+        const isAdmin = me.role === 'Admin';
+        
+        getVisibleUsers().forEach(u => {
+            const div = document.createElement('div'); div.className = 'list-item';
+            div.innerHTML = `
+                <span class="title" style="display:flex; flex-direction:column; gap:2px;">
+                    <span>${sanitize(u.name)} <span class="meta">(${sanitize(u.role || 'Member')})</span></span>
+                    <span style="font-size: 10px; color: #8993a4;">${sanitize(u.email)}</span>
+                </span>
+                <div class="list-actions">
+                    ${isAdmin ? `<button type="button" class="edit" style="padding: 2px 6px;" onclick="openEditUserEmailModal('${u.id}', '${sanitize(u.email)}')">✎ Email</button>` : ''}
+                    <button type="button" class="danger" style="padding: 2px 6px;" onclick="deleteWorkspaceUser('${u.id}', '${sanitize(u.name)}')" title="Remove User">&times;</button>
+                </div>`;
+            settingsList.appendChild(div);
+        });
     }
+}
 }
 
 function renderProjects() {
@@ -1205,8 +1247,18 @@ function updateGlobalTimer() {
 
 function removeAssigneeFromTask(userId) {
     if (!draftTask) return;
-    draftTask.assignees = draftTask.assignees.filter(id => id !== userId);
+    
+    // 1. Sync any typed text first
     syncFormToDraft();
+    
+    // 2. Uncheck the hidden checkbox so syncFormToDraft doesn't re-add it next time
+    const cb = document.querySelector(`.assignee-check[value="${userId}"]`);
+    if (cb) cb.checked = false;
+    
+    // 3. Remove from the local array
+    draftTask.assignees = draftTask.assignees.filter(id => id !== userId);
+    
+    // 4. Re-draw
     updateFormUI();
 }
 
