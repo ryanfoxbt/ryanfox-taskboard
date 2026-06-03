@@ -157,7 +157,6 @@ async function fetchMessages() {
             renderChat();
         }
         
-        // NEW: Also quietly sync tasks to ensure new assignments exist locally
         const dataRes = await fetch(`${API_URL}/data`);
         if (dataRes.ok) {
             const data = await dataRes.json();
@@ -197,8 +196,6 @@ function renderChat() {
     filteredMessages.forEach(msg => {
         const div = document.createElement('div');
         const isMe = msg.sender_id === myId;
-        
-        // Check if it's explicitly a system message, OR an automated DM we masked with a robot emoji
         const isSystem = msg.sender_id === 'system' || msg.content.startsWith('🤖 System:');
         
         div.style.maxWidth = '85%';
@@ -216,9 +213,7 @@ function renderChat() {
             div.style.borderLeft = '4px solid #0052cc';
             div.style.boxSizing = 'border-box';
             
-            // Re-wired to the new robust viewTaskFromChat function
             const btnHtml = msg.related_task_id ? `<br><button type="button" class="secondary" style="margin-top: 8px; font-size: 12px; padding: 4px 12px;" onclick="viewTaskFromChat('${msg.related_task_id}')">View Task</button>` : '';
-            
             const cleanContent = msg.content.replace('🤖 System:', '').trim();
             div.innerHTML = `<strong>🤖 System:</strong> ${sanitize(cleanContent)} ${btnHtml}`;
         } else {
@@ -236,20 +231,18 @@ function renderChat() {
     container.scrollTop = container.scrollHeight;
 }
 
-// NEW: Highly robust view task engine specifically for chat links
 async function viewTaskFromChat(taskId) {
-    toggleChatPanel(); // Close chat
+    toggleChatPanel(); 
     
     let targetTask = tasks.find(t => t.id === taskId);
     
     if (!targetTask) {
         document.getElementById('app-title').innerHTML = "Syncing...";
-        await loadDataFromDB(); // Force hard sync
+        await loadDataFromDB(); 
         targetTask = tasks.find(t => t.id === taskId);
     }
     
     if (targetTask) {
-        // Switch to the correct project tab before opening
         if (currentProjectId !== targetTask.project_id) {
             currentProjectId = targetTask.project_id;
             localStorage.setItem('currentProjectId', currentProjectId);
@@ -287,8 +280,6 @@ document.getElementById('chat-form').addEventListener('submit', async function(e
     
     await apiCall('/messages', 'POST', newMsg);
 });
-
-// --- END CHILL CHAT LOGIC ---
 
 async function loadDataFromDB() {
     try {
@@ -903,32 +894,51 @@ function closeMenus() {
 }
 document.addEventListener('click', closeMenus);
 
+// 3. FIXED CONTEXT MENU CLIPPING BUG
+function positionMenu(e, target) {
+    if (window.innerWidth > 768) {
+        let x = e.pageX;
+        let y = e.pageY;
+        
+        if (e.clientY + target.offsetHeight > window.innerHeight) {
+            y = e.pageY - target.offsetHeight;
+        }
+        if (e.clientX + target.offsetWidth > window.innerWidth) {
+            x = e.pageX - target.offsetWidth;
+        }
+        
+        target.style.left = x + 'px'; 
+        target.style.top = y + 'px'; 
+    }
+}
+
 function showContextMenuMain(e, id) { 
     e.preventDefault(); e.stopPropagation(); closeMenus(); 
     contextTargetMainId = id; 
     let target = (currentView === 'active') ? activeContextMenu : (currentView === 'future') ? futureContextMenu : archiveContextMenu; 
-    
     target.style.display = 'block'; 
-    if (window.innerWidth > 768) {
-        target.style.left = Math.min(e.pageX, window.innerWidth - target.offsetWidth - 10) + 'px'; 
-        target.style.top = e.pageY + 'px'; 
-    }
+    positionMenu(e, target);
 }
 
 function showContextMenuSubtask(e, id) { 
     e.preventDefault(); e.stopPropagation(); closeMenus(); contextTargetSubtaskId = id; subtaskContextMenu.style.display = 'block'; 
     if (window.innerWidth > 768) {
-        subtaskContextMenu.style.left = (e.currentTarget.getBoundingClientRect().right - subtaskContextMenu.offsetWidth - 5) + 'px'; 
-        subtaskContextMenu.style.top = (e.currentTarget.getBoundingClientRect().top + 5) + 'px'; 
+        const rect = e.currentTarget.getBoundingClientRect();
+        let x = rect.right - subtaskContextMenu.offsetWidth - 5;
+        let y = rect.top + 5 + window.scrollY;
+        
+        if (rect.top + subtaskContextMenu.offsetHeight > window.innerHeight) {
+            y = rect.bottom - subtaskContextMenu.offsetHeight + window.scrollY;
+        }
+        subtaskContextMenu.style.left = x + 'px'; 
+        subtaskContextMenu.style.top = y + 'px'; 
     }
 }
 
 function showContextMenuProject(e, id) { 
     e.preventDefault(); e.stopPropagation(); closeMenus(); 
     contextTargetProjectId = id; projectContextMenu.style.display = 'block'; 
-    if (window.innerWidth > 768) {
-        projectContextMenu.style.left = e.pageX + 'px'; projectContextMenu.style.top = e.pageY + 'px'; 
-    }
+    positionMenu(e, projectContextMenu);
 }
 
 function contextActionEditProject() { openEditProjectModal(contextTargetProjectId); closeMenus(); }
@@ -1270,11 +1280,9 @@ function updateFormUI() {
 document.getElementById('task-form').addEventListener('submit', async function(e) {
     e.preventDefault(); syncFormToDraft(); 
     
-    // Save tasks to DB FIRST so chat viewTask works
     await saveTaskDB(draftTask);
     for (const st of draftSubtasks) { if (st.id.includes('sub_') || st.id.includes('temp')) st.id = generateUUID(); st.parent_task_id = draftTask.id; await saveTaskDB(st); }
 
-    // Generate System Notification for newly added assignees
     const me = getActiveUserObj();
     const allAssignees = draftTask.assignees || [];
     const newlyAdded = allAssignees.filter(id => !originalAssignees.includes(id) && id !== me.id);
@@ -1283,7 +1291,6 @@ document.getElementById('task-form').addEventListener('submit', async function(e
         const p = projects.find(x => x.id === currentProjectId);
         const projName = p ? p.name : 'Unknown Project';
         
-        // 1-on-1 logic: If exactly 2 people are on the task (me + 1 other), route to their private DM thread
         const isPrivateDM = allAssignees.length <= 2 && newlyAdded.length === 1;
 
         if (isPrivateDM) {
@@ -1291,7 +1298,7 @@ document.getElementById('task-form').addEventListener('submit', async function(e
             await apiCall('/messages', 'POST', {
                 id: generateUUID(),
                 workspace_id: currentWorkspaceId,
-                sender_id: me.id, // Put it inside the private DM context
+                sender_id: me.id, 
                 sender_name: activeUserName,
                 recipient_id: targetId,
                 content: `🤖 System: I assigned you to "${draftTask.title}" in ${projName}.`,
@@ -1299,7 +1306,6 @@ document.getElementById('task-form').addEventListener('submit', async function(e
                 created_at: new Date().toISOString()
             });
         } else {
-            // Blast to general workspace Team Chat
             const addedNames = newlyAdded.map(id => getUserName(id)).join(', ');
             await apiCall('/messages', 'POST', {
                 id: generateUUID(),
@@ -1337,6 +1343,7 @@ document.getElementById('task-form').addEventListener('submit', async function(e
     closeModal();
 });
 
+// 1. FIXED SUBTASK DELETION GHOST BUG
 function openSubtaskPromptModal() { 
     lockBody(); 
     document.getElementById('new-subtask-name').value = ''; 
@@ -1348,7 +1355,19 @@ function closeSubtaskPromptModal() { unlockBody(); document.getElementById('subt
 
 document.getElementById('subtask-prompt-form').addEventListener('submit', function(e) { e.preventDefault(); const title = document.getElementById('new-subtask-name').value.trim(); if(title && draftTask) { draftSubtasks.push({ id: 'sub_' + generateUUID(), project_id: currentProjectId, parent_task_id: draftTask.id, title: title, status: 'todo', description: '', assignees: [], due_date: '', urgency: 'low' }); renderSubtasks(); } closeSubtaskPromptModal(); });
 function openSubtaskDetails(id) { syncFormToDraft(); draftSubtaskId = id; updateFormUI(); } function backToParentTask() { syncFormToDraft(); draftSubtaskId = null; updateFormUI(); }
-function toggleSubtask(id) { const st = draftSubtasks.find(s => s.id === id); if(st) st.status = (st.status === 'complete') ? 'todo' : 'complete'; renderSubtasks(); } function removeSubtask(id) { draftSubtasks = draftSubtasks.filter(s => s.id !== id); renderSubtasks(); }
+function toggleSubtask(id) { const st = draftSubtasks.find(s => s.id === id); if(st) st.status = (st.status === 'complete') ? 'todo' : 'complete'; renderSubtasks(); } 
+
+function removeSubtask(id) { 
+    draftSubtasks = draftSubtasks.filter(s => s.id !== id); 
+    renderSubtasks(); 
+    
+    // Crucial: Actually trigger the backend delete so it doesn't reappear on reload!
+    if (!id.includes('sub_') && !id.includes('temp')) {
+        apiCall(`/tasks/${id}`, 'DELETE');
+        tasks = tasks.filter(t => t.id !== id);
+    }
+}
+
 function renderSubtasks() {
     const container = document.getElementById('subtasks-container'); container.innerHTML = '';
     if (draftSubtasks.length === 0) { container.innerHTML = '<span style="color:#5e6c84; font-size:12px; margin-top:4px;">No subtasks added yet.</span>'; return; }
