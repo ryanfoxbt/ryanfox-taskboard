@@ -338,14 +338,14 @@
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-                <div style="display: flex; gap: 10px; align-items: center; width: 100%; overflow-x: auto; padding-bottom: 4px;">
+                <div style="display: flex; gap: 10px; align-items: center; width: 100%; flex-wrap: wrap; padding-bottom: 4px;">
                     <input type="text" id="mv-filter-search" placeholder="Search schedule..." oninput="renderMasterView()" style="flex: 1; min-width: 140px; padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; box-sizing: border-box; outline: none; font-family: inherit; font-size: 14px;" spellcheck="true">
                     <select id="mv-filter-assignee" onchange="renderMasterView()" style="padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px;"><option value="All">All Assignees</option></select>
                     <select id="mv-filter-urgency" onchange="renderMasterView()" style="padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
                     
-                    <div style="position: relative; flex-shrink: 0;">
+                    <div style="position: relative; flex-shrink: 0;" id="status-dropdown-wrapper">
                         <button type="button" class="secondary" onclick="toggleStatusDropdown(event)" style="padding: 6px 12px; font-size: 14px; margin: 0; height: 35px; border: 1px solid #dfe1e6; background: white;">Status ▼</button>
-                        <div id="mv-status-dropdown" class="custom-context-menu" style="top: 100%; right: 0; margin-top: 4px; padding: 12px; min-width: 150px;" onclick="event.stopPropagation()">
+                        <div id="mv-status-dropdown" class="custom-context-menu" style="top: 100%; right: 0; margin-top: 4px; padding: 12px; min-width: 150px; position: absolute;" onclick="event.stopPropagation()">
                             <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="todo" checked onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> To Do</label>
                             <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="doing" checked onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Doing</label>
                             <label style="font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 12px;"><input type="checkbox" class="mv-status-check" value="recurring" onchange="renderMasterView()" style="width: 16px; height: 16px; margin: 0; cursor: pointer;"> Recurring</label>
@@ -693,6 +693,7 @@
             setInterval(updateGlobalTimer, 1000);
         });
 
+        // 1. FIXED TIMER DISAPPEARANCE BUG
         async function loadDataFromDB() {
             try {
                 document.getElementById('app-title').innerHTML = "Loading...";
@@ -721,6 +722,12 @@
                 tasks = (data.tasks || []).map(t => {
                     t.assignees = (data.task_assignees || []).filter(ta => ta.task_id === t.id).map(ta => ta.user_id);
                     if (t.due_date) t.due_date = t.due_date.split('T')[0];
+                    
+                    // CRITICAL FIX: Ensure PostgreSQL BigInts are parsed as true JavaScript numbers!
+                    t.timer_started_at = t.timer_started_at ? parseInt(t.timer_started_at, 10) : null;
+                    t.timer_elapsed = t.timer_elapsed ? parseInt(t.timer_elapsed, 10) : 0;
+                    t.counter = t.counter ? parseInt(t.counter, 10) : 0;
+                    
                     return t;
                 });
 
@@ -728,7 +735,6 @@
                 tasks.forEach(t => {
                     if (t.status === 'recurring' && t.due_date && t.due_date < todayStr) {
                         t.status = 'complete';
-                        // Generate the completed timestamp
                         t.completed_at = new Date().toISOString();
                         apiCall('/tasks', 'POST', t);
                     }
@@ -926,6 +932,18 @@
             if (activeAssignees.has(currentSelection) || currentSelection === "All") filterSelect.value = currentSelection;
         }
 
+        // 4. FIXING THE CARD CLICK & RED X BUBBLE ISSUE
+        function handleCardAction(e, action, id, param) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (action === 'delete') triggerDeleteTask(id);
+            else if (action === 'edit') editTask(id);
+            else if (action === 'move') moveTaskStatus(id, param);
+            else if (action === 'menu') showContextMenuMain(e, id);
+            else if (action === 'inline-counter-minus') inlineAdjustCounter(id, -1);
+            else if (action === 'inline-counter-plus') inlineAdjustCounter(id, 1);
+        }
+
         function renderBoard() {
             lists.future.innerHTML = ''; lists.todo.innerHTML = ''; lists.doing.innerHTML = ''; lists.done.innerHTML = ''; lists.recurring.innerHTML = ''; lists.complete.innerHTML = '';
             const searchQ = document.getElementById('filter-search').value.toLowerCase(); const assigneeQ = document.getElementById('filter-assignee').value; const urgencyQ = document.getElementById('filter-urgency').value;
@@ -973,10 +991,10 @@
             
             allMatches.forEach(task => {
                 let desktopActions = '';
-                if (['todo', 'doing', 'done'].includes(task.status)) { desktopActions = `<button type="button" class="action-success" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'complete')" title="Archive">✓</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; } 
-                else if (task.status === 'recurring') { desktopActions = `<button type="button" class="action-success" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'complete')" title="Archive">✓</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; } 
-                else if (task.status === 'future') { desktopActions = `<button type="button" class="action-primary" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'todo')" title="Move to Active Board">🚀</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; } 
-                else if (task.status === 'complete') { desktopActions = `<button type="button" class="action-warning" onclick="event.stopPropagation(); moveTaskStatus('${task.id}', 'done')" title="Restore to Board">⏪</button> <button type="button" class="edit" onclick="event.stopPropagation(); editTask('${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="event.stopPropagation(); triggerDeleteTask('${task.id}')" title="Delete">&times;</button>`; }
+                if (['todo', 'doing', 'done'].includes(task.status)) { desktopActions = `<button type="button" class="action-success" onclick="handleCardAction(event, 'move', '${task.id}', 'complete')" title="Archive">✓</button> <button type="button" class="edit" onclick="handleCardAction(event, 'edit', '${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`; } 
+                else if (task.status === 'recurring') { desktopActions = `<button type="button" class="action-success" onclick="handleCardAction(event, 'move', '${task.id}', 'complete')" title="Archive">✓</button> <button type="button" class="edit" onclick="handleCardAction(event, 'edit', '${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`; } 
+                else if (task.status === 'future') { desktopActions = `<button type="button" class="action-primary" onclick="handleCardAction(event, 'move', '${task.id}', 'todo')" title="Move to Active Board">🚀</button> <button type="button" class="edit" onclick="handleCardAction(event, 'edit', '${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`; } 
+                else if (task.status === 'complete') { desktopActions = `<button type="button" class="action-warning" onclick="handleCardAction(event, 'move', '${task.id}', 'done')" title="Restore to Board">⏪</button> <button type="button" class="edit" onclick="handleCardAction(event, 'edit', '${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`; }
                 
                 const card = document.createElement('div'); card.className = 'card'; card.setAttribute('data-id', task.id); card.draggable = true;
                 card.ondragstart = (e) => dragStart(e, task.id); card.ondragend = (e) => dragEnd(e); 
@@ -1002,9 +1020,9 @@
                     recurringCounterHtml = `
                         <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #dfe1e6;" onclick="event.stopPropagation()">
                             <span style="font-size: 11px; color: #5e6c84; font-weight: bold; text-transform: uppercase;">Repetitions:</span>
-                            <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="event.stopPropagation(); inlineAdjustCounter('${task.id}', -1)">-</button>
+                            <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="handleCardAction(event, 'inline-counter-minus', '${task.id}')">-</button>
                             <span class="inline-counter-val-${task.id}" style="font-weight: bold; font-size: 14px; min-width: 24px; text-align: center; color: #172b4d;">${count}</span>
-                            <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="event.stopPropagation(); inlineAdjustCounter('${task.id}', 1)">+</button>
+                            <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="handleCardAction(event, 'inline-counter-plus', '${task.id}')">+</button>
                         </div>
                     `;
                 }
@@ -1012,7 +1030,7 @@
                 card.innerHTML = `
                     <div class="card-header-row">
                         <h3>${urgencyHtml} ${sanitize(task.title)}</h3>
-                        <button type="button" class="card-menu-btn" onclick="event.stopPropagation(); showContextMenuMain(event, '${task.id}')">⋮</button>
+                        <button type="button" class="card-menu-btn" onclick="handleCardAction(event, 'menu', '${task.id}')">⋮</button>
                     </div>
                     ${descHtml}
                     ${recurringCounterHtml}
@@ -1177,9 +1195,9 @@
                     recurringCounterHtml = `
                         <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #dfe1e6;" onclick="event.stopPropagation()">
                             <span style="font-size: 11px; color: #5e6c84; font-weight: bold; text-transform: uppercase;">Repetitions:</span>
-                            <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="event.stopPropagation(); inlineAdjustCounter('${task.id}', -1)">-</button>
+                            <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="handleCardAction(event, 'inline-counter-minus', '${task.id}')">-</button>
                             <span class="inline-counter-val-${task.id}" style="font-weight: bold; font-size: 14px; min-width: 24px; text-align: center; color: #172b4d;">${count}</span>
-                            <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="event.stopPropagation(); inlineAdjustCounter('${task.id}', 1)">+</button>
+                            <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="handleCardAction(event, 'inline-counter-plus', '${task.id}')">+</button>
                         </div>
                     `;
                 }
@@ -1233,6 +1251,7 @@
             renderAll(); 
         }
         
+        // 2. FIXED FEEDBACK NAVIGATION (Overlay rather than closure)
         function openFeedbackModal(type) {
             lockBody();
             document.getElementById('feedback-form').reset();
@@ -1240,11 +1259,9 @@
             document.getElementById('feedback-title').innerText = type === 'bug' ? 'Report a Bug' : 'Request a Feature';
             const m = document.getElementById('feedback-modal');
             m.showModal();
-            closeSettings(); 
         }
         
         function closeFeedbackModal() { 
-            unlockBody(); 
             document.getElementById('feedback-modal').close(); 
         }
 
@@ -1342,10 +1359,25 @@
                 const oldStatus = t.status;
                 t.status = newStatus; 
                 
-                // TIMESTAMP COMPLETED LOGIC
-                if ((newStatus === 'done' || newStatus === 'complete') && (oldStatus !== 'done' && oldStatus !== 'complete')) {
+                if ((newStatus === 'done' || newStatus === 'complete' || newStatus === 'archive') && (oldStatus !== 'done' && oldStatus !== 'complete' && oldStatus !== 'archive')) {
                     t.completed_at = new Date().toISOString();
-                } else if (newStatus !== 'done' && newStatus !== 'complete') {
+                    
+                    // AUTO-PAUSE TIMER if moved to a completed state
+                    if (t.timer_running) {
+                        const now = Date.now();
+                        const start = parseInt(t.timer_started_at, 10) || now;
+                        t.timer_elapsed = parseInt(t.timer_elapsed, 10) + (now - start);
+                        t.timer_running = false;
+                        t.timer_started_at = null;
+                        
+                        if (draftTask && draftTask.id === t.id) {
+                            draftTask.timer_elapsed = t.timer_elapsed;
+                            draftTask.timer_running = false;
+                            draftTask.timer_started_at = null;
+                            clearInterval(activeTimerInterval);
+                        }
+                    }
+                } else if (newStatus !== 'done' && newStatus !== 'complete' && newStatus !== 'archive') {
                     t.completed_at = null;
                 }
                 
@@ -1377,9 +1409,17 @@
                     const oldStatus = t.status;
                     t.status = status; 
                     
-                    if ((status === 'done' || status === 'complete') && (oldStatus !== 'done' && oldStatus !== 'complete')) {
+                    if ((status === 'done' || status === 'complete' || status === 'archive') && (oldStatus !== 'done' && oldStatus !== 'complete' && oldStatus !== 'archive')) {
                         t.completed_at = new Date().toISOString();
-                    } else if (status !== 'done' && status !== 'complete') {
+                        // AUTO-PAUSE TIMER if moved to a completed state
+                        if (t.timer_running) {
+                            const now = Date.now();
+                            const start = parseInt(t.timer_started_at, 10) || now;
+                            t.timer_elapsed = parseInt(t.timer_elapsed, 10) + (now - start);
+                            t.timer_running = false;
+                            t.timer_started_at = null;
+                        }
+                    } else if (status !== 'done' && status !== 'complete' && status !== 'archive') {
                         t.completed_at = null;
                     }
                     
@@ -1406,7 +1446,7 @@
         function inlineAdjustCounter(id, amount) {
             const t = tasks.find(x => x.id === id);
             if (!t) return;
-            t.counter = (t.counter || 0) + amount;
+            t.counter = parseInt(t.counter || 0, 10) + amount;
             if (t.counter < 0) t.counter = 0;
 
             document.querySelectorAll(`.inline-counter-val-${id}`).forEach(el => {
@@ -1442,15 +1482,14 @@
             
             if (draftTask.timer_running) {
                 const now = Date.now();
-                const start = draftTask.timer_started_at || now;
+                const start = parseInt(draftTask.timer_started_at, 10) || now;
                 const sessionDuration = now - start;
                 
-                draftTask.timer_elapsed = (draftTask.timer_elapsed || 0) + sessionDuration;
+                draftTask.timer_elapsed = parseInt(draftTask.timer_elapsed || 0, 10) + sessionDuration;
                 draftTask.timer_running = false;
                 draftTask.timer_started_at = null;
                 
-                // PATH B: SAVE THE EXACT TIME LOG CHUNK TO THE DATABASE!
-                if (sessionDuration > 1000) { // Only log if they worked for more than a second
+                if (sessionDuration > 1000) { 
                     apiCall('/time_logs', 'POST', {
                         id: generateUUID(),
                         user_id: getActiveUserObj().id,
@@ -1493,9 +1532,9 @@
 
         function updateTimerDisplay() {
             if (!draftTask) return;
-            let elapsed = draftTask.timer_elapsed || 0;
+            let elapsed = parseInt(draftTask.timer_elapsed || 0, 10);
             if (draftTask.timer_running && draftTask.timer_started_at) {
-                elapsed += (Date.now() - draftTask.timer_started_at);
+                elapsed += (Date.now() - parseInt(draftTask.timer_started_at, 10));
             }
             document.getElementById('task-timer-display').innerText = formatTime(elapsed);
         }
@@ -1516,11 +1555,11 @@
             }
             
             indicator.style.display = 'flex';
-            let elapsed = runningTask.timer_elapsed || 0;
+            let elapsed = parseInt(runningTask.timer_elapsed || 0, 10);
             if (runningTask.timer_started_at) {
-                elapsed += (Date.now() - runningTask.timer_started_at);
+                elapsed += (Date.now() - parseInt(runningTask.timer_started_at, 10));
             }
-            document.getElementById('global-timer-text').innerText = runningTask.title + " - " + formatTime(elapsed);
+            document.getElementById('global-timer-text').innerText = sanitize(runningTask.title) + " - " + formatTime(elapsed);
             indicator.onclick = () => editTask(runningTask.id);
         }
 
@@ -1588,10 +1627,10 @@
                 const newStatus = document.getElementById('task-status').value;
                 data.status = newStatus;
                 
-                // TIMESTAMP COMPLETED LOGIC (DROPDOWN CHANGE)
-                if ((newStatus === 'done' || newStatus === 'complete') && (oldStatus !== 'done' && oldStatus !== 'complete')) {
+                // TIMESTAMP COMPLETED LOGIC
+                if ((newStatus === 'done' || newStatus === 'complete' || newStatus === 'archive') && (oldStatus !== 'done' && oldStatus !== 'complete' && oldStatus !== 'archive')) {
                     data.completed_at = new Date().toISOString();
-                } else if (newStatus !== 'done' && newStatus !== 'complete') {
+                } else if (newStatus !== 'done' && newStatus !== 'complete' && newStatus !== 'archive') {
                     data.completed_at = null;
                 }
                 
