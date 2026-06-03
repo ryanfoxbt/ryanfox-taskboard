@@ -157,6 +157,10 @@
         }
         #global-timer-indicator:hover { transform: translateX(-50%) scale(1.05); }
 
+        /* Chill Chat Panel */
+        #chat-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(9,30,66,0.54); z-index:9998; }
+        #chat-panel { transform: translateX(100%); transition: transform 0.3s ease; position:fixed; top:0; right:0; width: 100%; max-width: 400px; height: 100vh; background: white; z-index: 9999; display: flex; flex-direction: column; box-shadow: -4px 0 15px rgba(0,0,0,0.1); }
+
         /* --- MOBILE OPTIMIZATIONS --- */
         @media (max-width: 768px) {
             body { padding: 10px; }
@@ -176,7 +180,7 @@
                 z-index: 1000; cursor: pointer; border: none;
             }
 
-            #global-timer-indicator { bottom: 90px; } /* Prevent overlap with FAB */
+            #global-timer-indicator { bottom: 90px; } 
 
             .card .actions { display: none !important; } 
             .card-menu-btn { 
@@ -233,6 +237,28 @@
         <span style="font-size: 16px;">⏱️</span> <span id="global-timer-text">00:00:00</span>
     </div>
 
+    <div id="chat-overlay" onclick="toggleChatPanel()"></div>
+    <div id="chat-panel">
+        <div style="padding: 20px; border-bottom: 2px solid #ebecf0; display: flex; justify-content: space-between; align-items: center; background: white;">
+            <h2 style="margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">Chill Chat <span style="font-size: 14px; opacity: 0.5;">☕️</span></h2>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button type="button" class="secondary" style="padding: 4px 8px; font-size: 14px;" onclick="fetchMessages()" title="Refresh Messages">↻</button>
+                <button class="danger" onclick="toggleChatPanel()" style="font-size: 18px; padding: 2px 8px;">&times;</button>
+            </div>
+        </div>
+        <div style="padding: 10px 20px; background: #fafbfc; border-bottom: 1px solid #ebecf0;">
+            <select id="chat-recipient-select" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #dfe1e6; font-size: 14px;" onchange="switchChatRecipient(this.value)">
+                <option value="team">Team Chat (Workspace)</option>
+                </select>
+        </div>
+        <div id="chat-messages" style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; background: #f4f5f7;">
+            </div>
+        <form id="chat-form" style="padding: 20px; border-top: 2px solid #ebecf0; display: flex; gap: 10px; background: white;">
+            <input type="text" id="chat-input" placeholder="Type a message..." required style="flex: 1; padding: 10px; border: 1px solid #dfe1e6; border-radius: 4px; font-size: 14px; outline: none;" spellcheck="true">
+            <button type="submit" style="padding: 10px 16px;">Send</button>
+        </form>
+    </div>
+
     <div id="app-container" style="display: none;">
         <div class="header">
             <div class="title-container" style="display: flex; align-items: center; position: relative;">
@@ -250,6 +276,7 @@
             
             <div class="header-controls">
                 <div id="user-button"></div>
+                <button class="secondary" onclick="toggleChatPanel()" title="Chill Chat" style="padding: 8px 12px; font-size: 14px; display: flex; align-items: center; gap: 6px;">💬 Inbox</button>
                 <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
                 <button class="desktop-add-task" onclick="openModal()">+ Add New Task</button>
             </div>
@@ -360,7 +387,7 @@
             </div>
 
             <div id="master-task-list" class="board-container size-small" style="display: flex; flex-direction: column; gap: 8px; max-width: 800px; margin: 0 auto; padding-bottom: 60px;">
-                </div>
+            </div>
         </div>
     </div>
 
@@ -646,6 +673,11 @@
         let currentView = 'active'; let draftTask = null; let draftSubtasks = []; let pendingConfirmAction = null; 
         let contextTargetMainId = null; let contextTargetSubtaskId = null; let contextTargetProjectId = null;
 
+        // CHILL CHAT STATE
+        let messages = [];
+        let activeChatRecipient = 'team';
+        let originalAssignees = [];
+
         let isMasterView = false;
         let masterTimeframe = 'today';
         let masterScope = 'workspace'; 
@@ -693,7 +725,142 @@
             setInterval(updateGlobalTimer, 1000);
         });
 
-        // 1. FIXED TIMER DISAPPEARANCE BUG
+        // --- CHILL CHAT LOGIC ---
+        function toggleChatPanel() {
+            const panel = document.getElementById('chat-panel');
+            const overlay = document.getElementById('chat-overlay');
+            if (panel.style.transform === 'translateX(0%)') {
+                panel.style.transform = 'translateX(100%)';
+                overlay.style.display = 'none';
+            } else {
+                panel.style.transform = 'translateX(0%)';
+                overlay.style.display = 'block';
+                populateChatRecipients();
+                fetchMessages(); 
+            }
+        }
+
+        function populateChatRecipients() {
+            const select = document.getElementById('chat-recipient-select');
+            select.innerHTML = '<option value="team">Team Chat (Workspace)</option>';
+            const me = getActiveUserObj();
+            
+            getVisibleUsers().forEach(u => {
+                if (u.id !== me.id) {
+                    const opt = document.createElement('option');
+                    opt.value = u.id;
+                    opt.innerHTML = `DM: ${sanitize(u.name)}`;
+                    select.appendChild(opt);
+                }
+            });
+            select.value = activeChatRecipient;
+        }
+
+        function switchChatRecipient(val) {
+            activeChatRecipient = val;
+            renderChat();
+        }
+
+        async function fetchMessages() {
+            if (!currentWorkspaceId) return;
+            try {
+                const res = await fetch(`${API_URL}/messages/${currentWorkspaceId}`);
+                if (res.ok) {
+                    messages = await res.json();
+                    renderChat();
+                }
+            } catch (e) { console.error("Error fetching messages:", e); }
+        }
+
+        function renderChat() {
+            const container = document.getElementById('chat-messages');
+            container.innerHTML = `
+                <div style="text-align: center; color: #5e6c84; font-size: 13px; margin-bottom: 20px; padding: 15px; background: #e6fcff; border-radius: 6px; border: 1px dashed #b3d4ff;">
+                    <strong>Welcome to Chill Chat.</strong><br><br>
+                    Take the time to think about your message and communicate clearly. Your teammates will get it soonish. 🧘‍♂️
+                </div>
+            `;
+            
+            const myId = getActiveUserObj().id;
+            
+            const filteredMessages = messages.filter(m => {
+                if (activeChatRecipient === 'team') {
+                    // Show team messages AND system assignments explicitly sent to me
+                    return m.recipient_id === null || (m.sender_id === 'system' && m.recipient_id === myId);
+                } else {
+                    // Show exact DM thread
+                    return (m.sender_id === myId && m.recipient_id === activeChatRecipient) || 
+                           (m.sender_id === activeChatRecipient && m.recipient_id === myId);
+                }
+            });
+
+            filteredMessages.forEach(msg => {
+                const div = document.createElement('div');
+                const isMe = msg.sender_id === myId;
+                const isSystem = msg.sender_id === 'system';
+                
+                div.style.maxWidth = '85%';
+                div.style.padding = '10px 14px';
+                div.style.borderRadius = '8px';
+                div.style.fontSize = '14px';
+                div.style.lineHeight = '1.4';
+                div.style.wordBreak = 'break-word';
+                
+                if (isSystem) {
+                    div.style.alignSelf = 'center';
+                    div.style.background = '#ebecf0';
+                    div.style.color = '#172b4d';
+                    div.style.width = '100%';
+                    div.style.borderLeft = '4px solid #0052cc';
+                    div.style.boxSizing = 'border-box';
+                    
+                    const btnHtml = msg.related_task_id ? `<br><button type="button" class="secondary" style="margin-top: 8px; font-size: 12px; padding: 4px 12px;" onclick="editTask('${msg.related_task_id}'); toggleChatPanel();">View Task</button>` : '';
+                    
+                    div.innerHTML = `<strong>🤖 System:</strong> ${sanitize(msg.content)} ${btnHtml}`;
+                } else {
+                    div.style.alignSelf = isMe ? 'flex-end' : 'flex-start';
+                    div.style.background = isMe ? '#0052cc' : 'white';
+                    div.style.color = isMe ? 'white' : '#172b4d';
+                    div.style.border = isMe ? 'none' : '1px solid #dfe1e6';
+                    
+                    const senderName = isMe ? 'You' : sanitize(msg.sender_name);
+                    div.innerHTML = `<div style="font-size: 11px; opacity: 0.8; margin-bottom: 4px;">${senderName}</div><div>${linkify(sanitize(msg.content))}</div>`;
+                }
+                container.appendChild(div);
+            });
+            
+            container.scrollTop = container.scrollHeight;
+        }
+
+        document.getElementById('chat-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            const content = input.value.trim();
+            if (!content) return;
+            
+            const me = getActiveUserObj();
+            const recipient = activeChatRecipient === 'team' ? null : activeChatRecipient;
+            
+            const newMsg = {
+                id: generateUUID(),
+                workspace_id: currentWorkspaceId,
+                sender_id: me.id,
+                sender_name: activeUserName,
+                recipient_id: recipient,
+                content: content,
+                related_task_id: null,
+                created_at: new Date().toISOString()
+            };
+            
+            messages.push(newMsg);
+            renderChat();
+            input.value = '';
+            
+            await apiCall('/messages', 'POST', newMsg);
+        });
+
+        // --- END CHILL CHAT LOGIC ---
+
         async function loadDataFromDB() {
             try {
                 document.getElementById('app-title').innerHTML = "Loading...";
@@ -723,7 +890,6 @@
                     t.assignees = (data.task_assignees || []).filter(ta => ta.task_id === t.id).map(ta => ta.user_id);
                     if (t.due_date) t.due_date = t.due_date.split('T')[0];
                     
-                    // CRITICAL FIX: Ensure PostgreSQL BigInts are parsed as true JavaScript numbers!
                     t.timer_started_at = t.timer_started_at ? parseInt(t.timer_started_at, 10) : null;
                     t.timer_elapsed = t.timer_elapsed ? parseInt(t.timer_elapsed, 10) : 0;
                     t.counter = t.counter ? parseInt(t.counter, 10) : 0;
@@ -932,7 +1098,6 @@
             if (activeAssignees.has(currentSelection) || currentSelection === "All") filterSelect.value = currentSelection;
         }
 
-        // 4. FIXING THE CARD CLICK & RED X BUBBLE ISSUE
         function handleCardAction(e, action, id, param) {
             e.preventDefault();
             e.stopPropagation();
@@ -1251,7 +1416,6 @@
             renderAll(); 
         }
         
-        // 2. FIXED FEEDBACK NAVIGATION (Overlay rather than closure)
         function openFeedbackModal(type) {
             lockBody();
             document.getElementById('feedback-form').reset();
@@ -1362,7 +1526,6 @@
                 if ((newStatus === 'done' || newStatus === 'complete' || newStatus === 'archive') && (oldStatus !== 'done' && oldStatus !== 'complete' && oldStatus !== 'archive')) {
                     t.completed_at = new Date().toISOString();
                     
-                    // AUTO-PAUSE TIMER if moved to a completed state
                     if (t.timer_running) {
                         const now = Date.now();
                         const start = parseInt(t.timer_started_at, 10) || now;
@@ -1411,7 +1574,6 @@
                     
                     if ((status === 'done' || status === 'complete' || status === 'archive') && (oldStatus !== 'done' && oldStatus !== 'complete' && oldStatus !== 'archive')) {
                         t.completed_at = new Date().toISOString();
-                        // AUTO-PAUSE TIMER if moved to a completed state
                         if (t.timer_running) {
                             const now = Date.now();
                             const start = parseInt(t.timer_started_at, 10) || now;
@@ -1566,6 +1728,7 @@
         function openModal(defaultStatus) {
             lockBody();
             clearInterval(activeTimerInterval);
+            originalAssignees = [];
             
             if (!currentProjectId) {
                 unlockBody();
@@ -1598,6 +1761,7 @@
             
             draftTask = JSON.parse(JSON.stringify(tasks.find(t => t.id === id))); 
             draftSubtasks = tasks.filter(t => t.parent_task_id === id).map(st => JSON.parse(JSON.stringify(st)));
+            originalAssignees = [...(draftTask.assignees || [])];
             draftSubtaskId = null; updateFormUI(); 
             
             document.getElementById('gcal-checkbox-container').style.display = 'flex';
@@ -1627,7 +1791,6 @@
                 const newStatus = document.getElementById('task-status').value;
                 data.status = newStatus;
                 
-                // TIMESTAMP COMPLETED LOGIC
                 if ((newStatus === 'done' || newStatus === 'complete' || newStatus === 'archive') && (oldStatus !== 'done' && oldStatus !== 'complete' && oldStatus !== 'archive')) {
                     data.completed_at = new Date().toISOString();
                 } else if (newStatus !== 'done' && newStatus !== 'complete' && newStatus !== 'archive') {
@@ -1679,6 +1842,28 @@
 
         document.getElementById('task-form').addEventListener('submit', async function(e) {
             e.preventDefault(); syncFormToDraft(); 
+            
+            // Generate System Notification for newly added assignees
+            const me = getActiveUserObj();
+            const newAssigneesList = draftTask.assignees || [];
+            const newlyAdded = newAssigneesList.filter(id => !originalAssignees.includes(id) && id !== me.id);
+            
+            if (newlyAdded.length > 0 && currentWorkspaceId) {
+                const p = projects.find(x => x.id === currentProjectId);
+                const projName = p ? p.name : 'Unknown Project';
+                for (const targetId of newlyAdded) {
+                    await apiCall('/messages', 'POST', {
+                        id: generateUUID(),
+                        workspace_id: currentWorkspaceId,
+                        sender_id: 'system',
+                        sender_name: 'System',
+                        recipient_id: targetId,
+                        content: `${activeUserName} assigned you to "${draftTask.title}" in ${projName}.`,
+                        related_task_id: draftTask.id,
+                        created_at: new Date().toISOString()
+                    });
+                }
+            }
             
             const syncGcal = document.getElementById('task-gcal-sync').checked;
             if (syncGcal && !draftSubtaskId) {
