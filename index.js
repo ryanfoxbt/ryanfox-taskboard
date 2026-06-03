@@ -2,11 +2,15 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const { Resend } = require('resend');
+const path = require('path'); // <-- NEW: Required for serving frontend files
 require('dotenv').config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// <-- NEW: Tell Vercel and Express to serve your HTML, CSS, and JS from the "public" folder
+app.use(express.static(path.join(__dirname, 'public')));
 
 const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
