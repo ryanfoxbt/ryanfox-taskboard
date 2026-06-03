@@ -445,12 +445,32 @@ function renderWorkspaceUsers() {
     const settingsList = document.getElementById('settings-user-list'); 
     if(settingsList) {
         settingsList.innerHTML = '';
+        const me = getActiveUserObj();
+        const isAdmin = me.role === 'Admin';
+        
         getVisibleUsers().forEach(u => {
             const div = document.createElement('div'); div.className = 'list-item';
-            div.innerHTML = `<span class="title">${sanitize(u.name)} <span class="meta">(${sanitize(u.role || 'Member')})</span></span>
-                <div class="list-actions"><button type="button" class="danger" style="padding: 2px 6px;" onclick="deleteWorkspaceUser('${u.id}', '${sanitize(u.name)}')" title="Remove User">&times;</button></div>`;
+            div.innerHTML = `
+                <span class="title" style="display:flex; flex-direction:column; gap:2px;">
+                    <span>${sanitize(u.name)} <span class="meta">(${sanitize(u.role || 'Member')})</span></span>
+                    <span style="font-size: 10px; color: #8993a4;">${sanitize(u.email)}</span>
+                </span>
+                <div class="list-actions">
+                    ${isAdmin ? `<button type="button" class="edit" style="padding: 2px 6px;" onclick="editUserEmail('${u.id}', '${sanitize(u.email)}')">✎ Email</button>` : ''}
+                    <button type="button" class="danger" style="padding: 2px 6px;" onclick="deleteWorkspaceUser('${u.id}', '${sanitize(u.name)}')" title="Remove User">&times;</button>
+                </div>`;
             settingsList.appendChild(div);
         });
+    }
+}
+
+// NEW: Function to handle the actual edit via prompt
+async function editUserEmail(userId, oldEmail) {
+    const newEmail = prompt("Enter new email address for this user:", oldEmail);
+    if (newEmail && newEmail.trim() !== '' && newEmail !== oldEmail) {
+        await apiCall('/users/email', 'PUT', { id: userId, email: newEmail.trim() });
+        await loadDataFromDB();
+        openSettings(); // Refresh UI
     }
 }
 
@@ -915,7 +935,28 @@ function positionMenu(e, target) {
 function showContextMenuMain(e, id) { 
     e.preventDefault(); e.stopPropagation(); closeMenus(); 
     contextTargetMainId = id; 
-    let target = (currentView === 'active') ? activeContextMenu : (currentView === 'future') ? futureContextMenu : archiveContextMenu; 
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    
+    let target;
+    
+    if (['todo', 'doing', 'done', 'recurring'].includes(t.status)) {
+        target = document.getElementById('active-context-menu');
+        target.innerHTML = `
+            <button onclick="contextActionEditMain()">✎ Edit Task</button>
+            ${t.status !== 'todo' ? `<button onclick="contextActionMoveTo('todo')" style="color:#0052cc;">→ Move to To Do</button>` : ''}
+            ${t.status !== 'doing' ? `<button onclick="contextActionMoveTo('doing')" style="color:#0052cc;">→ Move to Doing</button>` : ''}
+            ${t.status !== 'done' ? `<button onclick="contextActionMoveTo('done')" style="color:#36b37e;">→ Move to Done</button>` : ''}
+            <button onclick="contextActionFutureMain()" style="color:#ff991f;">⏳ Move to Future</button>
+            <button onclick="contextActionArchiveMain()" class="success-text">✓ Archive Task</button>
+            <button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>
+        `;
+    } else if (t.status === 'future') {
+        target = document.getElementById('future-context-menu');
+    } else {
+        target = document.getElementById('archive-context-menu');
+    }
+    
     target.style.display = 'block'; 
     positionMenu(e, target);
 }
@@ -1162,6 +1203,13 @@ function updateGlobalTimer() {
     indicator.onclick = () => editTask(runningTask.id);
 }
 
+function removeAssigneeFromTask(userId) {
+    if (!draftTask) return;
+    draftTask.assignees = draftTask.assignees.filter(id => id !== userId);
+    syncFormToDraft();
+    updateFormUI();
+}
+
 function openModal(defaultStatus) {
     lockBody();
     clearInterval(activeTimerInterval);
@@ -1177,8 +1225,15 @@ function openModal(defaultStatus) {
         defaultStatus = (currentView === 'future') ? 'future' : (currentView === 'archive' ? 'complete' : (currentView === 'recurring' ? 'recurring' : 'todo'));
     }
     
+    // NEW: Auto-assign user if project is secret/private
+    const proj = projects.find(p => p.id === currentProjectId);
+    let defaultAssignees = [];
+    if (proj && proj.isSecret) {
+        defaultAssignees = [getActiveUserObj().id];
+    }
+    
     draftTask = { 
-        id: generateUUID(), title: '', description: '', assignees: [], due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null,
+        id: generateUUID(), title: '', description: '', assignees: defaultAssignees, due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null,
         counter: 0, timer_running: false, timer_started_at: null, timer_elapsed: 0, completed_at: null 
     };
     
@@ -1264,7 +1319,14 @@ function updateFormUI() {
 
     renderAssigneeCheckboxes(data.assignees || []);
     const badgeContainer = document.getElementById('task-assignees-display'); badgeContainer.innerHTML = '';
-    (data.assignees || []).forEach(id => { badgeContainer.innerHTML += `<span class="badge" style="margin-right:4px;">👤 ${sanitize(getUserName(id))}</span>`; });
+    (data.assignees || []).forEach(id => { 
+        badgeContainer.innerHTML += `
+            <span class="badge" style="margin-right:4px; display: inline-flex; align-items: center;">
+                👤 ${sanitize(getUserName(id))} 
+                <button type="button" class="danger" style="padding: 0 4px; margin-left: 4px; font-size: 12px; height: 16px; line-height: 1;" onclick="removeAssigneeFromTask('${id}')" title="Remove Assignee">&times;</button>
+            </span>
+        `; 
+    });
     
     document.getElementById('dynamic-tools-section').style.display = draftSubtaskId ? 'none' : 'block';
     document.getElementById('subtasks-form-section').style.display = draftSubtaskId ? 'none' : 'block'; 
