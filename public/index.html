@@ -72,6 +72,7 @@
                     <button class="view-toggle" id="btn-view-future" onclick="switchView('future')">Future</button>
                     <button class="view-toggle" id="btn-view-archive" onclick="switchView('archive')">Archive</button>
                 </div>
+
                 <div class="filters-bar">
                     <div style="position: relative; flex: 1; min-width: 140px; display: flex; align-items: center;">
                         <input type="text" id="filter-search" placeholder="Search tasks..." oninput="renderBoard()" spellcheck="true" style="width: 100%; padding-right: 28px;">
@@ -84,7 +85,7 @@
                         <button type="button" class="icon-btn" onclick="window.open('https://calendar.google.com', '_blank')" title="Open Google Calendar">📅</button>
                     </div>
                 </div>
-
+            </div>
 
             <div id="master-board-wrapper" class="board-container size-big">
                 <div class="board" id="view-active">
@@ -127,7 +128,7 @@
             <button class="mobile-fab" onclick="openModal()">+</button>
         </div>
 
-      <div id="master-schedule-container" style="display: none;">
+        <div id="master-schedule-container" style="display: none;">
             <div class="modal-header-row" style="margin-top: 10px; border-bottom: none; padding-bottom: 0;">
                 <h2 style="margin:0; color: #0052cc;">Master Schedule</h2>
                 <button class="secondary" onclick="toggleMasterView()">← Back to Board</button>
@@ -175,25 +176,11 @@
             <div id="master-task-list" class="board-container size-small" style="display: flex; flex-direction: column; gap: 8px; max-width: 800px; margin: 0 auto; padding-bottom: 60px;">
                 </div>
         </div>
+    </div>
 
-    <div id="active-context-menu" class="custom-context-menu">
-        <button onclick="contextActionEditMain()">✎ Edit Task</button>
-        <button onclick="contextActionMoveTo('doing')" style="color:#0052cc;">→ Move to Doing</button>
-        <button onclick="contextActionMoveTo('done')" style="color:#36b37e;">→ Move to Done</button>
-        <button onclick="contextActionFutureMain()" style="color:#ff991f;">⏳ Move to Future</button>
-        <button onclick="contextActionArchiveMain()" class="success-text">✓ Archive Task</button>
-        <button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>
-    </div>
-    <div id="future-context-menu" class="custom-context-menu">
-        <button onclick="contextActionStartMain()" style="color:#0052cc;">🚀 Move to "To Do"</button>
-        <button onclick="contextActionEditMain()">✎ Edit Task</button>
-        <button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>
-    </div>
-    <div id="archive-context-menu" class="custom-context-menu">
-        <button onclick="contextActionRestoreMain()" style="color:#ff991f;">⏪ Restore to Board</button>
-        <button onclick="contextActionEditMain()">✎ Edit Task</button>
-        <button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>
-    </div>
+    <div id="active-context-menu" class="custom-context-menu"></div>
+    <div id="future-context-menu" class="custom-context-menu"></div>
+    <div id="archive-context-menu" class="custom-context-menu"></div>
     <div id="project-context-menu" class="custom-context-menu">
         <button onclick="contextActionEditProject()">✎ Edit Project</button>
         <button onclick="contextActionDeleteProject()" class="danger-text">✕ Delete Project</button>
@@ -233,6 +220,7 @@
             <button type="button" onclick="saveSettings()">Save Settings</button>
         </div>
     </dialog>
+
     <dialog id="edit-user-email-modal">
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">Edit User Email</h2>
