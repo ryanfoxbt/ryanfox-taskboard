@@ -72,9 +72,11 @@
                     <button class="view-toggle" id="btn-view-future" onclick="switchView('future')">Future</button>
                     <button class="view-toggle" id="btn-view-archive" onclick="switchView('archive')">Archive</button>
                 </div>
-
                 <div class="filters-bar">
-                    <input type="text" id="filter-search" placeholder="Search tasks..." oninput="renderBoard()" spellcheck="true">
+                    <div style="position: relative; flex: 1; min-width: 140px; display: flex; align-items: center;">
+                        <input type="text" id="filter-search" placeholder="Search tasks..." oninput="renderBoard()" spellcheck="true" style="width: 100%; padding-right: 28px;">
+                        <button type="button" onclick="document.getElementById('filter-search').value=''; renderBoard();" style="position: absolute; right: 4px; background: transparent; border: none; color: #5e6c84; cursor: pointer; padding: 4px; font-size: 18px; line-height: 1;" title="Clear Search">&times;</button>
+                    </div>
                     <select id="filter-assignee" onchange="renderBoard()"><option value="All">All Assignees</option></select>
                     
                     <div style="display: flex; gap: 10px; width: 100%;">
@@ -82,7 +84,7 @@
                         <button type="button" class="icon-btn" onclick="window.open('https://calendar.google.com', '_blank')" title="Open Google Calendar">📅</button>
                     </div>
                 </div>
-            </div>
+
 
             <div id="master-board-wrapper" class="board-container size-big">
                 <div class="board" id="view-active">
@@ -142,10 +144,16 @@
                     <button class="view-toggle" id="mv-scope-all" onclick="setMasterScope('all')" style="flex: 1; justify-content: center;">All Workspaces</button>
                 </div>
             </div>
+            
+
+            
 
             <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
                 <div style="display: flex; gap: 10px; align-items: center; width: 100%; flex-wrap: wrap; padding-bottom: 4px;">
-                    <input type="text" id="mv-filter-search" placeholder="Search schedule..." oninput="renderMasterView()" style="flex: 1; min-width: 140px; padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; box-sizing: border-box; outline: none; font-family: inherit; font-size: 14px;" spellcheck="true">
+                    <div style="position: relative; flex: 1; min-width: 140px; display: flex; align-items: center;">
+                        <input type="text" id="mv-filter-search" placeholder="Search schedule..." oninput="renderMasterView()" style="flex: 1; width: 100%; padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; box-sizing: border-box; outline: none; font-family: inherit; font-size: 14px; padding-right: 28px;" spellcheck="true">
+                        <button type="button" onclick="document.getElementById('mv-filter-search').value=''; renderMasterView();" style="position: absolute; right: 4px; background: transparent; border: none; color: #5e6c84; cursor: pointer; padding: 4px; font-size: 18px; line-height: 1;" title="Clear Search">&times;</button>
+                    </div>
                     <select id="mv-filter-assignee" onchange="renderMasterView()" style="padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px;"><option value="All">All Assignees</option></select>
                     <select id="mv-filter-urgency" onchange="renderMasterView()" style="padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
                     
