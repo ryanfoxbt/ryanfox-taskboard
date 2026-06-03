@@ -127,7 +127,7 @@
             <button class="mobile-fab" onclick="openModal()">+</button>
         </div>
 
-        <div id="master-schedule-container" style="display: none;">
+      <div id="master-schedule-container" style="display: none;">
             <div class="modal-header-row" style="margin-top: 10px; border-bottom: none; padding-bottom: 0;">
                 <h2 style="margin:0; color: #0052cc;">Master Schedule</h2>
                 <button class="secondary" onclick="toggleMasterView()">← Back to Board</button>
@@ -144,16 +144,15 @@
                     <button class="view-toggle" id="mv-scope-all" onclick="setMasterScope('all')" style="flex: 1; justify-content: center;">All Workspaces</button>
                 </div>
             </div>
-            
-
-            
 
             <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
                 <div style="display: flex; gap: 10px; align-items: center; width: 100%; flex-wrap: wrap; padding-bottom: 4px;">
+                    
                     <div style="position: relative; flex: 1; min-width: 140px; display: flex; align-items: center;">
                         <input type="text" id="mv-filter-search" placeholder="Search schedule..." oninput="renderMasterView()" style="flex: 1; width: 100%; padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; box-sizing: border-box; outline: none; font-family: inherit; font-size: 14px; padding-right: 28px;" spellcheck="true">
                         <button type="button" onclick="document.getElementById('mv-filter-search').value=''; renderMasterView();" style="position: absolute; right: 4px; background: transparent; border: none; color: #5e6c84; cursor: pointer; padding: 4px; font-size: 18px; line-height: 1;" title="Clear Search">&times;</button>
                     </div>
+
                     <select id="mv-filter-assignee" onchange="renderMasterView()" style="padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px;"><option value="All">All Assignees</option></select>
                     <select id="mv-filter-urgency" onchange="renderMasterView()" style="padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px;"><option value="All">All Urgencies</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
                     
@@ -174,9 +173,8 @@
             </div>
 
             <div id="master-task-list" class="board-container size-small" style="display: flex; flex-direction: column; gap: 8px; max-width: 800px; margin: 0 auto; padding-bottom: 60px;">
-            </div>
+                </div>
         </div>
-    </div>
 
     <div id="active-context-menu" class="custom-context-menu">
         <button onclick="contextActionEditMain()">✎ Edit Task</button>
@@ -234,6 +232,21 @@
             <button type="button" class="secondary" onclick="closeSettings()">Cancel</button>
             <button type="button" onclick="saveSettings()">Save Settings</button>
         </div>
+    </dialog>
+    <dialog id="edit-user-email-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
+        <h2 style="margin-top:0;">Edit User Email</h2>
+        <form id="edit-user-email-form">
+            <input type="hidden" id="edit-user-email-id">
+            <div class="form-group">
+                <label>New Email Address</label>
+                <input type="email" id="edit-user-email-input" required autocomplete="off">
+            </div>
+            <div class="dialog-actions">
+                <button type="button" class="secondary" onclick="closeEditUserEmailModal()">Cancel</button>
+                <button type="submit">Save Changes</button>
+            </div>
+        </form>
     </dialog>
 
     <dialog id="feedback-modal">
