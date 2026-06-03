@@ -88,7 +88,7 @@ app.post('/api/tasks', async (req, res) => {
     } finally { client.release(); }
 });
 
-// --- NEW: TIME LOGS (PATH B) ---
+// 3. --- NEW: TIME LOGS (PATH B) ---
 app.post('/api/time_logs', async (req, res) => {
     const { id, user_id, workspace_id, project_id, task_id, duration_ms } = req.body;
     try {
@@ -100,7 +100,7 @@ app.post('/api/time_logs', async (req, res) => {
     } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- NEW: FEEDBACK ---
+// 4. --- NEW: FEEDBACK ---
 app.post('/api/feedback', async (req, res) => {
     const { id, user_id, type, title, description } = req.body;
     try {
@@ -112,7 +112,7 @@ app.post('/api/feedback', async (req, res) => {
     } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-// 3. PROJECTS
+// 5. PROJECTS
 app.post('/api/projects', async (req, res) => {
     // 1. Added 'notes' to the destructured variables
     const { id, workspace_id, name, isSecret, owner_id, notes } = req.body; 
@@ -143,7 +143,7 @@ app.delete('/api/projects/:id', async (req, res) => {
     }
 });
 
-// 4. WORKSPACES
+// 6. WORKSPACES
 app.post('/api/workspaces', async (req, res) => {
     const { id, name, userId } = req.body; 
     const client = await pool.connect();
@@ -175,7 +175,28 @@ app.delete('/api/workspaces/:id', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 5. USERS, INVITES & SETTINGS
+// --- 7. MESSAGES (CHILL CHAT) ---
+app.get('/api/messages/:workspace_id', async (req, res) => {
+    try {
+        // Retrieves the feed, chronologically ordered
+        const result = await pool.query('SELECT * FROM messages WHERE workspace_id = $1 ORDER BY created_at ASC', [req.params.workspace_id]);
+        res.json(result.rows);
+    } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+app.post('/api/messages', async (req, res) => {
+    const { id, workspace_id, sender_id, sender_name, recipient_id, content, related_task_id } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO messages (id, workspace_id, sender_id, sender_name, recipient_id, content, related_task_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [id, workspace_id, sender_id, sender_name, recipient_id || null, content, related_task_id || null]
+        );
+        res.json({success: true});
+    } catch(err) { res.status(500).json({error: err.message}); }
+});
+
+// 8. USERS, INVITES & SETTINGS
 app.post('/api/users', async (req, res) => {
     const { id, name, email, role, workspace_id, inviter_name, workspace_name, invite_link } = req.body;
     try {
@@ -210,6 +231,8 @@ app.post('/api/users', async (req, res) => {
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+
 
 app.delete('/api/users/:userId/:workspaceId', async (req, res) => {
     try { await pool.query('DELETE FROM workspace_members WHERE user_id = $1 AND workspace_id = $2', [req.params.userId, req.params.workspaceId]); res.json({ success: true }); } 
