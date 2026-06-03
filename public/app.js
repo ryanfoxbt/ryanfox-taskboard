@@ -18,7 +18,7 @@ function generateUUID() {
     });
 }
 
-// 1. FIX SCROLL JUMP BUG: Saves exact scroll position
+// FIX SCROLL JUMP BUG: Saves exact scroll position
 let scrollPosition = 0;
 function lockBody() { 
     scrollPosition = window.pageYOffset;
@@ -157,6 +157,7 @@ async function fetchMessages() {
             renderChat();
         }
         
+        // Also quietly sync tasks to ensure new assignments exist locally
         const dataRes = await fetch(`${API_URL}/data`);
         if (dataRes.ok) {
             const data = await dataRes.json();
@@ -281,6 +282,7 @@ document.getElementById('chat-form').addEventListener('submit', async function(e
     await apiCall('/messages', 'POST', newMsg);
 });
 
+// --- DATA LOGIC ---
 async function loadDataFromDB() {
     try {
         document.getElementById('app-title').innerHTML = "Loading...";
@@ -423,6 +425,7 @@ async function deleteProjectDB(id) {
     renderAll(); await apiCall(`/projects/${id}`, 'DELETE');
 }
 
+// --- WORKSPACE RENDERS ---
 function renderWorkspaceMenu() {
     const list = document.getElementById('workspace-list-menu'); list.innerHTML = '';
     const myWorkspaces = workspaces.filter(ws => getActiveUserObj().workspace_ids.includes(ws.id));
@@ -456,7 +459,7 @@ function renderWorkspaceUsers() {
                     <span style="font-size: 10px; color: #8993a4;">${sanitize(u.email)}</span>
                 </span>
                 <div class="list-actions">
-                    ${isAdmin ? `<button type="button" class="edit" style="padding: 2px 6px;" onclick="editUserEmail('${u.id}', '${sanitize(u.email)}')">✎ Email</button>` : ''}
+                    ${isAdmin ? `<button type="button" class="edit" style="padding: 2px 6px;" onclick="openEditUserEmailModal('${u.id}', '${sanitize(u.email)}')">✎ Email</button>` : ''}
                     <button type="button" class="danger" style="padding: 2px 6px;" onclick="deleteWorkspaceUser('${u.id}', '${sanitize(u.name)}')" title="Remove User">&times;</button>
                 </div>`;
             settingsList.appendChild(div);
@@ -464,7 +467,6 @@ function renderWorkspaceUsers() {
     }
 }
 
-// NEW: Function to handle the actual edit via prompt
 function openEditUserEmailModal(userId, oldEmail) {
     document.getElementById('settings-modal').close(); // Hide settings temporarily
     document.getElementById('edit-user-email-id').value = userId;
@@ -487,34 +489,9 @@ document.getElementById('edit-user-email-form').addEventListener('submit', async
     await apiCall('/users/email', 'PUT', { id: userId, email: newEmail });
     await loadDataFromDB(); // Fetch updated users
     
-    closeEditUserEmailModal(); // Closes edit modal and re-opens settings
+    closeEditUserEmailModal(); 
     openSettings(); // Force a fresh render of the UI inside settings
 });
-
-// Update the onclick event inside renderWorkspaceUsers() to use the new modal:
-function renderWorkspaceUsers() {
-    const settingsList = document.getElementById('settings-user-list'); 
-    if(settingsList) {
-        settingsList.innerHTML = '';
-        const me = getActiveUserObj();
-        const isAdmin = me.role === 'Admin';
-        
-        getVisibleUsers().forEach(u => {
-            const div = document.createElement('div'); div.className = 'list-item';
-            div.innerHTML = `
-                <span class="title" style="display:flex; flex-direction:column; gap:2px;">
-                    <span>${sanitize(u.name)} <span class="meta">(${sanitize(u.role || 'Member')})</span></span>
-                    <span style="font-size: 10px; color: #8993a4;">${sanitize(u.email)}</span>
-                </span>
-                <div class="list-actions">
-                    ${isAdmin ? `<button type="button" class="edit" style="padding: 2px 6px;" onclick="openEditUserEmailModal('${u.id}', '${sanitize(u.email)}')">✎ Email</button>` : ''}
-                    <button type="button" class="danger" style="padding: 2px 6px;" onclick="deleteWorkspaceUser('${u.id}', '${sanitize(u.name)}')" title="Remove User">&times;</button>
-                </div>`;
-            settingsList.appendChild(div);
-        });
-    }
-}
-}
 
 function renderProjects() {
     const tabsContainer = document.getElementById('project-tabs'); tabsContainer.innerHTML = '';
@@ -956,7 +933,6 @@ function closeMenus() {
 }
 document.addEventListener('click', closeMenus);
 
-// 3. FIXED CONTEXT MENU CLIPPING BUG
 function positionMenu(e, target) {
     if (window.innerWidth > 768) {
         let x = e.pageX;
@@ -1245,23 +1221,6 @@ function updateGlobalTimer() {
     indicator.onclick = () => editTask(runningTask.id);
 }
 
-function removeAssigneeFromTask(userId) {
-    if (!draftTask) return;
-    
-    // 1. Sync any typed text first
-    syncFormToDraft();
-    
-    // 2. Uncheck the hidden checkbox so syncFormToDraft doesn't re-add it next time
-    const cb = document.querySelector(`.assignee-check[value="${userId}"]`);
-    if (cb) cb.checked = false;
-    
-    // 3. Remove from the local array
-    draftTask.assignees = draftTask.assignees.filter(id => id !== userId);
-    
-    // 4. Re-draw
-    updateFormUI();
-}
-
 function openModal(defaultStatus) {
     lockBody();
     clearInterval(activeTimerInterval);
@@ -1277,7 +1236,6 @@ function openModal(defaultStatus) {
         defaultStatus = (currentView === 'future') ? 'future' : (currentView === 'archive' ? 'complete' : (currentView === 'recurring' ? 'recurring' : 'todo'));
     }
     
-    // NEW: Auto-assign user if project is secret/private
     const proj = projects.find(p => p.id === currentProjectId);
     let defaultAssignees = [];
     if (proj && proj.isSecret) {
@@ -1342,8 +1300,16 @@ function syncFormToDraft() {
         }
         
         data.urgency = document.getElementById('task-urgency').value; 
-        data.assignees = Array.from(document.querySelectorAll('.assignee-check:checked')).map(cb => cb.value); 
     }
+}
+
+function removeAssigneeFromTask(userId) {
+    if (!draftTask) return;
+    syncFormToDraft();
+    const cb = document.querySelector(`.assignee-check[value="${userId}"]`);
+    if (cb) cb.checked = false;
+    draftTask.assignees = draftTask.assignees.filter(id => id !== userId);
+    updateFormUI();
 }
 
 function updateFormUI() {
@@ -1369,13 +1335,12 @@ function updateFormUI() {
         updateTimerDisplay();
     }
 
-    renderAssigneeCheckboxes(data.assignees || []);
     const badgeContainer = document.getElementById('task-assignees-display'); badgeContainer.innerHTML = '';
     (data.assignees || []).forEach(id => { 
         badgeContainer.innerHTML += `
-            <span class="badge" style="margin-right:4px; display: inline-flex; align-items: center;">
-                👤 ${sanitize(getUserName(id))} 
-                <button type="button" class="danger" style="padding: 0 4px; margin-left: 4px; font-size: 12px; height: 16px; line-height: 1;" onclick="removeAssigneeFromTask('${id}')" title="Remove Assignee">&times;</button>
+            <span class="badge" style="margin-right:4px; display: inline-flex; align-items: center; white-space: nowrap; max-width: 100%; overflow: hidden;">
+                <span style="text-overflow: ellipsis; overflow: hidden;">👤 ${sanitize(getUserName(id))}</span>
+                <button type="button" class="danger" style="padding: 0 4px; margin-left: 4px; font-size: 12px; height: 16px; line-height: 1; flex-shrink: 0;" onclick="removeAssigneeFromTask('${id}')" title="Remove Assignee">&times;</button>
             </span>
         `; 
     });
@@ -1457,7 +1422,6 @@ document.getElementById('task-form').addEventListener('submit', async function(e
     closeModal();
 });
 
-// 1. FIXED SUBTASK DELETION GHOST BUG
 function openSubtaskPromptModal() { 
     lockBody(); 
     document.getElementById('new-subtask-name').value = ''; 
@@ -1474,8 +1438,6 @@ function toggleSubtask(id) { const st = draftSubtasks.find(s => s.id === id); if
 function removeSubtask(id) { 
     draftSubtasks = draftSubtasks.filter(s => s.id !== id); 
     renderSubtasks(); 
-    
-    // Crucial: Actually trigger the backend delete so it doesn't reappear on reload!
     if (!id.includes('sub_') && !id.includes('temp')) {
         apiCall(`/tasks/${id}`, 'DELETE');
         tasks = tasks.filter(t => t.id !== id);
@@ -1494,7 +1456,15 @@ function openAssigneePromptModal() {
     m.showModal(); 
     setTimeout(() => m.scrollTop = 0, 10);
 } 
-function closeAssigneePromptModal() { unlockBody(); document.getElementById('assignee-prompt-modal').close(); syncFormToDraft(); updateFormUI(); }
+function closeAssigneePromptModal() { 
+    unlockBody(); 
+    document.getElementById('assignee-prompt-modal').close(); 
+    const cbs = document.querySelectorAll('.assignee-check:checked');
+    if (draftTask) {
+        draftTask.assignees = Array.from(cbs).map(cb => cb.value);
+    }
+    updateFormUI(); 
+}
 
 function renderAssigneeCheckboxes(selected = []) {
     const container = document.getElementById('assignee-checkbox-container'); container.innerHTML = '';
