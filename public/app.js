@@ -117,11 +117,11 @@ function toggleChatPanel() {
     if (panel.style.transform === 'translateX(0%)') {
         panel.style.transform = 'translateX(100%)';
         overlay.style.display = 'none';
-        unlockBody(); // Prevent bug 5: Restore scroll properly
+        unlockBody(); 
     } else {
         panel.style.transform = 'translateX(0%)';
         overlay.style.display = 'block';
-        lockBody();   // Prevent background from scrolling while chat is open
+        lockBody();  
         populateChatRecipients();
         fetchMessages(); 
     }
@@ -156,7 +156,22 @@ async function fetchMessages() {
             messages = await res.json();
             renderChat();
         }
-    } catch (e) { console.error("Error fetching messages:", e); }
+        
+        // NEW: Also quietly sync tasks to ensure new assignments exist locally
+        const dataRes = await fetch(`${API_URL}/data`);
+        if (dataRes.ok) {
+            const data = await dataRes.json();
+            tasks = (data.tasks || []).map(t => {
+                t.assignees = (data.task_assignees || []).filter(ta => ta.task_id === t.id).map(ta => ta.user_id);
+                if (t.due_date) t.due_date = t.due_date.split('T')[0];
+                t.timer_started_at = t.timer_started_at ? parseInt(t.timer_started_at, 10) : null;
+                t.timer_elapsed = t.timer_elapsed ? parseInt(t.timer_elapsed, 10) : 0;
+                t.counter = t.counter ? parseInt(t.counter, 10) : 0;
+                return t;
+            });
+            renderAll(); 
+        }
+    } catch (e) { console.error("Error fetching messages/tasks:", e); }
 }
 
 function renderChat() {
@@ -182,7 +197,9 @@ function renderChat() {
     filteredMessages.forEach(msg => {
         const div = document.createElement('div');
         const isMe = msg.sender_id === myId;
-        const isSystem = msg.sender_id === 'system';
+        
+        // Check if it's explicitly a system message, OR an automated DM we masked with a robot emoji
+        const isSystem = msg.sender_id === 'system' || msg.content.startsWith('🤖 System:');
         
         div.style.maxWidth = '85%';
         div.style.padding = '10px 14px';
@@ -199,9 +216,11 @@ function renderChat() {
             div.style.borderLeft = '4px solid #0052cc';
             div.style.boxSizing = 'border-box';
             
-            const btnHtml = msg.related_task_id ? `<br><button type="button" class="secondary" style="margin-top: 8px; font-size: 12px; padding: 4px 12px;" onclick="editTask('${msg.related_task_id}'); toggleChatPanel();">View Task</button>` : '';
+            // Re-wired to the new robust viewTaskFromChat function
+            const btnHtml = msg.related_task_id ? `<br><button type="button" class="secondary" style="margin-top: 8px; font-size: 12px; padding: 4px 12px;" onclick="viewTaskFromChat('${msg.related_task_id}')">View Task</button>` : '';
             
-            div.innerHTML = `<strong>🤖 System:</strong> ${sanitize(msg.content)} ${btnHtml}`;
+            const cleanContent = msg.content.replace('🤖 System:', '').trim();
+            div.innerHTML = `<strong>🤖 System:</strong> ${sanitize(cleanContent)} ${btnHtml}`;
         } else {
             div.style.alignSelf = isMe ? 'flex-end' : 'flex-start';
             div.style.background = isMe ? '#0052cc' : 'white';
@@ -215,6 +234,31 @@ function renderChat() {
     });
     
     container.scrollTop = container.scrollHeight;
+}
+
+// NEW: Highly robust view task engine specifically for chat links
+async function viewTaskFromChat(taskId) {
+    toggleChatPanel(); // Close chat
+    
+    let targetTask = tasks.find(t => t.id === taskId);
+    
+    if (!targetTask) {
+        document.getElementById('app-title').innerHTML = "Syncing...";
+        await loadDataFromDB(); // Force hard sync
+        targetTask = tasks.find(t => t.id === taskId);
+    }
+    
+    if (targetTask) {
+        // Switch to the correct project tab before opening
+        if (currentProjectId !== targetTask.project_id) {
+            currentProjectId = targetTask.project_id;
+            localStorage.setItem('currentProjectId', currentProjectId);
+            renderAll();
+        }
+        editTask(taskId);
+    } else {
+        alert("This task has been deleted or you do not have permission to view it.");
+    }
 }
 
 document.getElementById('chat-form').addEventListener('submit', async function(e) {
@@ -801,7 +845,7 @@ async function saveSettings() {
 }
 
 function openFeedbackModal(type) {
-    lockBody(); // Safe to overlap multiple modals
+    lockBody(); 
     document.getElementById('feedback-form').reset();
     document.getElementById('feedback-type').value = type;
     document.getElementById('feedback-title').innerText = type === 'bug' ? 'Report a Bug' : 'Request a Feature';
@@ -810,7 +854,6 @@ function openFeedbackModal(type) {
 }
 
 function closeFeedbackModal() { 
-    // We do NOT unlock the body here because they are likely returning to the Settings modal beneath it
     document.getElementById('feedback-modal').close(); 
 }
 
@@ -1227,22 +1270,44 @@ function updateFormUI() {
 document.getElementById('task-form').addEventListener('submit', async function(e) {
     e.preventDefault(); syncFormToDraft(); 
     
+    // Save tasks to DB FIRST so chat viewTask works
+    await saveTaskDB(draftTask);
+    for (const st of draftSubtasks) { if (st.id.includes('sub_') || st.id.includes('temp')) st.id = generateUUID(); st.parent_task_id = draftTask.id; await saveTaskDB(st); }
+
     // Generate System Notification for newly added assignees
     const me = getActiveUserObj();
-    const newAssigneesList = draftTask.assignees || [];
-    const newlyAdded = newAssigneesList.filter(id => !originalAssignees.includes(id) && id !== me.id);
+    const allAssignees = draftTask.assignees || [];
+    const newlyAdded = allAssignees.filter(id => !originalAssignees.includes(id) && id !== me.id);
     
     if (newlyAdded.length > 0 && currentWorkspaceId) {
         const p = projects.find(x => x.id === currentProjectId);
         const projName = p ? p.name : 'Unknown Project';
-        for (const targetId of newlyAdded) {
+        
+        // 1-on-1 logic: If exactly 2 people are on the task (me + 1 other), route to their private DM thread
+        const isPrivateDM = allAssignees.length <= 2 && newlyAdded.length === 1;
+
+        if (isPrivateDM) {
+            const targetId = newlyAdded[0];
+            await apiCall('/messages', 'POST', {
+                id: generateUUID(),
+                workspace_id: currentWorkspaceId,
+                sender_id: me.id, // Put it inside the private DM context
+                sender_name: activeUserName,
+                recipient_id: targetId,
+                content: `🤖 System: I assigned you to "${draftTask.title}" in ${projName}.`,
+                related_task_id: draftTask.id,
+                created_at: new Date().toISOString()
+            });
+        } else {
+            // Blast to general workspace Team Chat
+            const addedNames = newlyAdded.map(id => getUserName(id)).join(', ');
             await apiCall('/messages', 'POST', {
                 id: generateUUID(),
                 workspace_id: currentWorkspaceId,
                 sender_id: 'system',
                 sender_name: 'System',
-                recipient_id: targetId,
-                content: `${activeUserName} assigned you to "${draftTask.title}" in ${projName}.`,
+                recipient_id: null,
+                content: `🤖 System: ${activeUserName} assigned ${addedNames} to "${draftTask.title}" in ${projName}.`,
                 related_task_id: draftTask.id,
                 created_at: new Date().toISOString()
             });
@@ -1252,15 +1317,12 @@ document.getElementById('task-form').addEventListener('submit', async function(e
     const syncGcal = document.getElementById('task-gcal-sync').checked;
     if (syncGcal && !draftSubtaskId) {
         let gcalDesc = draftTask.description || '';
-        
         if (draftSubtasks && draftSubtasks.length > 0) {
             gcalDesc += '\n\nSubtasks:\n' + draftSubtasks.map(st => '• ' + st.title).join('\n');
         }
-        
         const title = encodeURIComponent(draftTask.title || 'New Task');
         const desc = encodeURIComponent(gcalDesc);
         let dateParam = '';
-        
         if (draftTask.due_date) {
             const dStr1 = draftTask.due_date.replace(/-/g, '');
             const dObj = new Date(draftTask.due_date + 'T12:00:00');
@@ -1268,13 +1330,10 @@ document.getElementById('task-form').addEventListener('submit', async function(e
             const dStr2 = dObj.toISOString().split('T')[0].replace(/-/g, '');
             dateParam = `&dates=${dStr1}/${dStr2}`;
         }
-        
         const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${desc}${dateParam}`;
         window.open(gcalUrl, '_blank');
     }
 
-    await saveTaskDB(draftTask);
-    for (const st of draftSubtasks) { if (st.id.includes('sub_') || st.id.includes('temp')) st.id = generateUUID(); st.parent_task_id = draftTask.id; await saveTaskDB(st); }
     closeModal();
 });
 
