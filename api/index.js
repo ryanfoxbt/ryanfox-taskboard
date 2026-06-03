@@ -238,6 +238,16 @@ app.post('/api/users', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// --- NEW: EDIT USER EMAIL (ADMIN) ---
+app.put('/api/users/email', async (req, res) => {
+    const { id, email } = req.body;
+    try {
+        await pool.query(`UPDATE users SET email = $1 WHERE id = $2`, [email, id]);
+        res.json({ success: true });
+    } catch (err) { 
+        res.status(500).json({ error: err.message }); 
+    }
+});
 
 
 app.delete('/api/users/:userId/:workspaceId', async (req, res) => {
