@@ -134,12 +134,17 @@ app.post('/api/projects', async (req, res) => {
     }
 });
 
-app.delete('/api/projects/:id', async (req, res) => {
+app.delete('/api/tasks/:id', async (req, res) => {
     try { 
-        await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]); 
+        // 1. Wipe assignees for this task AND any of its subtasks
+        await pool.query('DELETE FROM task_assignees WHERE task_id = $1 OR task_id IN (SELECT id FROM tasks WHERE parent_task_id = $1)', [req.params.id]); 
+        
+        // 2. Safely delete the task and its subtasks
+        await pool.query('DELETE FROM tasks WHERE id = $1 OR parent_task_id = $1', [req.params.id]); 
+        
         res.json({ success: true }); 
-    } 
-    catch (err) { 
+    } catch (err) { 
+        console.error("Delete Error:", err);
         res.status(500).json({ error: err.message }); 
     }
 });
