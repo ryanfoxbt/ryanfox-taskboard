@@ -502,7 +502,6 @@ function renderProjects() {
     const userPrefs = getActiveUserObj().preferences;
     const myId = getActiveUserObj().id;
     
-    // RBAC: Hide projects if they are in the hidden array
     let visible = projects.filter(p => p.workspace_id === currentWorkspaceId && (!p.isSecret || p.owner_id === myId) && !(userPrefs.hiddenProjects || []).includes(p.id));
     visible.sort((a, b) => {
         let idxA = userPrefs.projectOrder.indexOf(a.id); let idxB = userPrefs.projectOrder.indexOf(b.id);
@@ -540,7 +539,7 @@ function renderProjects() {
             delBtn.onclick = (e) => { 
                 e.stopPropagation(); 
                 if (isOwner) triggerDeleteProject(project.id); 
-                else contextActionHideProject(project.id);
+                else triggerHideProject(project.id); // <-- ROUTES TO NEW MODAL
             }; 
             btn.appendChild(delBtn);
         }
@@ -580,9 +579,7 @@ function handleCardAction(e, action, id, param) {
     else if (action === 'inline-counter-minus') inlineAdjustCounter(id, -1);
     else if (action === 'inline-counter-plus') inlineAdjustCounter(id, 1);
     else if (action === 'remove-me') {
-        const t = tasks.find(x => x.id === id);
-        t.assignees = t.assignees.filter(uid => uid !== getActiveUserObj().id);
-        saveTaskDB(t);
+        triggerRemoveMeTask(id); // <-- ROUTES TO NEW MODAL
     }
 }
 
@@ -1017,6 +1014,8 @@ function showContextMenuMain(e, id) {
     const t = tasks.find(x => x.id === id);
     if (!t) return;
     
+    // Check if the current user created this task
+    const isCreator = t.creator_id === getActiveUserObj().id || !t.creator_id;
     let target;
     
     if (['todo', 'doing', 'done', 'recurring'].includes(t.status)) {
@@ -1028,16 +1027,57 @@ function showContextMenuMain(e, id) {
             ${t.status !== 'done' ? `<button onclick="contextActionMoveTo('done')" style="color:#36b37e;">→ Move to Done</button>` : ''}
             <button onclick="contextActionFutureMain()" style="color:#ff991f;">⏳ Move to Future</button>
             <button onclick="contextActionArchiveMain()" class="success-text">✓ Archive Task</button>
-            <button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>
+            ${isCreator 
+                ? `<button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>`
+                : `<button onclick="contextActionRemoveMeMain()" class="danger-text">🏃 Remove Me</button>`
+            }
         `;
     } else if (t.status === 'future') {
         target = document.getElementById('future-context-menu');
+        target.innerHTML = `
+            <button onclick="contextActionEditMain()">✎ Edit Task</button>
+            <button onclick="contextActionMoveTo('todo')" style="color:#0052cc;">→ Move to Active</button>
+            ${isCreator 
+                ? `<button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>`
+                : `<button onclick="contextActionRemoveMeMain()" class="danger-text">🏃 Remove Me</button>`
+            }
+        `;
     } else {
         target = document.getElementById('archive-context-menu');
+        target.innerHTML = `
+            <button onclick="contextActionEditMain()">✎ Edit Task</button>
+            <button onclick="contextActionMoveTo('done')" style="color:#ff991f;">⏪ Restore to Board</button>
+            ${isCreator 
+                ? `<button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>`
+                : `<button onclick="contextActionRemoveMeMain()" class="danger-text">🏃 Remove Me</button>`
+            }
+        `;
     }
     
     target.style.display = 'block'; 
     positionMenu(e, target);
+}
+
+// Add these two helper functions right below showContextMenuMain
+function contextActionRemoveMeMain() {
+    triggerRemoveMeTask(contextTargetMainId);
+    closeMenus();
+}
+
+function triggerRemoveMeTask(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    document.getElementById('confirm-message').innerHTML = `Are you sure you want to remove yourself from <strong>"${sanitize(t.title)}"</strong>?<br>You will no longer see it on your board.`; 
+    document.getElementById('confirm-execute-btn').className = "danger-solid"; 
+    
+    pendingConfirmAction = () => {
+        t.assignees = t.assignees.filter(uid => uid !== getActiveUserObj().id);
+        saveTaskDB(t);
+    }; 
+    lockBody(); 
+    const m = document.getElementById('confirm-modal');
+    m.showModal(); 
+    setTimeout(() => m.scrollTop = 0, 10);
 }
 
 function showContextMenuSubtask(e, id) { 
@@ -1068,7 +1108,7 @@ function showContextMenuProject(e, id) {
         <button onclick="contextActionEditProject()">✎ Edit Project</button>
         ${isOwner 
             ? `<button onclick="contextActionDeleteProject()" class="danger-text">✕ Delete Project</button>`
-            : `<button onclick="contextActionHideProject()" class="danger-text">🏃 Hide Project</button>`
+            : `<button onclick="triggerHideProject('${id}'); closeMenus();" class="danger-text">🏃 Hide Project</button>`
         }
     `;
     
@@ -1076,20 +1116,31 @@ function showContextMenuProject(e, id) {
     positionMenu(e, projectContextMenu);
 }
 
-function contextActionHideProject(id) {
-    const targetId = id || contextTargetProjectId;
-    const user = getActiveUserObj();
-    if (!user.preferences.hiddenProjects) user.preferences.hiddenProjects = [];
-    user.preferences.hiddenProjects.push(targetId);
+// NEW: This replaces the old "contextActionHideProject" to add safety
+function triggerHideProject(id) {
+    const p = projects.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById('confirm-message').innerHTML = `Are you sure you want to hide the project <strong>"${sanitize(p.name)}"</strong>?<br>You will no longer see it, but it remains available for the rest of the team.`; 
+    document.getElementById('confirm-execute-btn').className = "danger-solid"; 
     
-    apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: user.id, preferences: user.preferences });
-    
-    if (currentProjectId === targetId) {
-        currentProjectId = null;
-        localStorage.removeItem('currentProjectId');
-    }
-    renderAll();
-    closeMenus();
+    pendingConfirmAction = () => {
+        const targetId = id;
+        const user = getActiveUserObj();
+        if (!user.preferences.hiddenProjects) user.preferences.hiddenProjects = [];
+        user.preferences.hiddenProjects.push(targetId);
+        
+        apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: user.id, preferences: user.preferences });
+        
+        if (currentProjectId === targetId) {
+            currentProjectId = null;
+            localStorage.removeItem('currentProjectId');
+        }
+        renderAll();
+    }; 
+    lockBody(); 
+    const m = document.getElementById('confirm-modal');
+    m.showModal(); 
+    setTimeout(() => m.scrollTop = 0, 10);
 }
 
 function contextActionEditProject() { openEditProjectModal(contextTargetProjectId); closeMenus(); }
