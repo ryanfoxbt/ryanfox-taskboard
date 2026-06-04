@@ -197,6 +197,8 @@ function renderChat() {
     filteredMessages.forEach(msg => {
         const div = document.createElement('div');
         const isMe = msg.sender_id === myId;
+        
+        // Check if it's explicitly a system message, OR an automated DM we masked with a robot emoji
         const isSystem = msg.sender_id === 'system' || msg.content.startsWith('🤖 System:');
         
         div.style.maxWidth = '85%';
@@ -215,6 +217,7 @@ function renderChat() {
             div.style.boxSizing = 'border-box';
             
             const btnHtml = msg.related_task_id ? `<br><button type="button" class="secondary" style="margin-top: 8px; font-size: 12px; padding: 4px 12px;" onclick="viewTaskFromChat('${msg.related_task_id}')">View Task</button>` : '';
+            
             const cleanContent = msg.content.replace('🤖 System:', '').trim();
             div.innerHTML = `<strong>🤖 System:</strong> ${sanitize(cleanContent)} ${btnHtml}`;
         } else {
@@ -341,6 +344,7 @@ function getActiveUserObj() {
     if (!u.preferences) u.preferences = {};
     if (!u.preferences.projectOrder) u.preferences.projectOrder = [];
     if (!u.preferences.uiSize) u.preferences.uiSize = 'auto';
+    if (!u.preferences.hiddenProjects) u.preferences.hiddenProjects = []; // RBAC Hidden Projects
     if (!u.preferences.displayConfig) u.preferences.displayConfig = { showDate: true, showUrgency: true, showDesc: true, showAssignee: true };
     
     return u;
@@ -467,30 +471,30 @@ function renderWorkspaceUsers() {
     }
 }
 
+// ADMIN EMAIL EDITING
 function openEditUserEmailModal(userId, oldEmail) {
-    document.getElementById('settings-modal').close(); // Hide settings temporarily
+    document.getElementById('settings-modal').close(); 
     document.getElementById('edit-user-email-id').value = userId;
     document.getElementById('edit-user-email-input').value = oldEmail;
-    
     const m = document.getElementById('edit-user-email-modal');
-    m.showModal();
+    if(m) m.showModal();
 }
 
 function closeEditUserEmailModal() { 
-    document.getElementById('edit-user-email-modal').close(); 
-    document.getElementById('settings-modal').showModal(); // Bring settings back
+    const m = document.getElementById('edit-user-email-modal');
+    if(m) m.close(); 
+    document.getElementById('settings-modal').showModal();
 }
 
-document.getElementById('edit-user-email-form').addEventListener('submit', async function(e) {
+document.getElementById('edit-user-email-form')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     const userId = document.getElementById('edit-user-email-id').value;
     const newEmail = document.getElementById('edit-user-email-input').value.trim();
     
     await apiCall('/users/email', 'PUT', { id: userId, email: newEmail });
-    await loadDataFromDB(); // Fetch updated users
-    
+    await loadDataFromDB(); 
     closeEditUserEmailModal(); 
-    openSettings(); // Force a fresh render of the UI inside settings
+    openSettings(); 
 });
 
 function renderProjects() {
@@ -498,7 +502,8 @@ function renderProjects() {
     const userPrefs = getActiveUserObj().preferences;
     const myId = getActiveUserObj().id;
     
-    let visible = projects.filter(p => p.workspace_id === currentWorkspaceId && (!p.isSecret || p.owner_id === myId));
+    // RBAC: Hide projects if they are in the hidden array
+    let visible = projects.filter(p => p.workspace_id === currentWorkspaceId && (!p.isSecret || p.owner_id === myId) && !(userPrefs.hiddenProjects || []).includes(p.id));
     visible.sort((a, b) => {
         let idxA = userPrefs.projectOrder.indexOf(a.id); let idxB = userPrefs.projectOrder.indexOf(b.id);
         if (idxA === -1) idxA = 99999; if (idxB === -1) idxB = 99999; return idxA - idxB;
@@ -526,9 +531,17 @@ function renderProjects() {
         btn.draggable = true; btn.ondragstart = (e) => handleTabDragStart(e, project.id); btn.ondragend = (e) => e.target.classList.remove('dragging-tab'); btn.ondragover = (e) => e.preventDefault(); btn.ondrop = (e) => handleTabDrop(e, project.id);
         
         if (project.id === currentProjectId) {
-            const delBtn = document.createElement('span'); delBtn.className = 'delete-project'; delBtn.innerHTML = '&times;'; 
-            delBtn.title = "Delete Project";
-            delBtn.onclick = (e) => { e.stopPropagation(); triggerDeleteProject(project.id); }; 
+            const delBtn = document.createElement('span'); delBtn.className = 'delete-project'; 
+            const isOwner = project.owner_id === myId || !project.owner_id;
+            
+            delBtn.innerHTML = isOwner ? '&times;' : '🏃'; 
+            delBtn.title = isOwner ? "Delete Project" : "Hide Project";
+            
+            delBtn.onclick = (e) => { 
+                e.stopPropagation(); 
+                if (isOwner) triggerDeleteProject(project.id); 
+                else contextActionHideProject(project.id);
+            }; 
             btn.appendChild(delBtn);
         }
         tabsContainer.appendChild(btn);
@@ -566,6 +579,11 @@ function handleCardAction(e, action, id, param) {
     else if (action === 'menu') showContextMenuMain(e, id);
     else if (action === 'inline-counter-minus') inlineAdjustCounter(id, -1);
     else if (action === 'inline-counter-plus') inlineAdjustCounter(id, 1);
+    else if (action === 'remove-me') {
+        const t = tasks.find(x => x.id === id);
+        t.assignees = t.assignees.filter(uid => uid !== getActiveUserObj().id);
+        saveTaskDB(t);
+    }
 }
 
 function renderBoard() {
@@ -614,11 +632,36 @@ function renderBoard() {
     document.getElementById('master-board-wrapper').className = `board-container size-${activeSize}`;
     
     allMatches.forEach(task => {
+        const isCreator = task.creator_id === getActiveUserObj().id || !task.creator_id;
+        
         let desktopActions = '';
-        if (['todo', 'doing', 'done'].includes(task.status)) { desktopActions = `<button type="button" class="action-success" onclick="handleCardAction(event, 'move', '${task.id}', 'complete')" title="Archive">✓</button> <button type="button" class="edit" onclick="handleCardAction(event, 'edit', '${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`; } 
-        else if (task.status === 'recurring') { desktopActions = `<button type="button" class="action-success" onclick="handleCardAction(event, 'move', '${task.id}', 'complete')" title="Archive">✓</button> <button type="button" class="edit" onclick="handleCardAction(event, 'edit', '${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`; } 
-        else if (task.status === 'future') { desktopActions = `<button type="button" class="action-primary" onclick="handleCardAction(event, 'move', '${task.id}', 'todo')" title="Move to Active Board">🚀</button> <button type="button" class="edit" onclick="handleCardAction(event, 'edit', '${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`; } 
-        else if (task.status === 'complete') { desktopActions = `<button type="button" class="action-warning" onclick="handleCardAction(event, 'move', '${task.id}', 'done')" title="Restore to Board">⏪</button> <button type="button" class="edit" onclick="handleCardAction(event, 'edit', '${task.id}')" title="Edit">✎</button> <button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`; }
+        if (['todo', 'doing', 'done', 'recurring'].includes(task.status)) { 
+            desktopActions = `
+                <button type="button" class="action-success" onclick="handleCardAction(event, 'move', '${task.id}', 'complete')" title="Archive">✓</button> 
+                <button type="button" class="edit" onclick="handleCardAction(event, 'edit', '${task.id}')" title="Edit">✎</button> 
+                ${isCreator 
+                    ? `<button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`
+                    : `<button type="button" class="danger" onclick="handleCardAction(event, 'remove-me', '${task.id}')" title="Remove Me From Task">🏃</button>`
+                }`; 
+        } 
+        else if (task.status === 'future') { 
+            desktopActions = `
+                <button type="button" class="action-primary" onclick="handleCardAction(event, 'move', '${task.id}', 'todo')" title="Move to Active Board">🚀</button> 
+                <button type="button" class="edit" onclick="handleCardAction(event, 'edit', '${task.id}')" title="Edit">✎</button> 
+                ${isCreator 
+                    ? `<button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`
+                    : `<button type="button" class="danger" onclick="handleCardAction(event, 'remove-me', '${task.id}')" title="Remove Me From Task">🏃</button>`
+                }`; 
+        } 
+        else if (task.status === 'complete') { 
+            desktopActions = `
+                <button type="button" class="action-warning" onclick="handleCardAction(event, 'move', '${task.id}', 'done')" title="Restore to Board">⏪</button> 
+                <button type="button" class="edit" onclick="handleCardAction(event, 'edit', '${task.id}')" title="Edit">✎</button> 
+                ${isCreator 
+                    ? `<button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`
+                    : `<button type="button" class="danger" onclick="handleCardAction(event, 'remove-me', '${task.id}')" title="Remove Me From Task">🏃</button>`
+                }`; 
+        }
         
         const card = document.createElement('div'); card.className = 'card'; card.setAttribute('data-id', task.id); card.draggable = true;
         card.ondragstart = (e) => dragStart(e, task.id); card.ondragend = (e) => dragEnd(e); 
@@ -919,7 +962,24 @@ function switchView(v) {
     renderBoard();
 }
 
-function toggleWorkspaceMenu(e) { e.preventDefault(); e.stopPropagation(); closeMenus(); workspaceContextMenu.style.display = workspaceContextMenu.style.display === 'block' ? 'none' : 'block'; }
+function toggleWorkspaceMenu(e) { 
+    e.preventDefault(); e.stopPropagation(); closeMenus(); 
+    const menu = document.getElementById('workspace-context-menu');
+    
+    // RBAC: Check ownership and change text dynamically
+    const ws = workspaces.find(w => w.id === currentWorkspaceId);
+    const me = getActiveUserObj();
+    const delBtn = document.getElementById('workspace-delete-btn');
+    if (delBtn) {
+        if (ws && (ws.owner_id === me.id || !ws.owner_id)) {
+            delBtn.innerHTML = '✕ Delete Current Workspace';
+        } else {
+            delBtn.innerHTML = '🏃 Leave Current Workspace';
+        }
+    }
+    
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block'; 
+}
 
 function closeMenus() { 
     activeContextMenu.style.display = 'none'; 
@@ -950,6 +1010,7 @@ function positionMenu(e, target) {
     }
 }
 
+// 4. "MOVE TO TO DO" dynamically generated context menus
 function showContextMenuMain(e, id) { 
     e.preventDefault(); e.stopPropagation(); closeMenus(); 
     contextTargetMainId = id; 
@@ -994,10 +1055,41 @@ function showContextMenuSubtask(e, id) {
     }
 }
 
+// RBAC: Project Context Menu (Hide vs Delete)
 function showContextMenuProject(e, id) { 
     e.preventDefault(); e.stopPropagation(); closeMenus(); 
-    contextTargetProjectId = id; projectContextMenu.style.display = 'block'; 
+    contextTargetProjectId = id; 
+    
+    const p = projects.find(x => x.id === id);
+    const me = getActiveUserObj();
+    const isOwner = p.owner_id === me.id || !p.owner_id;
+
+    projectContextMenu.innerHTML = `
+        <button onclick="contextActionEditProject()">✎ Edit Project</button>
+        ${isOwner 
+            ? `<button onclick="contextActionDeleteProject()" class="danger-text">✕ Delete Project</button>`
+            : `<button onclick="contextActionHideProject()" class="danger-text">🏃 Hide Project</button>`
+        }
+    `;
+    
+    projectContextMenu.style.display = 'block'; 
     positionMenu(e, projectContextMenu);
+}
+
+function contextActionHideProject(id) {
+    const targetId = id || contextTargetProjectId;
+    const user = getActiveUserObj();
+    if (!user.preferences.hiddenProjects) user.preferences.hiddenProjects = [];
+    user.preferences.hiddenProjects.push(targetId);
+    
+    apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: user.id, preferences: user.preferences });
+    
+    if (currentProjectId === targetId) {
+        currentProjectId = null;
+        localStorage.removeItem('currentProjectId');
+    }
+    renderAll();
+    closeMenus();
 }
 
 function contextActionEditProject() { openEditProjectModal(contextTargetProjectId); closeMenus(); }
@@ -1221,6 +1313,7 @@ function updateGlobalTimer() {
     indicator.onclick = () => editTask(runningTask.id);
 }
 
+// 2. AUTO-ASSIGN FOR PRIVATE PROJECTS
 function openModal(defaultStatus) {
     lockBody();
     clearInterval(activeTimerInterval);
@@ -1236,6 +1329,7 @@ function openModal(defaultStatus) {
         defaultStatus = (currentView === 'future') ? 'future' : (currentView === 'archive' ? 'complete' : (currentView === 'recurring' ? 'recurring' : 'todo'));
     }
     
+    // Automatically assign the user to the task if the project is private/secret
     const proj = projects.find(p => p.id === currentProjectId);
     let defaultAssignees = [];
     if (proj && proj.isSecret) {
@@ -1244,7 +1338,7 @@ function openModal(defaultStatus) {
     
     draftTask = { 
         id: generateUUID(), title: '', description: '', assignees: defaultAssignees, due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null,
-        counter: 0, timer_running: false, timer_started_at: null, timer_elapsed: 0, completed_at: null 
+        counter: 0, timer_running: false, timer_started_at: null, timer_elapsed: 0, completed_at: null, creator_id: getActiveUserObj().id
     };
     
     draftSubtasks = []; draftSubtaskId = null; document.getElementById('task-form').reset(); updateFormUI(); 
@@ -1300,14 +1394,19 @@ function syncFormToDraft() {
         }
         
         data.urgency = document.getElementById('task-urgency').value; 
+        
+        // Removed dynamic grabbing of assignees here, because removeAssigneeFromTask manages it perfectly!
     }
 }
 
+// 3. NEW REMOVE ASSIGNEE ENGINE (Unchecks hidden element so it doesn't reappear)
 function removeAssigneeFromTask(userId) {
     if (!draftTask) return;
+    
     syncFormToDraft();
     const cb = document.querySelector(`.assignee-check[value="${userId}"]`);
     if (cb) cb.checked = false;
+    
     draftTask.assignees = draftTask.assignees.filter(id => id !== userId);
     updateFormUI();
 }
@@ -1335,6 +1434,7 @@ function updateFormUI() {
         updateTimerDisplay();
     }
 
+    // Assignee Red 'X' and Wrapping Fix applied
     const badgeContainer = document.getElementById('task-assignees-display'); badgeContainer.innerHTML = '';
     (data.assignees || []).forEach(id => { 
         badgeContainer.innerHTML += `
@@ -1431,7 +1531,7 @@ function openSubtaskPromptModal() {
 } 
 function closeSubtaskPromptModal() { unlockBody(); document.getElementById('subtask-prompt-modal').close(); }
 
-document.getElementById('subtask-prompt-form').addEventListener('submit', function(e) { e.preventDefault(); const title = document.getElementById('new-subtask-name').value.trim(); if(title && draftTask) { draftSubtasks.push({ id: 'sub_' + generateUUID(), project_id: currentProjectId, parent_task_id: draftTask.id, title: title, status: 'todo', description: '', assignees: [], due_date: '', urgency: 'low' }); renderSubtasks(); } closeSubtaskPromptModal(); });
+document.getElementById('subtask-prompt-form').addEventListener('submit', function(e) { e.preventDefault(); const title = document.getElementById('new-subtask-name').value.trim(); if(title && draftTask) { draftSubtasks.push({ id: 'sub_' + generateUUID(), project_id: currentProjectId, parent_task_id: draftTask.id, title: title, status: 'todo', description: '', assignees: [], due_date: '', urgency: 'low', creator_id: getActiveUserObj().id }); renderSubtasks(); } closeSubtaskPromptModal(); });
 function openSubtaskDetails(id) { syncFormToDraft(); draftSubtaskId = id; updateFormUI(); } function backToParentTask() { syncFormToDraft(); draftSubtaskId = null; updateFormUI(); }
 function toggleSubtask(id) { const st = draftSubtasks.find(s => s.id === id); if(st) st.status = (st.status === 'complete') ? 'todo' : 'complete'; renderSubtasks(); } 
 
@@ -1523,13 +1623,14 @@ document.getElementById('create-workspace-form').addEventListener('submit', asyn
     e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
     if (name) { 
         const newId = generateUUID(); const currentUserObj = getActiveUserObj();
-        await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj.id }); 
+        await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj.id, owner_id: currentUserObj.id }); 
         currentWorkspaceId = newId; localStorage.setItem('currentWorkspaceId', newId); currentProjectId = null; 
         await loadDataFromDB(); 
     }
     closeCreateWorkspaceModal();
 });
 
+// RBAC: Toggle Workspace Menu Delete vs Leave
 function editCurrentWorkspace() {
     lockBody();
     workspaceContextMenu.style.display = 'none';
@@ -1545,24 +1646,40 @@ function closeEditWorkspaceModal() { unlockBody(); document.getElementById('edit
 
 document.getElementById('edit-workspace-form').addEventListener('submit', async function(e) {
     e.preventDefault(); const name = document.getElementById('edit-workspace-name').value.trim();
-    if (name) { await apiCall('/workspaces', 'POST', { id: currentWorkspaceId, name: name, userId: getActiveUserObj().id }); await loadDataFromDB(); }
+    if (name) { await apiCall('/workspaces', 'POST', { id: currentWorkspaceId, name: name, userId: getActiveUserObj().id, owner_id: workspaces.find(w=>w.id===currentWorkspaceId)?.owner_id }); await loadDataFromDB(); }
     closeEditWorkspaceModal();
 });
 
+// RBAC: Delete vs Leave Workspace logic
 function deleteCurrentWorkspace(e) {
     e.preventDefault(); e.stopPropagation(); workspaceContextMenu.style.display = 'none';
     const myWorkspaces = workspaces.filter(ws => getActiveUserObj().workspace_ids.includes(ws.id));
-    if (myWorkspaces.length <= 1) { alert("You cannot delete your only workspace."); return; }
+    if (myWorkspaces.length <= 1) { alert("You cannot leave or delete your only workspace."); return; }
     
     const ws = workspaces.find(w => w.id === currentWorkspaceId);
-    document.getElementById('confirm-message').innerHTML = `Are you sure you want to delete workspace <strong>"${sanitize(ws.name)}"</strong> and all its projects and tasks?<br>This cannot be undone.`; 
-    document.getElementById('confirm-execute-btn').className = "danger-solid";
+    const me = getActiveUserObj();
+    const isOwner = ws.owner_id === me.id || !ws.owner_id;
     
-    pendingConfirmAction = async () => { 
-        await apiCall(`/workspaces/${currentWorkspaceId}`, 'DELETE'); 
-        currentWorkspaceId = null; localStorage.removeItem('currentWorkspaceId');
-        await loadDataFromDB(); 
-    }; 
+    if (isOwner) {
+        document.getElementById('confirm-message').innerHTML = `Are you sure you want to delete workspace <strong>"${sanitize(ws.name)}"</strong> and all its projects and tasks?<br>This cannot be undone.`; 
+        document.getElementById('confirm-execute-btn').className = "danger-solid";
+        
+        pendingConfirmAction = async () => { 
+            await apiCall(`/workspaces/${currentWorkspaceId}`, 'DELETE'); 
+            currentWorkspaceId = null; localStorage.removeItem('currentWorkspaceId');
+            await loadDataFromDB(); 
+        }; 
+    } else {
+        document.getElementById('confirm-message').innerHTML = `Are you sure you want to leave workspace <strong>"${sanitize(ws.name)}"</strong>?<br>You will no longer be able to see its projects.`; 
+        document.getElementById('confirm-execute-btn').className = "danger-solid";
+        
+        pendingConfirmAction = async () => { 
+            await apiCall(`/users/${me.id}/${currentWorkspaceId}`, 'DELETE'); 
+            currentWorkspaceId = null; localStorage.removeItem('currentWorkspaceId');
+            await loadDataFromDB(); 
+        }; 
+    }
+    
     lockBody(); 
     const m = document.getElementById('confirm-modal');
     m.showModal();
