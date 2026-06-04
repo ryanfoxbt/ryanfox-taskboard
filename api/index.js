@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const { Resend } = require('resend');
-const path = require('path'); // <-- NEW: Required for serving frontend files
 require('dotenv').config();
 
 const app = express();
@@ -40,7 +39,7 @@ app.get('/api/data', async (req, res) => {
 app.post('/api/tasks', async (req, res) => {
     const { 
         id, project_id, parent_task_id, title, description, status, urgency, due_date, assignees,
-        counter, timer_running, timer_started_at, timer_elapsed, completed_at // <-- Added completed_at
+        counter, timer_running, timer_started_at, timer_elapsed, completed_at, creator_id
     } = req.body;
     
     const client = await pool.connect();
@@ -50,8 +49,8 @@ app.post('/api/tasks', async (req, res) => {
         await client.query(
             `INSERT INTO tasks (
                 id, project_id, parent_task_id, title, description, status, urgency, due_date,
-                counter, timer_running, timer_started_at, timer_elapsed, completed_at
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                counter, timer_running, timer_started_at, timer_elapsed, completed_at, creator_id
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
              ON CONFLICT (id) DO UPDATE SET 
                 title = COALESCE($4, tasks.title), 
                 description = COALESCE($5, tasks.description), 
@@ -62,14 +61,14 @@ app.post('/api/tasks', async (req, res) => {
                 timer_running = COALESCE($10, tasks.timer_running), 
                 timer_started_at = COALESCE($11, tasks.timer_started_at), 
                 timer_elapsed = COALESCE($12, tasks.timer_elapsed),
-                completed_at = $13`, // Explicitly update completed_at (allows setting to null if reopened)
+                completed_at = $13`, // Explicitly update completed_at
             [
                 id, project_id, parent_task_id || null, title || null, 
                 description !== undefined ? description : null, status || null, 
                 urgency || null, due_date || null,
                 counter !== undefined ? counter : null, timer_running !== undefined ? timer_running : null, 
                 timer_started_at !== undefined ? timer_started_at : null, timer_elapsed !== undefined ? timer_elapsed : null,
-                completed_at !== undefined ? completed_at : null
+                completed_at !== undefined ? completed_at : null, creator_id || null
             ]
         );
         
@@ -89,7 +88,18 @@ app.post('/api/tasks', async (req, res) => {
     } finally { client.release(); }
 });
 
-// 3. --- NEW: TIME LOGS (PATH B) ---
+app.delete('/api/tasks/:id', async (req, res) => {
+    try { 
+        await pool.query('DELETE FROM task_assignees WHERE task_id = $1 OR task_id IN (SELECT id FROM tasks WHERE parent_task_id = $1)', [req.params.id]); 
+        await pool.query('DELETE FROM tasks WHERE id = $1 OR parent_task_id = $1', [req.params.id]); 
+        res.json({ success: true }); 
+    } catch (err) { 
+        console.error("Delete Error:", err);
+        res.status(500).json({ error: err.message }); 
+    }
+});
+
+// 3. --- TIME LOGS ---
 app.post('/api/time_logs', async (req, res) => {
     const { id, user_id, workspace_id, project_id, task_id, duration_ms } = req.body;
     try {
@@ -101,7 +111,7 @@ app.post('/api/time_logs', async (req, res) => {
     } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-// 4. --- NEW: FEEDBACK ---
+// 4. --- FEEDBACK ---
 app.post('/api/feedback', async (req, res) => {
     const { id, user_id, type, title, description } = req.body;
     try {
@@ -115,17 +125,13 @@ app.post('/api/feedback', async (req, res) => {
 
 // 5. PROJECTS
 app.post('/api/projects', async (req, res) => {
-    // 1. Added 'notes' to the destructured variables
     const { id, workspace_id, name, isSecret, owner_id, notes } = req.body; 
     
     try {
         await pool.query(
-            // 2. Added 'notes' to the columns, VALUES ($6), and the ON CONFLICT update list
             `INSERT INTO projects (id, workspace_id, name, is_secret, owner_id, notes) 
              VALUES ($1, $2, $3, $4, $5, $6) 
              ON CONFLICT (id) DO UPDATE SET name = $3, is_secret = $4, notes = $6`,
-            
-            // 3. Added 'notes' to the parameter array (defaulting to a blank string if empty)
             [id, workspace_id, name, isSecret || false, owner_id || null, notes || '']
         );
         res.json({ success: true });
@@ -134,39 +140,33 @@ app.post('/api/projects', async (req, res) => {
     }
 });
 
-app.delete('/api/tasks/:id', async (req, res) => {
-    try { 
-        // 1. Wipe assignees for this task AND any of its subtasks
-        await pool.query('DELETE FROM task_assignees WHERE task_id = $1 OR task_id IN (SELECT id FROM tasks WHERE parent_task_id = $1)', [req.params.id]); 
-        
-        // 2. Safely delete the task and its subtasks
-        await pool.query('DELETE FROM tasks WHERE id = $1 OR parent_task_id = $1', [req.params.id]); 
-        
-        res.json({ success: true }); 
-    } catch (err) { 
-        console.error("Delete Error:", err);
-        res.status(500).json({ error: err.message }); 
-    }
+app.delete('/api/projects/:id', async (req, res) => {
+    try {
+        await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // 6. WORKSPACES
 app.post('/api/workspaces', async (req, res) => {
-    const { id, name, userId } = req.body; 
+    const { id, name, userId, owner_id } = req.body; 
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        await client.query('INSERT INTO workspaces (id, name) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET name = $2', [id, name]);
+        await client.query(
+            'INSERT INTO workspaces (id, name, owner_id) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET name = $2', 
+            [id, name, owner_id || userId]
+        );
         
         if (userId) {
-            // Link User to Workspace
             await client.query(
                 `INSERT INTO workspace_members (workspace_id, user_id, role, preferences) VALUES ($1, $2, 'Admin', $3) ON CONFLICT DO NOTHING`,
                 [id, userId, defaultPrefs]
             );
-            // Create Default "Me" Project Automatically
+            // Default "My Project" is given the exact same owner_id
             await client.query(
-                `INSERT INTO projects (workspace_id, name, owner_id) VALUES ($1, 'Me', $2)`,
-                [id, userId]
+                `INSERT INTO projects (id, workspace_id, name, owner_id) VALUES (gen_random_uuid(), $1, 'My Project', $2)`,
+                [id, owner_id || userId]
             );
         }
         await client.query('COMMIT');
@@ -184,7 +184,6 @@ app.delete('/api/workspaces/:id', async (req, res) => {
 // --- 7. MESSAGES (CHILL CHAT) ---
 app.get('/api/messages/:workspace_id', async (req, res) => {
     try {
-        // Retrieves the feed, chronologically ordered
         const result = await pool.query('SELECT * FROM messages WHERE workspace_id = $1 ORDER BY created_at ASC', [req.params.workspace_id]);
         res.json(result.rows);
     } catch(err) { res.status(500).json({error: err.message}); }
@@ -216,7 +215,6 @@ app.post('/api/users', async (req, res) => {
             [workspace_id, actualUserId, role, defaultPrefs]
         );
 
-        // TRIGGER RESEND EMAIL (Only triggers if an inviter_name is provided)
         if (process.env.RESEND_API_KEY && inviter_name) {
             try {
                 await resend.emails.send({
@@ -238,7 +236,6 @@ app.post('/api/users', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- NEW: EDIT USER EMAIL (ADMIN) ---
 app.put('/api/users/email', async (req, res) => {
     const { id, email } = req.body;
     try {
@@ -248,7 +245,6 @@ app.put('/api/users/email', async (req, res) => {
         res.status(500).json({ error: err.message }); 
     }
 });
-
 
 app.delete('/api/users/:userId/:workspaceId', async (req, res) => {
     try { await pool.query('DELETE FROM workspace_members WHERE user_id = $1 AND workspace_id = $2', [req.params.userId, req.params.workspaceId]); res.json({ success: true }); } 
@@ -261,7 +257,6 @@ app.post('/api/settings', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Start Server (if running locally)
 const PORT = process.env.PORT || 3000;
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
@@ -269,5 +264,4 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
-// THIS LINE IS CRITICAL FOR VERCEL
 module.exports = app;
