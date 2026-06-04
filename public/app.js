@@ -18,7 +18,6 @@ function generateUUID() {
     });
 }
 
-// FIX SCROLL JUMP BUG: Saves exact scroll position
 let scrollPosition = 0;
 function lockBody() { 
     scrollPosition = window.pageYOffset;
@@ -92,9 +91,8 @@ window.addEventListener('load', async function () {
             
             if (workspaces.length === 0) {
                 wsId = generateUUID();
-                await apiCall('/workspaces', 'POST', { id: wsId, name: 'Personal Workspace', userId: null });
+                await apiCall('/workspaces', 'POST', { id: wsId, name: 'Personal Workspace', userId: null, owner_id: newUserId });
                 await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
-                await apiCall('/projects', 'POST', { id: generateUUID(), workspace_id: wsId, name: 'My Project', isSecret: false, owner_id: newUserId });
             } else {
                 if (!wsId || !workspaces.find(w => w.id === wsId)) wsId = workspaces[0].id;
                 await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
@@ -157,7 +155,6 @@ async function fetchMessages() {
             renderChat();
         }
         
-        // Also quietly sync tasks to ensure new assignments exist locally
         const dataRes = await fetch(`${API_URL}/data`);
         if (dataRes.ok) {
             const data = await dataRes.json();
@@ -197,8 +194,6 @@ function renderChat() {
     filteredMessages.forEach(msg => {
         const div = document.createElement('div');
         const isMe = msg.sender_id === myId;
-        
-        // Check if it's explicitly a system message, OR an automated DM we masked with a robot emoji
         const isSystem = msg.sender_id === 'system' || msg.content.startsWith('🤖 System:');
         
         div.style.maxWidth = '85%';
@@ -217,7 +212,6 @@ function renderChat() {
             div.style.boxSizing = 'border-box';
             
             const btnHtml = msg.related_task_id ? `<br><button type="button" class="secondary" style="margin-top: 8px; font-size: 12px; padding: 4px 12px;" onclick="viewTaskFromChat('${msg.related_task_id}')">View Task</button>` : '';
-            
             const cleanContent = msg.content.replace('🤖 System:', '').trim();
             div.innerHTML = `<strong>🤖 System:</strong> ${sanitize(cleanContent)} ${btnHtml}`;
         } else {
@@ -344,7 +338,8 @@ function getActiveUserObj() {
     if (!u.preferences) u.preferences = {};
     if (!u.preferences.projectOrder) u.preferences.projectOrder = [];
     if (!u.preferences.uiSize) u.preferences.uiSize = 'auto';
-    if (!u.preferences.hiddenProjects) u.preferences.hiddenProjects = []; // RBAC Hidden Projects
+    if (!u.preferences.hiddenProjects) u.preferences.hiddenProjects = []; 
+    if (!u.preferences.hiddenTasks) u.preferences.hiddenTasks = []; // Tracking removed tasks
     if (!u.preferences.displayConfig) u.preferences.displayConfig = { showDate: true, showUrgency: true, showDesc: true, showAssignee: true };
     
     return u;
@@ -539,7 +534,7 @@ function renderProjects() {
             delBtn.onclick = (e) => { 
                 e.stopPropagation(); 
                 if (isOwner) triggerDeleteProject(project.id); 
-                else triggerHideProject(project.id); // <-- ROUTES TO NEW MODAL
+                else triggerHideProject(project.id);
             }; 
             btn.appendChild(delBtn);
         }
@@ -550,9 +545,18 @@ function renderProjects() {
 
 function updateAssigneeFilterOptions() {
     const filterSelect = document.getElementById(isMasterView ? 'mv-filter-assignee' : 'filter-assignee'); 
-    const currentSelection = filterSelect.value; filterSelect.innerHTML = '<option value="All">All Assignees</option>';
+    const currentSelection = filterSelect.value; 
     
+    filterSelect.innerHTML = `
+        <option value="All">All Assignees</option>
+        <option value="Unassigned">Unassigned</option>
+        <option value="Removed">Removed / Hidden</option>
+        <optgroup label="Specific Users"></optgroup>
+    `;
+    
+    const optGroup = filterSelect.querySelector('optgroup');
     let activeAssignees = new Set(); 
+    
     if(isMasterView) {
         const allowedWsIds = getActiveUserObj().workspace_ids || [];
         const allowedProjIds = projects.filter(p => allowedWsIds.includes(p.workspace_id)).map(p => p.id);
@@ -564,9 +568,9 @@ function updateAssigneeFilterOptions() {
     Array.from(activeAssignees).sort().forEach(id => { 
         const option = document.createElement('option'); option.value = id; 
         option.innerHTML = sanitize(getUserName(id)); 
-        filterSelect.appendChild(option); 
+        optGroup.appendChild(option); 
     });
-    if (activeAssignees.has(currentSelection) || currentSelection === "All") filterSelect.value = currentSelection;
+    if (currentSelection) filterSelect.value = currentSelection;
 }
 
 function handleCardAction(e, action, id, param) {
@@ -578,9 +582,7 @@ function handleCardAction(e, action, id, param) {
     else if (action === 'menu') showContextMenuMain(e, id);
     else if (action === 'inline-counter-minus') inlineAdjustCounter(id, -1);
     else if (action === 'inline-counter-plus') inlineAdjustCounter(id, 1);
-    else if (action === 'remove-me') {
-        triggerRemoveMeTask(id); // <-- ROUTES TO NEW MODAL
-    }
+    else if (action === 'remove-me') triggerRemoveMeTask(id); 
 }
 
 function renderBoard() {
@@ -588,12 +590,30 @@ function renderBoard() {
     const searchQ = document.getElementById('filter-search').value.toLowerCase(); const assigneeQ = document.getElementById('filter-assignee').value; const urgencyQ = document.getElementById('filter-urgency').value;
     const activeMainTasks = tasks.filter(task => task.project_id === currentProjectId && task.parent_task_id === null);
     
+    const userPrefs = getActiveUserObj().preferences;
+    const hiddenTasks = userPrefs.hiddenTasks || [];
+    
     const allMatches = activeMainTasks.filter(task => {
-        const titleStr = (task.title || '').toLowerCase(); const descStr = (task.description || '').toLowerCase(); const urgencyStr = (task.urgency || ''); const assigneesArray = task.assignees || [];
-        return (titleStr.includes(searchQ) || descStr.includes(searchQ)) && (assigneeQ === "All" || assigneesArray.includes(assigneeQ)) && (urgencyQ === "All" || urgencyStr === urgencyQ);
+        const titleStr = (task.title || '').toLowerCase(); 
+        const descStr = (task.description || '').toLowerCase(); 
+        const urgencyStr = (task.urgency || ''); 
+        const assigneesArray = task.assignees || [];
+        
+        if (!(titleStr.includes(searchQ) || descStr.includes(searchQ))) return false;
+        if (urgencyQ !== "All" && urgencyStr !== urgencyQ) return false;
+        
+        // The New Assignee / Removed Filter Logic
+        if (assigneeQ === "All") {
+            return !hiddenTasks.includes(task.id);
+        } else if (assigneeQ === "Unassigned") {
+            return !hiddenTasks.includes(task.id) && assigneesArray.length === 0;
+        } else if (assigneeQ === "Removed") {
+            return hiddenTasks.includes(task.id); 
+        } else {
+            return assigneesArray.includes(assigneeQ) && !hiddenTasks.includes(task.id);
+        }
     });
 
-    const userPrefs = getActiveUserObj().preferences;
     const taskOrder = userPrefs.taskOrder || [];
     allMatches.sort((a, b) => {
         let idxA = taskOrder.indexOf(a.id);
@@ -630,34 +650,33 @@ function renderBoard() {
     
     allMatches.forEach(task => {
         const isCreator = task.creator_id === getActiveUserObj().id || !task.creator_id;
+        const isHidden = hiddenTasks.includes(task.id);
         
+        const removeOrUnhideBtn = isCreator 
+            ? `<button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`
+            : (isHidden 
+                ? `<button type="button" class="action-warning" onclick="event.stopPropagation(); triggerUnhideTask('${task.id}')" title="Restore Task to Board">👁️</button>`
+                : `<button type="button" class="danger" onclick="handleCardAction(event, 'remove-me', '${task.id}')" title="Hide/Remove Me">🏃</button>`
+              );
+              
         let desktopActions = '';
         if (['todo', 'doing', 'done', 'recurring'].includes(task.status)) { 
             desktopActions = `
                 <button type="button" class="action-success" onclick="handleCardAction(event, 'move', '${task.id}', 'complete')" title="Archive">✓</button> 
                 <button type="button" class="edit" onclick="handleCardAction(event, 'edit', '${task.id}')" title="Edit">✎</button> 
-                ${isCreator 
-                    ? `<button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`
-                    : `<button type="button" class="danger" onclick="handleCardAction(event, 'remove-me', '${task.id}')" title="Remove Me From Task">🏃</button>`
-                }`; 
+                ${removeOrUnhideBtn}`; 
         } 
         else if (task.status === 'future') { 
             desktopActions = `
                 <button type="button" class="action-primary" onclick="handleCardAction(event, 'move', '${task.id}', 'todo')" title="Move to Active Board">🚀</button> 
                 <button type="button" class="edit" onclick="handleCardAction(event, 'edit', '${task.id}')" title="Edit">✎</button> 
-                ${isCreator 
-                    ? `<button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`
-                    : `<button type="button" class="danger" onclick="handleCardAction(event, 'remove-me', '${task.id}')" title="Remove Me From Task">🏃</button>`
-                }`; 
+                ${removeOrUnhideBtn}`; 
         } 
         else if (task.status === 'complete') { 
             desktopActions = `
                 <button type="button" class="action-warning" onclick="handleCardAction(event, 'move', '${task.id}', 'done')" title="Restore to Board">⏪</button> 
                 <button type="button" class="edit" onclick="handleCardAction(event, 'edit', '${task.id}')" title="Edit">✎</button> 
-                ${isCreator 
-                    ? `<button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`
-                    : `<button type="button" class="danger" onclick="handleCardAction(event, 'remove-me', '${task.id}')" title="Remove Me From Task">🏃</button>`
-                }`; 
+                ${removeOrUnhideBtn}`; 
         }
         
         const card = document.createElement('div'); card.className = 'card'; card.setAttribute('data-id', task.id); card.draggable = true;
@@ -797,6 +816,9 @@ function renderMasterView() {
         scopedTasks = scopedTasks.filter(t => allowedProjIds.includes(t.project_id));
     }
 
+    const userPrefs = getActiveUserObj().preferences;
+    const hiddenTasks = userPrefs.hiddenTasks || [];
+
     let timeFiltered = scopedTasks.filter(t => {
         if (!t.due_date) return false;
 
@@ -817,9 +839,19 @@ function renderMasterView() {
         const descStr = (task.description || '').toLowerCase();
         const urgencyStr = (task.urgency || '');
         const assigneesArray = task.assignees || [];
-        return (titleStr.includes(searchQ) || descStr.includes(searchQ)) &&
-               (assigneeQ === "All" || assigneesArray.includes(assigneeQ)) &&
-               (urgencyQ === "All" || urgencyStr === urgencyQ);
+        
+        if (!(titleStr.includes(searchQ) || descStr.includes(searchQ))) return false;
+        if (urgencyQ !== "All" && urgencyStr !== urgencyQ) return false;
+        
+        if (assigneeQ === "All") {
+            return !hiddenTasks.includes(task.id);
+        } else if (assigneeQ === "Unassigned") {
+            return !hiddenTasks.includes(task.id) && assigneesArray.length === 0;
+        } else if (assigneeQ === "Removed") {
+            return hiddenTasks.includes(task.id); 
+        } else {
+            return assigneesArray.includes(assigneeQ) && !hiddenTasks.includes(task.id);
+        }
     });
 
     finalMatches.sort((a, b) => {
@@ -963,7 +995,6 @@ function toggleWorkspaceMenu(e) {
     e.preventDefault(); e.stopPropagation(); closeMenus(); 
     const menu = document.getElementById('workspace-context-menu');
     
-    // RBAC: Check ownership and change text dynamically
     const ws = workspaces.find(w => w.id === currentWorkspaceId);
     const me = getActiveUserObj();
     const delBtn = document.getElementById('workspace-delete-btn');
@@ -1007,14 +1038,12 @@ function positionMenu(e, target) {
     }
 }
 
-// 4. "MOVE TO TO DO" dynamically generated context menus
 function showContextMenuMain(e, id) { 
     e.preventDefault(); e.stopPropagation(); closeMenus(); 
     contextTargetMainId = id; 
     const t = tasks.find(x => x.id === id);
     if (!t) return;
     
-    // Check if the current user created this task
     const isCreator = t.creator_id === getActiveUserObj().id || !t.creator_id;
     let target;
     
@@ -1029,7 +1058,7 @@ function showContextMenuMain(e, id) {
             <button onclick="contextActionArchiveMain()" class="success-text">✓ Archive Task</button>
             ${isCreator 
                 ? `<button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>`
-                : `<button onclick="contextActionRemoveMeMain()" class="danger-text">🏃 Remove Me</button>`
+                : `<button onclick="contextActionRemoveMeMain()" class="danger-text">🏃 Hide/Remove Me</button>`
             }
         `;
     } else if (t.status === 'future') {
@@ -1039,7 +1068,7 @@ function showContextMenuMain(e, id) {
             <button onclick="contextActionMoveTo('todo')" style="color:#0052cc;">→ Move to Active</button>
             ${isCreator 
                 ? `<button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>`
-                : `<button onclick="contextActionRemoveMeMain()" class="danger-text">🏃 Remove Me</button>`
+                : `<button onclick="contextActionRemoveMeMain()" class="danger-text">🏃 Hide/Remove Me</button>`
             }
         `;
     } else {
@@ -1049,35 +1078,13 @@ function showContextMenuMain(e, id) {
             <button onclick="contextActionMoveTo('done')" style="color:#ff991f;">⏪ Restore to Board</button>
             ${isCreator 
                 ? `<button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>`
-                : `<button onclick="contextActionRemoveMeMain()" class="danger-text">🏃 Remove Me</button>`
+                : `<button onclick="contextActionRemoveMeMain()" class="danger-text">🏃 Hide/Remove Me</button>`
             }
         `;
     }
     
     target.style.display = 'block'; 
     positionMenu(e, target);
-}
-
-// Add these two helper functions right below showContextMenuMain
-function contextActionRemoveMeMain() {
-    triggerRemoveMeTask(contextTargetMainId);
-    closeMenus();
-}
-
-function triggerRemoveMeTask(id) {
-    const t = tasks.find(x => x.id === id);
-    if (!t) return;
-    document.getElementById('confirm-message').innerHTML = `Are you sure you want to remove yourself from <strong>"${sanitize(t.title)}"</strong>?<br>You will no longer see it on your board.`; 
-    document.getElementById('confirm-execute-btn').className = "danger-solid"; 
-    
-    pendingConfirmAction = () => {
-        t.assignees = t.assignees.filter(uid => uid !== getActiveUserObj().id);
-        saveTaskDB(t);
-    }; 
-    lockBody(); 
-    const m = document.getElementById('confirm-modal');
-    m.showModal(); 
-    setTimeout(() => m.scrollTop = 0, 10);
 }
 
 function showContextMenuSubtask(e, id) { 
@@ -1095,7 +1102,6 @@ function showContextMenuSubtask(e, id) {
     }
 }
 
-// RBAC: Project Context Menu (Hide vs Delete)
 function showContextMenuProject(e, id) { 
     e.preventDefault(); e.stopPropagation(); closeMenus(); 
     contextTargetProjectId = id; 
@@ -1116,7 +1122,6 @@ function showContextMenuProject(e, id) {
     positionMenu(e, projectContextMenu);
 }
 
-// NEW: This replaces the old "contextActionHideProject" to add safety
 function triggerHideProject(id) {
     const p = projects.find(x => x.id === id);
     if (!p) return;
@@ -1143,6 +1148,7 @@ function triggerHideProject(id) {
     setTimeout(() => m.scrollTop = 0, 10);
 }
 
+function contextActionHideProject(id) { triggerHideProject(id || contextTargetProjectId); closeMenus(); }
 function contextActionEditProject() { openEditProjectModal(contextTargetProjectId); closeMenus(); }
 function contextActionDeleteProject() { triggerDeleteProject(contextTargetProjectId); closeMenus(); }
 
@@ -1153,6 +1159,7 @@ function contextActionArchiveMain() { moveTaskStatus(contextTargetMainId, 'compl
 function contextActionFutureMain() { moveTaskStatus(contextTargetMainId, 'future'); closeMenus(); } 
 function contextActionStartMain() { moveTaskStatus(contextTargetMainId, 'todo'); closeMenus(); } 
 function contextActionRestoreMain() { moveTaskStatus(contextTargetMainId, 'done'); closeMenus(); } 
+function contextActionRemoveMeMain() { triggerRemoveMeTask(contextTargetMainId); closeMenus(); }
 function contextActionEditSubtask() { openSubtaskDetails(contextTargetSubtaskId); closeMenus(); } 
 function contextActionDeleteSubtask() { removeSubtask(contextTargetSubtaskId); closeMenus(); }
 
@@ -1364,7 +1371,6 @@ function updateGlobalTimer() {
     indicator.onclick = () => editTask(runningTask.id);
 }
 
-// 2. AUTO-ASSIGN FOR PRIVATE PROJECTS
 function openModal(defaultStatus) {
     lockBody();
     clearInterval(activeTimerInterval);
@@ -1380,7 +1386,6 @@ function openModal(defaultStatus) {
         defaultStatus = (currentView === 'future') ? 'future' : (currentView === 'archive' ? 'complete' : (currentView === 'recurring' ? 'recurring' : 'todo'));
     }
     
-    // Automatically assign the user to the task if the project is private/secret
     const proj = projects.find(p => p.id === currentProjectId);
     let defaultAssignees = [];
     if (proj && proj.isSecret) {
@@ -1445,19 +1450,37 @@ function syncFormToDraft() {
         }
         
         data.urgency = document.getElementById('task-urgency').value; 
-        
-        // Removed dynamic grabbing of assignees here, because removeAssigneeFromTask manages it perfectly!
     }
 }
 
-// 3. NEW REMOVE ASSIGNEE ENGINE (Unchecks hidden element so it doesn't reappear)
+// FRICTIONLESS REMOVE & UNHIDE
+function triggerRemoveMeTask(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    
+    const me = getActiveUserObj();
+    t.assignees = t.assignees.filter(uid => uid !== me.id); 
+    
+    if (!me.preferences.hiddenTasks) me.preferences.hiddenTasks = [];
+    if (!me.preferences.hiddenTasks.includes(id)) me.preferences.hiddenTasks.push(id);
+    
+    saveTaskDB(t);
+    apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: me.id, preferences: me.preferences });
+}
+
+function triggerUnhideTask(id) {
+    const me = getActiveUserObj();
+    if (!me.preferences.hiddenTasks) return;
+    me.preferences.hiddenTasks = me.preferences.hiddenTasks.filter(tid => tid !== id);
+    apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: me.id, preferences: me.preferences });
+    renderAll();
+}
+
 function removeAssigneeFromTask(userId) {
     if (!draftTask) return;
-    
     syncFormToDraft();
     const cb = document.querySelector(`.assignee-check[value="${userId}"]`);
     if (cb) cb.checked = false;
-    
     draftTask.assignees = draftTask.assignees.filter(id => id !== userId);
     updateFormUI();
 }
@@ -1485,7 +1508,6 @@ function updateFormUI() {
         updateTimerDisplay();
     }
 
-    // Assignee Red 'X' and Wrapping Fix applied
     const badgeContainer = document.getElementById('task-assignees-display'); badgeContainer.innerHTML = '';
     (data.assignees || []).forEach(id => { 
         badgeContainer.innerHTML += `
@@ -1573,6 +1595,48 @@ document.getElementById('task-form').addEventListener('submit', async function(e
     closeModal();
 });
 
+// NEW: STATE-DRIVEN ASSIGNEE ENGINE
+function openAssigneePromptModal() { 
+    lockBody(); 
+    renderAssigneeCheckboxes();
+    const m = document.getElementById('assignee-prompt-modal');
+    m.showModal(); 
+    setTimeout(() => m.scrollTop = 0, 10);
+} 
+
+function toggleDraftAssignee(userId, isChecked) {
+    if (!draftTask.assignees) draftTask.assignees = [];
+    if (isChecked) {
+        if (!draftTask.assignees.includes(userId)) draftTask.assignees.push(userId);
+    } else {
+        draftTask.assignees = draftTask.assignees.filter(id => id !== userId);
+    }
+}
+
+function closeAssigneePromptModal() { 
+    unlockBody(); 
+    document.getElementById('assignee-prompt-modal').close(); 
+    updateFormUI(); 
+}
+
+function renderAssigneeCheckboxes() {
+    const container = document.getElementById('assignee-checkbox-container'); container.innerHTML = '';
+    const allKnownUsers = getVisibleUsers();
+    if (allKnownUsers.length === 0) { container.innerHTML = '<span style="color:#5e6c84; font-size:12px;">No one added yet.</span>'; return; }
+    
+    const selected = draftTask ? (draftTask.assignees || []) : [];
+    
+    allKnownUsers.forEach(u => { 
+        const isChecked = selected.includes(u.id) ? 'checked' : ''; 
+        const div = document.createElement('div'); div.className = 'list-item assignee-item'; 
+        div.innerHTML = `<label style="flex: 1; margin: 0; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" class="assignee-check" value="${u.id}" ${isChecked} onchange="toggleDraftAssignee('${u.id}', this.checked)"> 
+            <span class="title" style="color: #172b4d;">${sanitize(u.name)}</span>
+        </label>`; 
+        container.appendChild(div); 
+    });
+}
+
 function openSubtaskPromptModal() { 
     lockBody(); 
     document.getElementById('new-subtask-name').value = ''; 
@@ -1599,34 +1663,6 @@ function renderSubtasks() {
     const container = document.getElementById('subtasks-container'); container.innerHTML = '';
     if (draftSubtasks.length === 0) { container.innerHTML = '<span style="color:#5e6c84; font-size:12px; margin-top:4px;">No subtasks added yet.</span>'; return; }
     draftSubtasks.forEach(st => { const isComplete = st.status === 'complete'; const div = document.createElement('div'); div.className = `list-item subtask-item ${isComplete ? 'completed' : ''}`; div.setAttribute('onclick', `openSubtaskDetails('${st.id}')`); div.setAttribute('oncontextmenu', `showContextMenuSubtask(event, '${st.id}')`); div.innerHTML = `<input type="checkbox" ${isComplete ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleSubtask('${st.id}')" title="Mark complete"><span class="title">${sanitize(st.title)}</span><div class="list-actions subtask-actions"><button type="button" class="edit" onclick="event.stopPropagation(); openSubtaskDetails('${st.id}')" title="Edit Subtask">✎</button><button type="button" class="danger" style="padding: 2px 6px;" onclick="event.stopPropagation(); removeSubtask('${st.id}')" title="Delete Subtask">&times;</button></div>`; container.appendChild(div); }); container.scrollTop = container.scrollHeight;
-}
-
-function openAssigneePromptModal() { 
-    lockBody(); 
-    const m = document.getElementById('assignee-prompt-modal');
-    m.showModal(); 
-    setTimeout(() => m.scrollTop = 0, 10);
-} 
-function closeAssigneePromptModal() { 
-    unlockBody(); 
-    document.getElementById('assignee-prompt-modal').close(); 
-    const cbs = document.querySelectorAll('.assignee-check:checked');
-    if (draftTask) {
-        draftTask.assignees = Array.from(cbs).map(cb => cb.value);
-    }
-    updateFormUI(); 
-}
-
-function renderAssigneeCheckboxes(selected = []) {
-    const container = document.getElementById('assignee-checkbox-container'); container.innerHTML = '';
-    const allKnownUsers = getVisibleUsers();
-    if (allKnownUsers.length === 0) { container.innerHTML = '<span style="color:#5e6c84; font-size:12px;">No one added yet.</span>'; return; }
-    allKnownUsers.forEach(u => { 
-        const isChecked = selected.includes(u.id) ? 'checked' : ''; 
-        const div = document.createElement('div'); div.className = 'list-item assignee-item'; 
-        div.innerHTML = `<label style="flex: 1; margin: 0; cursor: pointer; display: flex; align-items: center; gap: 8px;"><input type="checkbox" class="assignee-check" value="${u.id}" ${isChecked}> <span class="title" style="color: #172b4d;">${sanitize(u.name)}</span></label>`; 
-        container.appendChild(div); 
-    });
 }
 
 document.getElementById('prompt-form').addEventListener('submit', async function(e) {
@@ -1681,7 +1717,6 @@ document.getElementById('create-workspace-form').addEventListener('submit', asyn
     closeCreateWorkspaceModal();
 });
 
-// RBAC: Toggle Workspace Menu Delete vs Leave
 function editCurrentWorkspace() {
     lockBody();
     workspaceContextMenu.style.display = 'none';
@@ -1701,7 +1736,6 @@ document.getElementById('edit-workspace-form').addEventListener('submit', async 
     closeEditWorkspaceModal();
 });
 
-// RBAC: Delete vs Leave Workspace logic
 function deleteCurrentWorkspace(e) {
     e.preventDefault(); e.stopPropagation(); workspaceContextMenu.style.display = 'none';
     const myWorkspaces = workspaces.filter(ws => getActiveUserObj().workspace_ids.includes(ws.id));
