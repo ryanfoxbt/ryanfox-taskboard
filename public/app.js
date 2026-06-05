@@ -59,6 +59,7 @@ let contextTargetMainId = null; let contextTargetSubtaskId = null; let contextTa
 
 // BULK SELECT STATE
 let selectedTasks = new Set();
+let lastSelectedTaskId = null;
 
 // CHILL CHAT STATE
 let messages = [];
@@ -441,7 +442,7 @@ function renderWorkspaceMenu() {
         btn.onclick = async () => { 
             currentWorkspaceId = ws.id; localStorage.setItem('currentWorkspaceId', ws.id);
             currentProjectId = null; workspaceContextMenu.style.display = 'none'; 
-            clearBulkSelect(); 
+            selectedTasks.clear();
             await loadDataFromDB(); 
         };
         list.appendChild(btn);
@@ -519,7 +520,7 @@ function renderProjects() {
             } else {
                 currentProjectId = project.id; 
                 localStorage.setItem('currentProjectId', project.id);
-                clearBulkSelect();
+                selectedTasks.clear();
                 if(isMasterView) toggleMasterView(); 
                 renderBoard(); 
                 renderProjects(); 
@@ -580,70 +581,56 @@ function updateAssigneeFilterOptions() {
     if (currentSelection) filterSelect.value = currentSelection;
 }
 
-// --- BULK ACTION ENGINE ---
-function toggleBulkSelect(taskId, isChecked) {
-    if(isChecked) selectedTasks.add(taskId);
-    else selectedTasks.delete(taskId);
-    renderBulkActionBar();
-}
-
-function clearBulkSelect() {
-    selectedTasks.clear();
-    renderBoard(); 
-    renderBulkActionBar();
-}
-
-function renderBulkActionBar() {
-    let bar = document.getElementById('bulk-action-bar');
-    if(!bar) {
-        bar = document.createElement('div');
-        bar.id = 'bulk-action-bar';
-        bar.style.position = 'fixed';
-        bar.style.bottom = '20px';
-        bar.style.left = '50%';
-        bar.style.transform = 'translateX(-50%)';
-        bar.style.background = '#172b4d';
-        bar.style.color = 'white';
-        bar.style.padding = '12px 24px';
-        bar.style.borderRadius = '8px';
-        bar.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-        bar.style.display = 'flex';
-        bar.style.alignItems = 'center';
-        bar.style.gap = '15px';
-        bar.style.zIndex = '9999';
-        document.body.appendChild(bar);
-    }
-    
-    if(selectedTasks.size === 0) {
-        bar.style.display = 'none';
+// --- NATIVE OS BULK SELECT ENGINE ---
+function handleCardClick(e, id) {
+    if (e.ctrlKey || e.metaKey) {
+        e.preventDefault(); e.stopPropagation();
+        if (selectedTasks.has(id)) selectedTasks.delete(id);
+        else selectedTasks.add(id);
+        lastSelectedTaskId = id;
+        renderBoard(); 
+        return;
+    } else if (e.shiftKey) {
+        e.preventDefault(); e.stopPropagation();
+        if (lastSelectedTaskId) {
+            const t1 = tasks.find(x => x.id === lastSelectedTaskId);
+            const t2 = tasks.find(x => x.id === id);
+            
+            // Only allow shift clicking within the same status column for predictable UX
+            if (t1 && t2 && t1.status === t2.status) {
+                const list = document.getElementById(t1.status + '-list');
+                const cards = Array.from(list.querySelectorAll('.card')).map(c => c.getAttribute('data-id'));
+                const idx1 = cards.indexOf(lastSelectedTaskId);
+                const idx2 = cards.indexOf(id);
+                if (idx1 > -1 && idx2 > -1) {
+                    const start = Math.min(idx1, idx2);
+                    const end = Math.max(idx1, idx2);
+                    for (let i = start; i <= end; i++) {
+                        selectedTasks.add(cards[i]);
+                    }
+                }
+            } else {
+                selectedTasks.add(id); // Fallback to single select if crossed columns
+            }
+        } else {
+            selectedTasks.add(id);
+        }
+        lastSelectedTaskId = id;
+        renderBoard();
         return;
     }
     
-    bar.style.display = 'flex';
-    bar.innerHTML = `
-        <span style="font-weight:bold;">${selectedTasks.size} task(s) selected</span>
-        <select id="bulk-status-select" style="padding:6px 12px; border-radius:4px; color:black; font-family:inherit;">
-            <option value="" disabled selected>Move selected to...</option>
-            <option value="todo">To Do</option>
-            <option value="doing">Doing</option>
-            <option value="done">Done</option>
-            <option value="future">Future</option>
-            <option value="recurring">Recurring</option>
-            <option value="complete">Archive (Complete)</option>
-        </select>
-        <button type="button" class="action-success" onclick="executeBulkMove()" style="padding:6px 16px;">Apply Status</button>
-        <button type="button" class="danger" onclick="executeBulkDelete()" style="padding:6px 16px;">Delete All</button>
-        <button type="button" class="secondary" onclick="clearBulkSelect()" style="padding:6px 16px; background:transparent; color:white; border: 1px solid white;">Cancel</button>
-    `;
+    // Standard click
+    selectedTasks.clear();
+    lastSelectedTaskId = id;
+    editTask(id);
 }
 
-async function executeBulkMove() {
-    const status = document.getElementById('bulk-status-select').value;
-    if(!status) return;
-    
-    for(let id of selectedTasks) {
+async function contextActionBulkMoveTo(status) {
+    closeMenus();
+    for (let id of selectedTasks) {
         const t = tasks.find(x => x.id === id);
-        if(t) {
+        if (t) {
             const oldStatus = t.status;
             t.status = status;
             
@@ -666,19 +653,18 @@ async function executeBulkMove() {
         }
     }
     selectedTasks.clear();
-    renderBulkActionBar();
     renderAll();
 }
 
-function executeBulkDelete() {
-    if(!confirm(`Are you sure you want to permanently delete ${selectedTasks.size} task(s)? This cannot be undone.`)) return;
+function contextActionBulkDelete() {
+    closeMenus();
+    if(!confirm(`Are you sure you want to permanently delete ${selectedTasks.size} tasks? This cannot be undone.`)) return;
     
-    for(let id of selectedTasks) {
+    for (let id of selectedTasks) {
         tasks = tasks.filter(t => t.id !== id && t.parent_task_id !== id);
         apiCall('/tasks/' + id, 'DELETE');
     }
     selectedTasks.clear();
-    renderBulkActionBar();
     renderAll();
 }
 
@@ -792,8 +778,16 @@ function renderBoard() {
         
         const card = document.createElement('div'); card.className = 'card'; card.setAttribute('data-id', task.id); card.draggable = true;
         card.ondragstart = (e) => dragStart(e, task.id); card.ondragend = (e) => dragEnd(e); 
-        card.setAttribute('onclick', `editTask('${task.id}')`); 
+        
+        // NEW NATIVE OS CLICK HANDLER
+        card.setAttribute('onclick', `handleCardClick(event, '${task.id}')`); 
         card.setAttribute('oncontextmenu', `showContextMenuMain(event, '${task.id}')`);
+        
+        // Multi-Select Highlight Styling
+        if (selectedTasks.has(task.id)) {
+            card.style.outline = '2px solid #0052cc';
+            card.style.backgroundColor = '#e6fcff';
+        }
         
         const urgencyHtml = displayConfig.showUrgency ? `<span class="dot ${task.urgency}" title="Urgency: ${task.urgency}"></span>` : ''; 
         const descHtml = (displayConfig.showDesc && task.description) ? `<p>${linkify(sanitize(task.description))}</p>` : '';
@@ -821,13 +815,9 @@ function renderBoard() {
             `;
         }
 
-        // Multi-Select UI injected here
         card.innerHTML = `
-            <div class="card-header-row" style="align-items: center; justify-content: flex-start; gap: 8px;">
-                <input type="checkbox" style="margin:0; width: 16px; height: 16px; cursor: pointer; flex-shrink: 0;" title="Select Task" 
-                       onclick="event.stopPropagation(); toggleBulkSelect('${task.id}', this.checked)" 
-                       ${selectedTasks.has(task.id) ? 'checked' : ''}>
-                <h3 style="margin: 0; flex: 1; display:flex; align-items:center; gap:6px;">${urgencyHtml} ${sanitize(task.title)}</h3>
+            <div class="card-header-row">
+                <h3>${urgencyHtml} ${sanitize(task.title)}</h3>
                 <button type="button" class="card-menu-btn" onclick="handleCardAction(event, 'menu', '${task.id}')">⋮</button>
             </div>
             ${descHtml}
@@ -863,7 +853,7 @@ async function navigateToProject(wsId, projId) {
     currentProjectId = projId;
     localStorage.setItem('currentProjectId', projId);
     
-    clearBulkSelect();
+    selectedTasks.clear();
     
     if (isMasterView) toggleMasterView();
     else renderAll();
@@ -989,8 +979,15 @@ function renderMasterView() {
         const card = document.createElement('div'); 
         card.className = 'card'; 
         card.setAttribute('data-id', task.id); 
-        card.setAttribute('onclick', `editTask('${task.id}')`); 
+        
+        // Native Master View Click Handler
+        card.setAttribute('onclick', `handleCardClick(event, '${task.id}')`); 
         card.setAttribute('oncontextmenu', `showContextMenuMain(event, '${task.id}')`);
+        
+        if (selectedTasks.has(task.id)) {
+            card.style.outline = '2px solid #0052cc';
+            card.style.backgroundColor = '#e6fcff';
+        }
         
         const proj = projects.find(p => p.id === task.project_id);
         const ws = workspaces.find(w => w.id === (proj ? proj.workspace_id : null));
@@ -1109,7 +1106,7 @@ function switchView(v) {
     document.getElementById('view-future').style.display = (v === 'future') ? 'block' : 'none'; 
     document.getElementById('view-archive').style.display = (v === 'archive') ? 'block' : 'none';
     
-    clearBulkSelect();
+    selectedTasks.clear();
     renderBoard();
 }
 
@@ -1131,6 +1128,15 @@ function toggleWorkspaceMenu(e) {
     menu.style.display = menu.style.display === 'block' ? 'none' : 'block'; 
 }
 
+// Click outside clears selected tasks
+document.addEventListener('click', (e) => { 
+    closeMenus(); 
+    if (!e.target.closest('.card') && !e.target.closest('.custom-context-menu') && selectedTasks.size > 0) {
+        selectedTasks.clear();
+        renderBoard();
+    }
+});
+
 function closeMenus() { 
     activeContextMenu.style.display = 'none'; 
     futureContextMenu.style.display = 'none'; 
@@ -1141,7 +1147,6 @@ function closeMenus() {
     const statusDropdown = document.getElementById('mv-status-dropdown');
     if(statusDropdown) statusDropdown.style.display = 'none';
 }
-document.addEventListener('click', closeMenus);
 
 function positionMenu(e, target) {
     if (window.innerWidth > 768) {
@@ -1163,11 +1168,40 @@ function positionMenu(e, target) {
 function showContextMenuMain(e, id) { 
     e.preventDefault(); e.stopPropagation(); closeMenus(); 
     contextTargetMainId = id; 
+    
+    // Auto-select if they right click an unselected card
+    if (!selectedTasks.has(id)) {
+        selectedTasks.clear();
+        selectedTasks.add(id);
+        lastSelectedTaskId = id;
+        renderBoard();
+    }
+    
+    let target;
+    const count = selectedTasks.size;
+    
+    // --- BULK CONTEXT MENU ---
+    if (count > 1) {
+        target = document.getElementById('active-context-menu'); 
+        target.innerHTML = `
+            <div style="padding: 4px 12px; font-size: 11px; font-weight: bold; color: #5e6c84; text-transform: uppercase;">Bulk Actions (${count} Tasks)</div>
+            <button onclick="contextActionBulkMoveTo('todo')" style="color:#0052cc;">→ Move to To Do</button>
+            <button onclick="contextActionBulkMoveTo('doing')" style="color:#0052cc;">→ Move to Doing</button>
+            <button onclick="contextActionBulkMoveTo('done')" style="color:#36b37e;">→ Move to Done</button>
+            <button onclick="contextActionBulkMoveTo('future')" style="color:#ff991f;">⏳ Move to Future</button>
+            <button onclick="contextActionBulkMoveTo('complete')" class="success-text">✓ Archive All</button>
+            <button onclick="contextActionBulkDelete()" class="danger-text">✕ Delete All</button>
+        `;
+        target.style.display = 'block'; 
+        positionMenu(e, target);
+        return;
+    }
+    
+    // --- SINGLE CONTEXT MENU ---
     const t = tasks.find(x => x.id === id);
     if (!t) return;
     
     const isCreator = t.creator_id === getActiveUserObj().id || !t.creator_id;
-    let target;
     
     if (['todo', 'doing', 'done', 'recurring'].includes(t.status)) {
         target = document.getElementById('active-context-menu');
@@ -1289,29 +1323,23 @@ async function triggerProjectToWorkspace(projId) {
         const me = getActiveUserObj();
         const newWsId = generateUUID();
         
-        // 1. Create Workspace
         await apiCall('/workspaces', 'POST', { id: newWsId, name: p.name, userId: me.id, owner_id: me.id });
         await loadDataFromDB();
         
-        // 2. Refresh data to grab the newly auto-generated project
         const newProj = projects.find(pr => pr.workspace_id === newWsId && pr.name === 'My Project');
         if (newProj) {
-            // Rename it
             newProj.name = 'My First Project';
             await apiCall('/projects', 'POST', newProj);
             
-            // 3. Move tasks from old project to new project
             const oldTasks = tasks.filter(t => t.project_id === projId);
             for (let t of oldTasks) {
                 t.project_id = newProj.id;
                 await apiCall('/tasks', 'POST', t);
             }
             
-            // 4. Delete the old project to prevent duplication
             projects = projects.filter(pr => pr.id !== projId);
             await apiCall(`/projects/${projId}`, 'DELETE');
             
-            // 5. Navigate securely
             navigateToProject(newWsId, newProj.id);
         }
     }; 
@@ -1992,7 +2020,6 @@ function triggerDeleteProject(id) {
     setTimeout(() => m.scrollTop = 0, 10);
 }
 
-// Fixed UI text resetting
 function executeConfirm() { 
     if (pendingConfirmAction) pendingConfirmAction(); 
     unlockBody(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; 
