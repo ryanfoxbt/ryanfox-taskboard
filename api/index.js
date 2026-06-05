@@ -57,7 +57,9 @@ app.post('/api/tasks', async (req, res) => {
                 id, project_id, parent_task_id, title, description, status, urgency, due_date,
                 counter, timer_running, timer_started_at, timer_elapsed, completed_at, creator_id
              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-             ON CONFLICT (id) DO UPDATE SET 
+             ON CONFLICT (id) DO UPDATE SET
+                project_id = $2,           /* <--- CRITICAL BUG FIX: Allows moving between projects */
+                parent_task_id = $3,       /* <--- CRITICAL BUG FIX: Allows reparenting subtasks */
                 title = $4, 
                 description = $5, 
                 status = $6, 
