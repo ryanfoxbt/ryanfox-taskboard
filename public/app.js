@@ -46,6 +46,8 @@ function closePromptModal() { unlockBody(); document.getElementById('prompt-moda
 const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
 
 let workspaces = []; let workspaceUsers = []; let projects = []; let tasks = [];
+let timeLogs = [];
+let chartInstances = {};
 let currentWorkspaceId = localStorage.getItem('currentWorkspaceId');
 let currentProjectId = localStorage.getItem('currentProjectId');
 
@@ -286,6 +288,7 @@ async function loadDataFromDB() {
         const response = await fetch(`${API_URL}/data`);
         if (!response.ok) throw new Error("API not ready");
         const data = await response.json();
+        timeLogs = data.time_logs || [];
         
         workspaces = data.workspaces || [];
         
@@ -1819,6 +1822,104 @@ function triggerDeleteProject(id) {
     const m = document.getElementById('confirm-modal');
     m.showModal(); 
     setTimeout(() => m.scrollTop = 0, 10);
+}
+// --- ANALYTICS DASHBOARD ENGINE ---
+function openAnalyticsModal() {
+    document.getElementById('settings-modal').close(); // Hide settings
+    lockBody(); 
+    const m = document.getElementById('analytics-modal');
+    m.showModal(); 
+    renderAnalyticsCharts();
+    setTimeout(() => m.scrollTop = 0, 10);
+}
+
+function closeAnalyticsModal() { 
+    unlockBody(); 
+    document.getElementById('analytics-modal').close(); 
+    document.getElementById('settings-modal').showModal(); // Bring settings back
+}
+
+function renderAnalyticsCharts() {
+    // 1. Isolate Data for Current Workspace
+    const allowedProjIds = projects.filter(p => p.workspace_id === currentWorkspaceId).map(p => p.id);
+    const wsTasks = tasks.filter(t => allowedProjIds.includes(t.project_id));
+    const wsLogs = timeLogs.filter(l => l.workspace_id === currentWorkspaceId);
+
+    // --- CHART 1: Time Allocation (Pie) ---
+    const timeByUser = {};
+    wsLogs.forEach(log => {
+        const userName = getUserName(log.user_id);
+        const hours = log.duration_ms / (1000 * 60 * 60);
+        timeByUser[userName] = (timeByUser[userName] || 0) + hours;
+    });
+
+    // --- CHART 2: Workload Matrix (Bar) ---
+    const workload = {};
+    wsTasks.filter(t => ['todo', 'doing'].includes(t.status)).forEach(t => {
+        if (!t.assignees || t.assignees.length === 0) {
+            workload['Unassigned'] = (workload['Unassigned'] || 0) + 1;
+        } else {
+            t.assignees.forEach(uid => {
+                const uName = getUserName(uid);
+                workload[uName] = (workload[uName] || 0) + 1;
+            });
+        }
+    });
+
+    // --- CHART 3: Completion Velocity (Line) ---
+    const velocity = {};
+    const today = new Date();
+    for (let i = 6; i >= 0; i--) { // Pre-fill last 7 days
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        velocity[d.toISOString().split('T')[0]] = 0;
+    }
+    wsTasks.filter(t => ['done', 'complete'].includes(t.status) && t.completed_at).forEach(t => {
+        const dateStr = t.completed_at.split('T')[0];
+        if (velocity[dateStr] !== undefined) velocity[dateStr]++;
+    });
+
+    // --- CHART 4: Recurring Consistency (Bar) ---
+    const recurring = wsTasks.filter(t => t.status === 'recurring' && t.counter > 0)
+                             .sort((a,b) => b.counter - a.counter).slice(0, 5);
+    const recurringLabels = recurring.map(t => sanitize(t.title));
+    const recurringData = recurring.map(t => t.counter);
+
+    // --- Chart Rendering Helper ---
+    const colors = ['rgba(0, 82, 204, 0.7)', 'rgba(54, 179, 126, 0.7)', 'rgba(255, 153, 31, 0.7)', 'rgba(222, 53, 11, 0.7)', 'rgba(101, 84, 192, 0.7)'];
+    
+    const buildChart = (id, type, labels, data, datasetLabel, colorIndex) => {
+        if (chartInstances[id]) chartInstances[id].destroy(); // Wipe old chart
+        const ctx = document.getElementById(id).getContext('2d');
+        const bgColors = type === 'pie' ? colors : colors[colorIndex];
+        
+        chartInstances[id] = new Chart(ctx, {
+            type: type,
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: datasetLabel,
+                    data: data,
+                    backgroundColor: bgColors,
+                    borderColor: type === 'pie' ? '#fff' : bgColors.replace('0.7', '1'),
+                    borderWidth: 1,
+                    tension: 0.3 // Smooth curves for line charts
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: type === 'pie', position: 'right' } },
+                scales: type === 'pie' ? {} : { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            }
+        });
+    };
+
+    // Execute Renders
+    buildChart('chart-time-allocation', 'pie', Object.keys(timeByUser), Object.values(timeByUser).map(v => v.toFixed(2)), 'Hours', 0);
+    buildChart('chart-workload', 'bar', Object.keys(workload), Object.values(workload), 'Active Tasks', 1);
+    buildChart('chart-velocity', 'line', Object.keys(velocity).map(d => d.slice(5)), Object.values(velocity), 'Tasks Completed', 0);
+    buildChart('chart-recurring', 'bar', recurringLabels, recurringData, 'Total Repetitions', 2);
 }
 
 function executeConfirm() { if (pendingConfirmAction) pendingConfirmAction(); unlockBody(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; }
