@@ -35,7 +35,7 @@ app.get('/api/data', async (req, res) => {
     } catch (err) { res.status(500).json({ error: 'Failed to fetch data' }); }
 });
 
-// --- 2. TASKS & ASSIGNEES ---
+// --- 2. TASKS & ASSIGNEES (Timer Bug Fixed) ---
 app.post('/api/tasks', async (req, res) => {
     const { 
         id, project_id, parent_task_id, title, description, status, urgency, due_date, assignees,
@@ -46,6 +46,7 @@ app.post('/api/tasks', async (req, res) => {
     try {
         await client.query('BEGIN');
         
+        // Timer/Reset Bug Fix: Removed COALESCE so frontend can explicitly clear data with 'null'
         await client.query(
             `INSERT INTO tasks (
                 id, project_id, parent_task_id, title, description, status, urgency, due_date,
@@ -62,7 +63,7 @@ app.post('/api/tasks', async (req, res) => {
                 timer_started_at = $11, 
                 timer_elapsed = $12,
                 completed_at = $13,
-                creator_id = $14`, 
+                creator_id = $14`,
             [
                 id, project_id, parent_task_id || null, title || null, 
                 description !== undefined ? description : null, status || null, 
@@ -164,7 +165,6 @@ app.post('/api/workspaces', async (req, res) => {
                 `INSERT INTO workspace_members (workspace_id, user_id, role, preferences) VALUES ($1, $2, 'Admin', $3) ON CONFLICT DO NOTHING`,
                 [id, userId, defaultPrefs]
             );
-            // Default "My Project" is given the exact same owner_id
             await client.query(
                 `INSERT INTO projects (id, workspace_id, name, owner_id) VALUES (gen_random_uuid(), $1, 'My Project', $2)`,
                 [id, owner_id || userId]
