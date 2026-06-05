@@ -46,8 +46,6 @@ function closePromptModal() { unlockBody(); document.getElementById('prompt-moda
 const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
 
 let workspaces = []; let workspaceUsers = []; let projects = []; let tasks = [];
-let timeLogs = [];
-let chartInstances = {};
 let currentWorkspaceId = localStorage.getItem('currentWorkspaceId');
 let currentProjectId = localStorage.getItem('currentProjectId');
 
@@ -59,6 +57,9 @@ let displayConfig = { showDate: true, showUrgency: true, showDesc: true, showAss
 let currentView = 'active'; let draftTask = null; let draftSubtasks = []; let pendingConfirmAction = null; 
 let contextTargetMainId = null; let contextTargetSubtaskId = null; let contextTargetProjectId = null;
 
+// BULK SELECT STATE
+let selectedTasks = new Set();
+
 // CHILL CHAT STATE
 let messages = [];
 let activeChatRecipient = 'team';
@@ -69,6 +70,8 @@ let masterTimeframe = 'today';
 let masterScope = 'workspace'; 
 
 let activeTimerInterval = null;
+let timeLogs = [];
+let chartInstances = {};
 
 const lists = { future: document.getElementById('future-list'), todo: document.getElementById('todo-list'), doing: document.getElementById('doing-list'), done: document.getElementById('done-list'), recurring: document.getElementById('recurring-list'), complete: document.getElementById('complete-list') };
 const workspaceContextMenu = document.getElementById('workspace-context-menu'); const activeContextMenu = document.getElementById('active-context-menu'); const futureContextMenu = document.getElementById('future-context-menu'); const archiveContextMenu = document.getElementById('archive-context-menu'); const subtaskContextMenu = document.getElementById('subtask-context-menu');
@@ -288,9 +291,9 @@ async function loadDataFromDB() {
         const response = await fetch(`${API_URL}/data`);
         if (!response.ok) throw new Error("API not ready");
         const data = await response.json();
-        timeLogs = data.time_logs || [];
         
         workspaces = data.workspaces || [];
+        timeLogs = data.time_logs || [];
         
         projects = (data.projects || []).map(p => { 
             p.isSecret = p.is_secret; 
@@ -438,6 +441,7 @@ function renderWorkspaceMenu() {
         btn.onclick = async () => { 
             currentWorkspaceId = ws.id; localStorage.setItem('currentWorkspaceId', ws.id);
             currentProjectId = null; workspaceContextMenu.style.display = 'none'; 
+            clearBulkSelect(); 
             await loadDataFromDB(); 
         };
         list.appendChild(btn);
@@ -469,7 +473,6 @@ function renderWorkspaceUsers() {
     }
 }
 
-// ADMIN EMAIL EDITING
 function openEditUserEmailModal(userId, oldEmail) {
     document.getElementById('settings-modal').close(); 
     document.getElementById('edit-user-email-id').value = userId;
@@ -516,6 +519,7 @@ function renderProjects() {
             } else {
                 currentProjectId = project.id; 
                 localStorage.setItem('currentProjectId', project.id);
+                clearBulkSelect();
                 if(isMasterView) toggleMasterView(); 
                 renderBoard(); 
                 renderProjects(); 
@@ -576,6 +580,108 @@ function updateAssigneeFilterOptions() {
     if (currentSelection) filterSelect.value = currentSelection;
 }
 
+// --- BULK ACTION ENGINE ---
+function toggleBulkSelect(taskId, isChecked) {
+    if(isChecked) selectedTasks.add(taskId);
+    else selectedTasks.delete(taskId);
+    renderBulkActionBar();
+}
+
+function clearBulkSelect() {
+    selectedTasks.clear();
+    renderBoard(); 
+    renderBulkActionBar();
+}
+
+function renderBulkActionBar() {
+    let bar = document.getElementById('bulk-action-bar');
+    if(!bar) {
+        bar = document.createElement('div');
+        bar.id = 'bulk-action-bar';
+        bar.style.position = 'fixed';
+        bar.style.bottom = '20px';
+        bar.style.left = '50%';
+        bar.style.transform = 'translateX(-50%)';
+        bar.style.background = '#172b4d';
+        bar.style.color = 'white';
+        bar.style.padding = '12px 24px';
+        bar.style.borderRadius = '8px';
+        bar.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+        bar.style.display = 'flex';
+        bar.style.alignItems = 'center';
+        bar.style.gap = '15px';
+        bar.style.zIndex = '9999';
+        document.body.appendChild(bar);
+    }
+    
+    if(selectedTasks.size === 0) {
+        bar.style.display = 'none';
+        return;
+    }
+    
+    bar.style.display = 'flex';
+    bar.innerHTML = `
+        <span style="font-weight:bold;">${selectedTasks.size} task(s) selected</span>
+        <select id="bulk-status-select" style="padding:6px 12px; border-radius:4px; color:black; font-family:inherit;">
+            <option value="" disabled selected>Move selected to...</option>
+            <option value="todo">To Do</option>
+            <option value="doing">Doing</option>
+            <option value="done">Done</option>
+            <option value="future">Future</option>
+            <option value="recurring">Recurring</option>
+            <option value="complete">Archive (Complete)</option>
+        </select>
+        <button type="button" class="action-success" onclick="executeBulkMove()" style="padding:6px 16px;">Apply Status</button>
+        <button type="button" class="danger" onclick="executeBulkDelete()" style="padding:6px 16px;">Delete All</button>
+        <button type="button" class="secondary" onclick="clearBulkSelect()" style="padding:6px 16px; background:transparent; color:white; border: 1px solid white;">Cancel</button>
+    `;
+}
+
+async function executeBulkMove() {
+    const status = document.getElementById('bulk-status-select').value;
+    if(!status) return;
+    
+    for(let id of selectedTasks) {
+        const t = tasks.find(x => x.id === id);
+        if(t) {
+            const oldStatus = t.status;
+            t.status = status;
+            
+            if ((status === 'done' || status === 'complete' || status === 'archive') && (oldStatus !== 'done' && oldStatus !== 'complete' && oldStatus !== 'archive')) {
+                t.completed_at = new Date().toISOString();
+                if (t.timer_running) {
+                    const now = Date.now();
+                    const start = parseInt(t.timer_started_at, 10) || now;
+                    t.timer_elapsed = parseInt(t.timer_elapsed, 10) + (now - start);
+                    t.timer_running = false;
+                    t.timer_started_at = null;
+                }
+            } else if (status !== 'done' && status !== 'complete' && status !== 'archive') {
+                t.completed_at = null;
+            }
+            
+            const idx = tasks.findIndex(x => x.id === id); 
+            if (idx > -1) tasks[idx] = t;
+            apiCall('/tasks', 'POST', t); 
+        }
+    }
+    selectedTasks.clear();
+    renderBulkActionBar();
+    renderAll();
+}
+
+function executeBulkDelete() {
+    if(!confirm(`Are you sure you want to permanently delete ${selectedTasks.size} task(s)? This cannot be undone.`)) return;
+    
+    for(let id of selectedTasks) {
+        tasks = tasks.filter(t => t.id !== id && t.parent_task_id !== id);
+        apiCall('/tasks/' + id, 'DELETE');
+    }
+    selectedTasks.clear();
+    renderBulkActionBar();
+    renderAll();
+}
+
 function handleCardAction(e, action, id, param) {
     e.preventDefault();
     e.stopPropagation();
@@ -585,7 +691,7 @@ function handleCardAction(e, action, id, param) {
     else if (action === 'menu') showContextMenuMain(e, id);
     else if (action === 'inline-counter-minus') inlineAdjustCounter(id, -1);
     else if (action === 'inline-counter-plus') inlineAdjustCounter(id, 1);
-    else if (action === 'remove-me') triggerRemoveMeTask(id);
+    else if (action === 'remove-me') triggerRemoveMeTask(id); 
 }
 
 function renderBoard() {
@@ -715,9 +821,13 @@ function renderBoard() {
             `;
         }
 
+        // Multi-Select UI injected here
         card.innerHTML = `
-            <div class="card-header-row">
-                <h3>${urgencyHtml} ${sanitize(task.title)}</h3>
+            <div class="card-header-row" style="align-items: center; justify-content: flex-start; gap: 8px;">
+                <input type="checkbox" style="margin:0; width: 16px; height: 16px; cursor: pointer; flex-shrink: 0;" title="Select Task" 
+                       onclick="event.stopPropagation(); toggleBulkSelect('${task.id}', this.checked)" 
+                       ${selectedTasks.has(task.id) ? 'checked' : ''}>
+                <h3 style="margin: 0; flex: 1; display:flex; align-items:center; gap:6px;">${urgencyHtml} ${sanitize(task.title)}</h3>
                 <button type="button" class="card-menu-btn" onclick="handleCardAction(event, 'menu', '${task.id}')">⋮</button>
             </div>
             ${descHtml}
@@ -752,6 +862,8 @@ async function navigateToProject(wsId, projId) {
     
     currentProjectId = projId;
     localStorage.setItem('currentProjectId', projId);
+    
+    clearBulkSelect();
     
     if (isMasterView) toggleMasterView();
     else renderAll();
@@ -996,6 +1108,8 @@ function switchView(v) {
     document.getElementById('view-recurring').style.display = (v === 'recurring') ? 'block' : 'none'; 
     document.getElementById('view-future').style.display = (v === 'future') ? 'block' : 'none'; 
     document.getElementById('view-archive').style.display = (v === 'archive') ? 'block' : 'none';
+    
+    clearBulkSelect();
     renderBoard();
 }
 
@@ -1120,6 +1234,7 @@ function showContextMenuProject(e, id) {
 
     projectContextMenu.innerHTML = `
         <button onclick="contextActionEditProject()">✎ Edit Project</button>
+        <button onclick="contextActionProjectToWorkspace()" style="color:#0052cc;">🚀 Convert to Workspace</button>
         ${isOwner 
             ? `<button onclick="contextActionDeleteProject()" class="danger-text">✕ Delete Project</button>`
             : `<button onclick="triggerHideProject('${id}'); closeMenus();" class="danger-text">🏃 Hide Project</button>`
@@ -1149,6 +1264,56 @@ function triggerHideProject(id) {
             localStorage.removeItem('currentProjectId');
         }
         renderAll();
+    }; 
+    lockBody(); 
+    const m = document.getElementById('confirm-modal');
+    m.showModal(); 
+    setTimeout(() => m.scrollTop = 0, 10);
+}
+
+function contextActionProjectToWorkspace() {
+    triggerProjectToWorkspace(contextTargetProjectId);
+    closeMenus();
+}
+
+async function triggerProjectToWorkspace(projId) {
+    const p = projects.find(x => x.id === projId);
+    if (!p) return;
+    
+    document.getElementById('confirm-message').innerHTML = `Convert project <strong>"${sanitize(p.name)}"</strong> into a brand new workspace?<br>All tasks will be cleanly moved over.`; 
+    document.getElementById('confirm-execute-btn').className = "action-primary"; 
+    document.getElementById('confirm-execute-btn').innerText = "Convert";
+    
+    pendingConfirmAction = async () => { 
+        document.getElementById('app-title').innerHTML = "Converting...";
+        const me = getActiveUserObj();
+        const newWsId = generateUUID();
+        
+        // 1. Create Workspace
+        await apiCall('/workspaces', 'POST', { id: newWsId, name: p.name, userId: me.id, owner_id: me.id });
+        await loadDataFromDB();
+        
+        // 2. Refresh data to grab the newly auto-generated project
+        const newProj = projects.find(pr => pr.workspace_id === newWsId && pr.name === 'My Project');
+        if (newProj) {
+            // Rename it
+            newProj.name = 'My First Project';
+            await apiCall('/projects', 'POST', newProj);
+            
+            // 3. Move tasks from old project to new project
+            const oldTasks = tasks.filter(t => t.project_id === projId);
+            for (let t of oldTasks) {
+                t.project_id = newProj.id;
+                await apiCall('/tasks', 'POST', t);
+            }
+            
+            // 4. Delete the old project to prevent duplication
+            projects = projects.filter(pr => pr.id !== projId);
+            await apiCall(`/projects/${projId}`, 'DELETE');
+            
+            // 5. Navigate securely
+            navigateToProject(newWsId, newProj.id);
+        }
     }; 
     lockBody(); 
     const m = document.getElementById('confirm-modal');
@@ -1603,7 +1768,9 @@ document.getElementById('task-form').addEventListener('submit', async function(e
     closeModal();
 });
 
+// NEW: STATE-DRIVEN ASSIGNEE ENGINE
 function openAssigneePromptModal() { 
+    syncFormToDraft(); // FIX: Syncs inputs so title isn't wiped!
     lockBody(); 
     renderAssigneeCheckboxes();
     const m = document.getElementById('assignee-prompt-modal');
@@ -1645,6 +1812,7 @@ function renderAssigneeCheckboxes() {
 }
 
 function openSubtaskPromptModal() { 
+    syncFormToDraft(); // FIX: Syncs inputs so title isn't wiped!
     lockBody(); 
     document.getElementById('new-subtask-name').value = ''; 
     const m = document.getElementById('subtask-prompt-modal');
@@ -1823,9 +1991,21 @@ function triggerDeleteProject(id) {
     m.showModal(); 
     setTimeout(() => m.scrollTop = 0, 10);
 }
+
+// Fixed UI text resetting
+function executeConfirm() { 
+    if (pendingConfirmAction) pendingConfirmAction(); 
+    unlockBody(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; 
+    document.getElementById('confirm-execute-btn').innerText = 'Confirm';
+}
+function closeConfirmModal() { 
+    unlockBody(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; 
+    document.getElementById('confirm-execute-btn').innerText = 'Confirm';
+}
+
 // --- ANALYTICS DASHBOARD ENGINE ---
 function openAnalyticsModal() {
-    document.getElementById('settings-modal').close(); // Hide settings
+    document.getElementById('settings-modal').close(); 
     lockBody(); 
     const m = document.getElementById('analytics-modal');
     m.showModal(); 
@@ -1836,16 +2016,14 @@ function openAnalyticsModal() {
 function closeAnalyticsModal() { 
     unlockBody(); 
     document.getElementById('analytics-modal').close(); 
-    document.getElementById('settings-modal').showModal(); // Bring settings back
+    document.getElementById('settings-modal').showModal(); 
 }
 
 function renderAnalyticsCharts() {
-    // 1. Isolate Data for Current Workspace
     const allowedProjIds = projects.filter(p => p.workspace_id === currentWorkspaceId).map(p => p.id);
     const wsTasks = tasks.filter(t => allowedProjIds.includes(t.project_id));
     const wsLogs = timeLogs.filter(l => l.workspace_id === currentWorkspaceId);
 
-    // --- CHART 1: Time Allocation (Pie) ---
     const timeByUser = {};
     wsLogs.forEach(log => {
         const userName = getUserName(log.user_id);
@@ -1853,7 +2031,6 @@ function renderAnalyticsCharts() {
         timeByUser[userName] = (timeByUser[userName] || 0) + hours;
     });
 
-    // --- CHART 2: Workload Matrix (Bar) ---
     const workload = {};
     wsTasks.filter(t => ['todo', 'doing'].includes(t.status)).forEach(t => {
         if (!t.assignees || t.assignees.length === 0) {
@@ -1866,10 +2043,9 @@ function renderAnalyticsCharts() {
         }
     });
 
-    // --- CHART 3: Completion Velocity (Line) ---
     const velocity = {};
     const today = new Date();
-    for (let i = 6; i >= 0; i--) { // Pre-fill last 7 days
+    for (let i = 6; i >= 0; i--) { 
         const d = new Date(today);
         d.setDate(d.getDate() - i);
         velocity[d.toISOString().split('T')[0]] = 0;
@@ -1879,17 +2055,15 @@ function renderAnalyticsCharts() {
         if (velocity[dateStr] !== undefined) velocity[dateStr]++;
     });
 
-    // --- CHART 4: Recurring Consistency (Bar) ---
     const recurring = wsTasks.filter(t => t.status === 'recurring' && t.counter > 0)
                              .sort((a,b) => b.counter - a.counter).slice(0, 5);
     const recurringLabels = recurring.map(t => sanitize(t.title));
     const recurringData = recurring.map(t => t.counter);
 
-    // --- Chart Rendering Helper ---
     const colors = ['rgba(0, 82, 204, 0.7)', 'rgba(54, 179, 126, 0.7)', 'rgba(255, 153, 31, 0.7)', 'rgba(222, 53, 11, 0.7)', 'rgba(101, 84, 192, 0.7)'];
     
     const buildChart = (id, type, labels, data, datasetLabel, colorIndex) => {
-        if (chartInstances[id]) chartInstances[id].destroy(); // Wipe old chart
+        if (chartInstances[id]) chartInstances[id].destroy(); 
         const ctx = document.getElementById(id).getContext('2d');
         const bgColors = type === 'pie' ? colors : colors[colorIndex];
         
@@ -1903,7 +2077,7 @@ function renderAnalyticsCharts() {
                     backgroundColor: bgColors,
                     borderColor: type === 'pie' ? '#fff' : bgColors.replace('0.7', '1'),
                     borderWidth: 1,
-                    tension: 0.3 // Smooth curves for line charts
+                    tension: 0.3
                 }]
             },
             options: {
@@ -1915,12 +2089,8 @@ function renderAnalyticsCharts() {
         });
     };
 
-    // Execute Renders
     buildChart('chart-time-allocation', 'pie', Object.keys(timeByUser), Object.values(timeByUser).map(v => v.toFixed(2)), 'Hours', 0);
     buildChart('chart-workload', 'bar', Object.keys(workload), Object.values(workload), 'Active Tasks', 1);
     buildChart('chart-velocity', 'line', Object.keys(velocity).map(d => d.slice(5)), Object.values(velocity), 'Tasks Completed', 0);
     buildChart('chart-recurring', 'bar', recurringLabels, recurringData, 'Total Repetitions', 2);
 }
-
-function executeConfirm() { if (pendingConfirmAction) pendingConfirmAction(); unlockBody(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; }
-function closeConfirmModal() { unlockBody(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; }
