@@ -52,16 +52,17 @@ app.post('/api/tasks', async (req, res) => {
                 counter, timer_running, timer_started_at, timer_elapsed, completed_at, creator_id
              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
              ON CONFLICT (id) DO UPDATE SET 
-                title = COALESCE($4, tasks.title), 
-                description = COALESCE($5, tasks.description), 
-                status = COALESCE($6, tasks.status), 
-                urgency = COALESCE($7, tasks.urgency), 
-                due_date = COALESCE($8, tasks.due_date),
-                counter = COALESCE($9, tasks.counter), 
-                timer_running = COALESCE($10, tasks.timer_running), 
-                timer_started_at = COALESCE($11, tasks.timer_started_at), 
-                timer_elapsed = COALESCE($12, tasks.timer_elapsed),
-                completed_at = $13`, // Explicitly update completed_at
+                title = $4, 
+                description = $5, 
+                status = $6, 
+                urgency = $7, 
+                due_date = $8,
+                counter = $9, 
+                timer_running = $10, 
+                timer_started_at = $11, 
+                timer_elapsed = $12,
+                completed_at = $13,
+                creator_id = $14`, 
             [
                 id, project_id, parent_task_id || null, title || null, 
                 description !== undefined ? description : null, status || null, 
