@@ -21,16 +21,18 @@ const defaultPrefs = JSON.stringify({
     displayConfig: { showDate: true, showUrgency: true, showDesc: true, showAssignee: true } 
 });
 
-// 1. GET ALL DATA
+// 1. GET ALL DATA (SOFT DELETE FILTER ADDED)
 app.get('/api/data', async (req, res) => {
     try {
-        const workspaces = await pool.query('SELECT * FROM workspaces');
-        const projects = await pool.query('SELECT * FROM projects');
-        const tasks = await pool.query('SELECT * FROM tasks');
+        // Only pull data that has NOT been soft-deleted
+        const workspaces = await pool.query('SELECT * FROM workspaces WHERE is_deleted IS NOT TRUE');
+        const projects = await pool.query('SELECT * FROM projects WHERE is_deleted IS NOT TRUE');
+        const tasks = await pool.query('SELECT * FROM tasks WHERE is_deleted IS NOT TRUE');
+        
         const users = await pool.query('SELECT * FROM users');
         const workspace_members = await pool.query('SELECT * FROM workspace_members');
         const task_assignees = await pool.query('SELECT * FROM task_assignees');
-        const time_logs = await pool.query('SELECT * FROM time_logs'); // NEW: Fetch time logs
+        const time_logs = await pool.query('SELECT * FROM time_logs'); 
         
         res.json({ 
             workspaces: workspaces.rows, projects: projects.rows, tasks: tasks.rows, 
@@ -40,7 +42,7 @@ app.get('/api/data', async (req, res) => {
     } catch (err) { res.status(500).json({ error: 'Failed to fetch data' }); }
 });
 
-// --- 2. TASKS & ASSIGNEES (Timer Bug Fixed) ---
+// --- 2. TASKS & ASSIGNEES ---
 app.post('/api/tasks', async (req, res) => {
     const { 
         id, project_id, parent_task_id, title, description, status, urgency, due_date, assignees,
@@ -51,15 +53,14 @@ app.post('/api/tasks', async (req, res) => {
     try {
         await client.query('BEGIN');
         
-        // Timer/Reset Bug Fix: Removed COALESCE so frontend can explicitly clear data with 'null'
         await client.query(
             `INSERT INTO tasks (
                 id, project_id, parent_task_id, title, description, status, urgency, due_date,
                 counter, timer_running, timer_started_at, timer_elapsed, completed_at, creator_id
              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-             ON CONFLICT (id) DO UPDATE SET
-                project_id = $2,           /* <--- CRITICAL BUG FIX: Allows moving between projects */
-                parent_task_id = $3,       /* <--- CRITICAL BUG FIX: Allows reparenting subtasks */
+             ON CONFLICT (id) DO UPDATE SET 
+                project_id = $2,
+                parent_task_id = $3,
                 title = $4, 
                 description = $5, 
                 status = $6, 
@@ -70,7 +71,7 @@ app.post('/api/tasks', async (req, res) => {
                 timer_started_at = $11, 
                 timer_elapsed = $12,
                 completed_at = $13,
-                creator_id = $14`,
+                creator_id = $14`, 
             [
                 id, project_id, parent_task_id || null, title || null, 
                 description !== undefined ? description : null, status || null, 
@@ -97,10 +98,11 @@ app.post('/api/tasks', async (req, res) => {
     } finally { client.release(); }
 });
 
+// SOFT DELETE FOR TASKS
 app.delete('/api/tasks/:id', async (req, res) => {
     try { 
-        await pool.query('DELETE FROM task_assignees WHERE task_id = $1 OR task_id IN (SELECT id FROM tasks WHERE parent_task_id = $1)', [req.params.id]); 
-        await pool.query('DELETE FROM tasks WHERE id = $1 OR parent_task_id = $1', [req.params.id]); 
+        // We leave the assignees alone just in case you ever want to un-delete the task later!
+        await pool.query('UPDATE tasks SET is_deleted = true WHERE id = $1 OR parent_task_id = $1', [req.params.id]); 
         res.json({ success: true }); 
     } catch (err) { 
         console.error("Delete Error:", err);
@@ -135,7 +137,6 @@ app.post('/api/feedback', async (req, res) => {
 // 5. PROJECTS
 app.post('/api/projects', async (req, res) => {
     const { id, workspace_id, name, isSecret, owner_id, notes } = req.body; 
-    
     try {
         await pool.query(
             `INSERT INTO projects (id, workspace_id, name, is_secret, owner_id, notes) 
@@ -149,11 +150,21 @@ app.post('/api/projects', async (req, res) => {
     }
 });
 
+// SOFT DELETE FOR PROJECTS
 app.delete('/api/projects/:id', async (req, res) => {
+    const client = await pool.connect();
     try {
-        await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]);
+        await client.query('BEGIN');
+        // Soft delete the project
+        await client.query('UPDATE projects SET is_deleted = true WHERE id = $1', [req.params.id]);
+        // Soft delete all tasks inside the project
+        await client.query('UPDATE tasks SET is_deleted = true WHERE project_id = $1', [req.params.id]);
+        await client.query('COMMIT');
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        await client.query('ROLLBACK');
+        res.status(500).json({ error: err.message }); 
+    } finally { client.release(); }
 });
 
 // 6. WORKSPACES
@@ -184,9 +195,24 @@ app.post('/api/workspaces', async (req, res) => {
     } finally { client.release(); }
 });
 
+// SOFT DELETE FOR WORKSPACES
 app.delete('/api/workspaces/:id', async (req, res) => {
-    try { await pool.query('DELETE FROM workspaces WHERE id = $1', [req.params.id]); res.json({ success: true }); } 
-    catch (err) { res.status(500).json({ error: err.message }); }
+    const client = await pool.connect();
+    try { 
+        await client.query('BEGIN');
+        // Soft delete the workspace
+        await client.query('UPDATE workspaces SET is_deleted = true WHERE id = $1', [req.params.id]);
+        // Soft delete all projects in the workspace
+        await client.query('UPDATE projects SET is_deleted = true WHERE workspace_id = $1', [req.params.id]);
+        // Soft delete all tasks attached to those projects
+        await client.query('UPDATE tasks SET is_deleted = true WHERE project_id IN (SELECT id FROM projects WHERE workspace_id = $1)', [req.params.id]);
+        await client.query('COMMIT');
+        
+        res.json({ success: true }); 
+    } catch (err) { 
+        await client.query('ROLLBACK');
+        res.status(500).json({ error: err.message }); 
+    } finally { client.release(); }
 });
 
 // --- 7. MESSAGES (CHILL CHAT) ---
@@ -255,8 +281,11 @@ app.put('/api/users/email', async (req, res) => {
 });
 
 app.delete('/api/users/:userId/:workspaceId', async (req, res) => {
-    try { await pool.query('DELETE FROM workspace_members WHERE user_id = $1 AND workspace_id = $2', [req.params.userId, req.params.workspaceId]); res.json({ success: true }); } 
-    catch (err) { res.status(500).json({ error: err.message }); }
+    try { 
+        // This is a join table for permissions, so a hard delete here is totally fine (it just removes their access).
+        await pool.query('DELETE FROM workspace_members WHERE user_id = $1 AND workspace_id = $2', [req.params.userId, req.params.workspaceId]); 
+        res.json({ success: true }); 
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/settings', async (req, res) => {
