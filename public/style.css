@@ -1,3 +1,7 @@
+* {
+    -webkit-tap-highlight-color: transparent !important;
+}
+
 /* Base Styles & iOS Tap Highlight Fix */
 body { font-family: system-ui, -apple-system, sans-serif; background: #f4f5f7; margin: 0; padding: 20px; color: #172b4d; }
 button, a, .card, .tab, .clickable-title, .icon-btn, .clickable-crumb { -webkit-tap-highlight-color: transparent; }
