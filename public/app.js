@@ -530,7 +530,13 @@ function renderProjects() {
         
         btn.oncontextmenu = (e) => showContextMenuProject(e, project.id);
         
-        btn.draggable = true; btn.ondragstart = (e) => handleTabDragStart(e, project.id); btn.ondragend = (e) => e.target.classList.remove('dragging-tab'); btn.ondragover = (e) => e.preventDefault(); btn.ondrop = (e) => handleTabDrop(e, project.id);
+        // PROJECT DROP ZONES ENABLED
+        btn.draggable = true; 
+        btn.ondragstart = (e) => handleTabDragStart(e, project.id); 
+        btn.ondragend = (e) => e.target.classList.remove('dragging-tab'); 
+        btn.ondragover = (e) => { e.preventDefault(); e.currentTarget.style.background = '#e6fcff'; e.currentTarget.style.borderColor = '#0052cc'; };
+        btn.ondragleave = (e) => { e.currentTarget.style.background = ''; e.currentTarget.style.borderColor = ''; };
+        btn.ondrop = (e) => { e.currentTarget.style.background = ''; e.currentTarget.style.borderColor = ''; handleTabDrop(e, project.id); };
         
         if (project.id === currentProjectId) {
             const delBtn = document.createElement('span'); delBtn.className = 'delete-project'; 
@@ -596,7 +602,6 @@ function handleCardClick(e, id) {
             const t1 = tasks.find(x => x.id === lastSelectedTaskId);
             const t2 = tasks.find(x => x.id === id);
             
-            // Only allow shift clicking within the same status column for predictable UX
             if (t1 && t2 && t1.status === t2.status) {
                 const list = document.getElementById(t1.status + '-list');
                 const cards = Array.from(list.querySelectorAll('.card')).map(c => c.getAttribute('data-id'));
@@ -610,7 +615,7 @@ function handleCardClick(e, id) {
                     }
                 }
             } else {
-                selectedTasks.add(id); // Fallback to single select if crossed columns
+                selectedTasks.add(id);
             }
         } else {
             selectedTasks.add(id);
@@ -620,7 +625,6 @@ function handleCardClick(e, id) {
         return;
     }
     
-    // Standard click
     selectedTasks.clear();
     lastSelectedTaskId = id;
     editTask(id);
@@ -664,6 +668,20 @@ function contextActionBulkDelete() {
         tasks = tasks.filter(t => t.id !== id && t.parent_task_id !== id);
         apiCall('/tasks/' + id, 'DELETE');
     }
+    selectedTasks.clear();
+    renderAll();
+}
+
+function contextActionMoveToProject(projId) {
+    closeMenus();
+    let tasksToMove = selectedTasks.size > 0 ? Array.from(selectedTasks) : [contextTargetMainId];
+    tasksToMove.forEach(id => {
+        const t = tasks.find(x => x.id === id);
+        if(t) {
+            t.project_id = projId;
+            apiCall('/tasks', 'POST', t);
+        }
+    });
     selectedTasks.clear();
     renderAll();
 }
@@ -779,11 +797,9 @@ function renderBoard() {
         const card = document.createElement('div'); card.className = 'card'; card.setAttribute('data-id', task.id); card.draggable = true;
         card.ondragstart = (e) => dragStart(e, task.id); card.ondragend = (e) => dragEnd(e); 
         
-        // NEW NATIVE OS CLICK HANDLER
         card.setAttribute('onclick', `handleCardClick(event, '${task.id}')`); 
         card.setAttribute('oncontextmenu', `showContextMenuMain(event, '${task.id}')`);
         
-        // Multi-Select Highlight Styling
         if (selectedTasks.has(task.id)) {
             card.style.outline = '2px solid #0052cc';
             card.style.backgroundColor = '#e6fcff';
@@ -816,8 +832,8 @@ function renderBoard() {
         }
 
         card.innerHTML = `
-            <div class="card-header-row">
-                <h3>${urgencyHtml} ${sanitize(task.title)}</h3>
+            <div class="card-header-row" style="align-items: center; justify-content: flex-start; gap: 8px;">
+                <h3 style="margin: 0; flex: 1; display:flex; align-items:center; gap:6px;">${urgencyHtml} ${sanitize(task.title)}</h3>
                 <button type="button" class="card-menu-btn" onclick="handleCardAction(event, 'menu', '${task.id}')">⋮</button>
             </div>
             ${descHtml}
@@ -980,7 +996,6 @@ function renderMasterView() {
         card.className = 'card'; 
         card.setAttribute('data-id', task.id); 
         
-        // Native Master View Click Handler
         card.setAttribute('onclick', `handleCardClick(event, '${task.id}')`); 
         card.setAttribute('oncontextmenu', `showContextMenuMain(event, '${task.id}')`);
         
@@ -1128,7 +1143,6 @@ function toggleWorkspaceMenu(e) {
     menu.style.display = menu.style.display === 'block' ? 'none' : 'block'; 
 }
 
-// Click outside clears selected tasks
 document.addEventListener('click', (e) => { 
     closeMenus(); 
     if (!e.target.closest('.card') && !e.target.closest('.custom-context-menu') && selectedTasks.size > 0) {
@@ -1165,22 +1179,34 @@ function positionMenu(e, target) {
     }
 }
 
+// --- CONTEXT MENUS (BULK & SINGLE) ---
 function showContextMenuMain(e, id) { 
     e.preventDefault(); e.stopPropagation(); closeMenus(); 
     contextTargetMainId = id; 
     
-    // Auto-select if they right click an unselected card
     if (!selectedTasks.has(id)) {
         selectedTasks.clear();
         selectedTasks.add(id);
         lastSelectedTaskId = id;
-        renderBoard();
+        renderBoard(); // Visual update
     }
     
     let target;
     const count = selectedTasks.size;
     
-    // --- BULK CONTEXT MENU ---
+    // Build Project Routing Sub-Menu
+    const me = getActiveUserObj();
+    let visibleProjs = projects.filter(p => p.workspace_id === currentWorkspaceId && (!p.isSecret || p.owner_id === me.id) && !(me.preferences.hiddenProjects || []).includes(p.id) && p.id !== currentProjectId);
+    
+    let projectOptionsHtml = '';
+    if (visibleProjs.length > 0) {
+        projectOptionsHtml = `<div style="padding: 4px 12px; font-size: 11px; font-weight: bold; color: #5e6c84; text-transform: uppercase; margin-top: 8px; border-top: 1px solid #dfe1e6; padding-top: 8px;">Move to Project</div>`;
+        visibleProjs.forEach(p => {
+            projectOptionsHtml += `<button onclick="contextActionMoveToProject('${p.id}')" style="color:#172b4d;">↳ ${sanitize(p.name)}</button>`;
+        });
+    }
+
+    // MULTI-SELECT CONTEXT MENU
     if (count > 1) {
         target = document.getElementById('active-context-menu'); 
         target.innerHTML = `
@@ -1190,6 +1216,8 @@ function showContextMenuMain(e, id) {
             <button onclick="contextActionBulkMoveTo('done')" style="color:#36b37e;">→ Move to Done</button>
             <button onclick="contextActionBulkMoveTo('future')" style="color:#ff991f;">⏳ Move to Future</button>
             <button onclick="contextActionBulkMoveTo('complete')" class="success-text">✓ Archive All</button>
+            ${projectOptionsHtml}
+            <div style="margin-top: 8px; border-top: 1px solid #dfe1e6; padding-top: 8px;"></div>
             <button onclick="contextActionBulkDelete()" class="danger-text">✕ Delete All</button>
         `;
         target.style.display = 'block'; 
@@ -1197,7 +1225,7 @@ function showContextMenuMain(e, id) {
         return;
     }
     
-    // --- SINGLE CONTEXT MENU ---
+    // SINGLE SELECT CONTEXT MENU
     const t = tasks.find(x => x.id === id);
     if (!t) return;
     
@@ -1212,6 +1240,8 @@ function showContextMenuMain(e, id) {
             ${t.status !== 'done' ? `<button onclick="contextActionMoveTo('done')" style="color:#36b37e;">→ Move to Done</button>` : ''}
             <button onclick="contextActionFutureMain()" style="color:#ff991f;">⏳ Move to Future</button>
             <button onclick="contextActionArchiveMain()" class="success-text">✓ Archive Task</button>
+            ${projectOptionsHtml}
+            <div style="margin-top: 8px; border-top: 1px solid #dfe1e6; padding-top: 8px;"></div>
             ${isCreator 
                 ? `<button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>`
                 : `<button onclick="contextActionRemoveMeMain()" class="danger-text">🏃 Hide/Remove Me</button>`
@@ -1222,6 +1252,8 @@ function showContextMenuMain(e, id) {
         target.innerHTML = `
             <button onclick="contextActionEditMain()">✎ Edit Task</button>
             <button onclick="contextActionMoveTo('todo')" style="color:#0052cc;">→ Move to Active</button>
+            ${projectOptionsHtml}
+            <div style="margin-top: 8px; border-top: 1px solid #dfe1e6; padding-top: 8px;"></div>
             ${isCreator 
                 ? `<button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>`
                 : `<button onclick="contextActionRemoveMeMain()" class="danger-text">🏃 Hide/Remove Me</button>`
@@ -1232,6 +1264,8 @@ function showContextMenuMain(e, id) {
         target.innerHTML = `
             <button onclick="contextActionEditMain()">✎ Edit Task</button>
             <button onclick="contextActionMoveTo('done')" style="color:#ff991f;">⏪ Restore to Board</button>
+            ${projectOptionsHtml}
+            <div style="margin-top: 8px; border-top: 1px solid #dfe1e6; padding-top: 8px;"></div>
             ${isCreator 
                 ? `<button onclick="contextActionDeleteMain()" class="danger-text">✕ Delete Task</button>`
                 : `<button onclick="contextActionRemoveMeMain()" class="danger-text">🏃 Hide/Remove Me</button>`
@@ -1395,55 +1429,121 @@ function moveTaskStatus(id, newStatus) {
     } 
 }
 
+// MULTI-SELECT COLUMN DRAG & PROJECT DROP LOGIC
 function handleTabDragStart(e, id) { e.dataTransfer.setData("projectId", id); setTimeout(() => e.target.classList.add('dragging-tab'), 0); }
 function handleTabDrop(e, targetId) {
-    e.preventDefault(); const draggedId = e.dataTransfer.getData("projectId"); if (!draggedId || draggedId === targetId) return;
-    const user = getActiveUserObj(); let currentOrder = projects.filter(p => p.workspace_id === currentWorkspaceId).map(p => p.id);
-    const fromIdx = currentOrder.indexOf(draggedId); const toIdx = currentOrder.indexOf(targetId);
-    if (fromIdx > -1 && toIdx > -1) { const [movedId] = currentOrder.splice(fromIdx, 1); currentOrder.splice(toIdx, 0, movedId); user.preferences.projectOrder = [...new Set([...currentOrder, ...user.preferences.projectOrder])]; renderProjects(); apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: user.id, preferences: user.preferences });}
+    e.preventDefault(); 
+    e.currentTarget.style.background = ''; 
+    e.currentTarget.style.borderColor = '';
+    
+    const draggedProjId = e.dataTransfer.getData("projectId"); 
+    if (draggedProjId) {
+        if (draggedProjId === targetId) return;
+        const user = getActiveUserObj(); 
+        let currentOrder = projects.filter(p => p.workspace_id === currentWorkspaceId).map(p => p.id);
+        const fromIdx = currentOrder.indexOf(draggedProjId); 
+        const toIdx = currentOrder.indexOf(targetId);
+        if (fromIdx > -1 && toIdx > -1) { 
+            const [movedId] = currentOrder.splice(fromIdx, 1); 
+            currentOrder.splice(toIdx, 0, movedId); 
+            user.preferences.projectOrder = [...new Set([...currentOrder, ...user.preferences.projectOrder])]; 
+            renderProjects(); 
+            apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: user.id, preferences: user.preferences });
+        }
+        return;
+    }
+
+    // Catch tasks dropped onto project tabs
+    const draggedTaskId = e.dataTransfer.getData("taskId");
+    if (draggedTaskId) {
+        let tasksToMove = selectedTasks.size > 0 && selectedTasks.has(draggedTaskId) ? Array.from(selectedTasks) : [draggedTaskId];
+        tasksToMove.forEach(id => {
+            const t = tasks.find(x => x.id === id);
+            if (t && t.project_id !== targetId) {
+                t.project_id = targetId;
+                apiCall('/tasks', 'POST', t);
+            }
+        });
+        selectedTasks.clear();
+        renderAll();
+    }
 }
 
-function dragStart(e, id) { e.dataTransfer.setData("taskId", id); setTimeout(() => e.target.classList.add('dragging'), 0); }
+function dragStart(e, id) { 
+    if (!selectedTasks.has(id)) {
+        selectedTasks.clear();
+        selectedTasks.add(id);
+        // Instant visual update to avoid DOM re-render drag-break
+        document.querySelectorAll('.card').forEach(c => {
+            if (c.getAttribute('data-id') === id) {
+                c.style.outline = '2px solid #0052cc';
+                c.style.backgroundColor = '#e6fcff';
+            } else {
+                c.style.outline = '';
+                c.style.backgroundColor = '';
+            }
+        });
+    }
+    e.dataTransfer.setData("taskId", id); 
+    setTimeout(() => e.target.classList.add('dragging'), 0); 
+}
+
 function dragEnd(e) {
-    e.target.classList.remove('dragging'); const draggedId = e.target.getAttribute('data-id'); const t = tasks.find(t => t.id === draggedId); if (!t) return;
+    e.target.classList.remove('dragging'); 
+    const draggedId = e.target.getAttribute('data-id'); 
+    const draggedTask = tasks.find(t => t.id === draggedId); 
+    if (!draggedTask) return;
+    
     let statuses = (currentView === 'active') ? ['todo', 'doing', 'done'] : (currentView === 'future') ? ['future'] : (currentView === 'recurring') ? ['recurring'] : ['complete'];
     
+    let droppedStatus = null;
     statuses.forEach(status => { 
         const list = document.getElementById(status + '-list'); 
         const cards = list.querySelectorAll('.card'); 
-        
         let isHere = false;
         cards.forEach(card => { if (card.getAttribute('data-id') === draggedId) isHere = true; });
-        
-        if (isHere) { 
-            const oldStatus = t.status;
-            t.status = status; 
-            
-            if ((status === 'done' || status === 'complete' || status === 'archive') && (oldStatus !== 'done' && oldStatus !== 'complete' && oldStatus !== 'archive')) {
-                t.completed_at = new Date().toISOString();
-                if (t.timer_running) {
-                    const now = Date.now();
-                    const start = parseInt(t.timer_started_at, 10) || now;
-                    t.timer_elapsed = parseInt(t.timer_elapsed, 10) + (now - start);
-                    t.timer_running = false;
-                    t.timer_started_at = null;
-                }
-            } else if (status !== 'done' && status !== 'complete' && status !== 'archive') {
-                t.completed_at = null;
-            }
-            
-            saveTaskDB(t); 
-            
-            const user = getActiveUserObj();
-            if (!user.preferences.taskOrder) user.preferences.taskOrder = [];
-            
-            const visualOrder = Array.from(cards).map(c => c.getAttribute('data-id'));
-            user.preferences.taskOrder = user.preferences.taskOrder.filter(id => !visualOrder.includes(id));
-            user.preferences.taskOrder = [...visualOrder, ...user.preferences.taskOrder];
-            
-            apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: user.id, preferences: user.preferences });
-        } 
+        if (isHere) droppedStatus = status;
     });
+
+    if (droppedStatus) {
+        let tasksToMove = selectedTasks.size > 0 && selectedTasks.has(draggedId) ? Array.from(selectedTasks) : [draggedId];
+        
+        tasksToMove.forEach(id => {
+            const t = tasks.find(x => x.id === id);
+            if (t) {
+                const oldStatus = t.status;
+                t.status = droppedStatus;
+                
+                if ((droppedStatus === 'done' || droppedStatus === 'complete' || droppedStatus === 'archive') && (oldStatus !== 'done' && oldStatus !== 'complete' && oldStatus !== 'archive')) {
+                    t.completed_at = new Date().toISOString();
+                    if (t.timer_running) {
+                        const now = Date.now();
+                        const start = parseInt(t.timer_started_at, 10) || now;
+                        t.timer_elapsed = parseInt(t.timer_elapsed, 10) + (now - start);
+                        t.timer_running = false;
+                        t.timer_started_at = null;
+                    }
+                } else if (droppedStatus !== 'done' && droppedStatus !== 'complete' && droppedStatus !== 'archive') {
+                    t.completed_at = null;
+                }
+                
+                apiCall('/tasks', 'POST', t);
+            }
+        });
+
+        const user = getActiveUserObj();
+        if (!user.preferences.taskOrder) user.preferences.taskOrder = [];
+        const list = document.getElementById(droppedStatus + '-list');
+        const visualOrder = Array.from(list.querySelectorAll('.card')).map(c => c.getAttribute('data-id'));
+        
+        user.preferences.taskOrder = user.preferences.taskOrder.filter(id => !visualOrder.includes(id) && !tasksToMove.includes(id));
+        user.preferences.taskOrder = [...visualOrder, ...tasksToMove.filter(id => id !== draggedId), ...user.preferences.taskOrder];
+        apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: user.id, preferences: user.preferences });
+        
+        if (tasksToMove.length > 1) {
+            renderBoard(); // Re-render to snap all multiple items to new column instantly
+        }
+    }
 }
 function allowDrop(e, status) { e.preventDefault(); const list = document.getElementById(status + '-list'); const dragEl = document.querySelector('.dragging'); if (!dragEl) return; const afterEl = [...list.querySelectorAll('.card:not(.dragging)')].reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = e.clientY - box.top - box.height / 2; return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest; }, { offset: Number.NEGATIVE_INFINITY }).element; if (afterEl == null) list.appendChild(dragEl); else list.insertBefore(dragEl, afterEl); }
 
@@ -1654,7 +1754,6 @@ function syncFormToDraft() {
     }
 }
 
-// FRICTIONLESS REMOVE & UNHIDE
 function triggerRemoveMeTask(id) {
     const t = tasks.find(x => x.id === id);
     if (!t) return;
@@ -1796,9 +1895,8 @@ document.getElementById('task-form').addEventListener('submit', async function(e
     closeModal();
 });
 
-// NEW: STATE-DRIVEN ASSIGNEE ENGINE
 function openAssigneePromptModal() { 
-    syncFormToDraft(); // FIX: Syncs inputs so title isn't wiped!
+    syncFormToDraft(); 
     lockBody(); 
     renderAssigneeCheckboxes();
     const m = document.getElementById('assignee-prompt-modal');
@@ -1840,7 +1938,7 @@ function renderAssigneeCheckboxes() {
 }
 
 function openSubtaskPromptModal() { 
-    syncFormToDraft(); // FIX: Syncs inputs so title isn't wiped!
+    syncFormToDraft(); 
     lockBody(); 
     document.getElementById('new-subtask-name').value = ''; 
     const m = document.getElementById('subtask-prompt-modal');
