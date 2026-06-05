@@ -339,7 +339,7 @@ function getActiveUserObj() {
     if (!u.preferences.projectOrder) u.preferences.projectOrder = [];
     if (!u.preferences.uiSize) u.preferences.uiSize = 'auto';
     if (!u.preferences.hiddenProjects) u.preferences.hiddenProjects = []; 
-    if (!u.preferences.hiddenTasks) u.preferences.hiddenTasks = []; // Tracking removed tasks
+    if (!u.preferences.hiddenTasks) u.preferences.hiddenTasks = [];
     if (!u.preferences.displayConfig) u.preferences.displayConfig = { showDate: true, showUrgency: true, showDesc: true, showAssignee: true };
     
     return u;
@@ -582,7 +582,7 @@ function handleCardAction(e, action, id, param) {
     else if (action === 'menu') showContextMenuMain(e, id);
     else if (action === 'inline-counter-minus') inlineAdjustCounter(id, -1);
     else if (action === 'inline-counter-plus') inlineAdjustCounter(id, 1);
-    else if (action === 'remove-me') triggerRemoveMeTask(id); 
+    else if (action === 'remove-me') triggerRemoveMeTask(id);
 }
 
 function renderBoard() {
@@ -603,7 +603,6 @@ function renderBoard() {
         if (!(titleStr.includes(searchQ) || descStr.includes(searchQ))) return false;
         if (urgencyQ !== "All" && urgencyStr !== urgencyQ) return false;
         
-        // NEW: Automatically override hidden status if user is currently assigned!
         const isActuallyHidden = hiddenTasks.includes(task.id) && !assigneesArray.includes(meId);
         
         if (assigneeQ === "All") {
@@ -619,8 +618,11 @@ function renderBoard() {
 
     const taskOrder = userPrefs.taskOrder || [];
     allMatches.sort((a, b) => {
-        let idxA = taskOrder.indexOf(a.id); let idxB = taskOrder.indexOf(b.id);
-        if (idxA === -1) idxA = 99999; if (idxB === -1) idxB = 99999; return idxA - idxB;
+        let idxA = taskOrder.indexOf(a.id);
+        let idxB = taskOrder.indexOf(b.id);
+        if (idxA === -1) idxA = 99999;
+        if (idxB === -1) idxB = 99999;
+        return idxA - idxB;
     });
 
     if (searchQ || assigneeQ !== 'All' || urgencyQ !== 'All') {
@@ -737,6 +739,21 @@ function renderBoard() {
     }
 }
 
+async function navigateToProject(wsId, projId) {
+    if (!wsId || !projId) return;
+    if (currentWorkspaceId !== wsId) {
+        currentWorkspaceId = wsId;
+        localStorage.setItem('currentWorkspaceId', wsId);
+        await loadDataFromDB(); 
+    } 
+    
+    currentProjectId = projId;
+    localStorage.setItem('currentProjectId', projId);
+    
+    if (isMasterView) toggleMasterView();
+    else renderAll();
+}
+
 function setMasterTime(time) {
     masterTimeframe = time;
     document.getElementById('mv-time-today').classList.toggle('active', time === 'today');
@@ -785,7 +802,23 @@ function renderMasterView() {
     const urgencyQ = document.getElementById('mv-filter-urgency').value;
 
     const today = new Date();
-   const userPrefs = getActiveUserObj().preferences;
+    today.setHours(0,0,0,0);
+
+    const activeStatuses = Array.from(document.querySelectorAll('.mv-status-check:checked')).map(cb => cb.value);
+    let scopedTasks = tasks.filter(t => t.parent_task_id === null && activeStatuses.includes(t.status));
+
+    if (masterScope === 'project') {
+        scopedTasks = scopedTasks.filter(t => t.project_id === currentProjectId);
+    } else if (masterScope === 'workspace') {
+        const wsProjectIds = projects.filter(p => p.workspace_id === currentWorkspaceId).map(p => p.id);
+        scopedTasks = scopedTasks.filter(t => wsProjectIds.includes(t.project_id));
+    } else {
+        const allowedWsIds = getActiveUserObj().workspace_ids || [];
+        const allowedProjIds = projects.filter(p => allowedWsIds.includes(p.workspace_id)).map(p => p.id);
+        scopedTasks = scopedTasks.filter(t => allowedProjIds.includes(t.project_id));
+    }
+
+    const userPrefs = getActiveUserObj().preferences;
     const hiddenTasks = userPrefs.hiddenTasks || [];
     const meId = getActiveUserObj().id;
 
@@ -813,7 +846,6 @@ function renderMasterView() {
         if (!(titleStr.includes(searchQ) || descStr.includes(searchQ))) return false;
         if (urgencyQ !== "All" && urgencyStr !== urgencyQ) return false;
         
-        // Ensure hidden tasks reappear dynamically if reassigned
         const isActuallyHidden = hiddenTasks.includes(task.id) && !assigneesArray.includes(meId);
         
         if (assigneeQ === "All") {
@@ -1568,7 +1600,6 @@ document.getElementById('task-form').addEventListener('submit', async function(e
     closeModal();
 });
 
-// NEW: STATE-DRIVEN ASSIGNEE ENGINE
 function openAssigneePromptModal() { 
     lockBody(); 
     renderAssigneeCheckboxes();
