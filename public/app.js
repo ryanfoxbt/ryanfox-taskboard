@@ -592,6 +592,7 @@ function renderBoard() {
     
     const userPrefs = getActiveUserObj().preferences;
     const hiddenTasks = userPrefs.hiddenTasks || [];
+    const meId = getActiveUserObj().id;
     
     const allMatches = activeMainTasks.filter(task => {
         const titleStr = (task.title || '').toLowerCase(); 
@@ -602,25 +603,24 @@ function renderBoard() {
         if (!(titleStr.includes(searchQ) || descStr.includes(searchQ))) return false;
         if (urgencyQ !== "All" && urgencyStr !== urgencyQ) return false;
         
-        // The New Assignee / Removed Filter Logic
+        // NEW: Automatically override hidden status if user is currently assigned!
+        const isActuallyHidden = hiddenTasks.includes(task.id) && !assigneesArray.includes(meId);
+        
         if (assigneeQ === "All") {
-            return !hiddenTasks.includes(task.id);
+            return !isActuallyHidden;
         } else if (assigneeQ === "Unassigned") {
-            return !hiddenTasks.includes(task.id) && assigneesArray.length === 0;
+            return !isActuallyHidden && assigneesArray.length === 0;
         } else if (assigneeQ === "Removed") {
-            return hiddenTasks.includes(task.id); 
+            return isActuallyHidden; 
         } else {
-            return assigneesArray.includes(assigneeQ) && !hiddenTasks.includes(task.id);
+            return assigneesArray.includes(assigneeQ) && !isActuallyHidden;
         }
     });
 
     const taskOrder = userPrefs.taskOrder || [];
     allMatches.sort((a, b) => {
-        let idxA = taskOrder.indexOf(a.id);
-        let idxB = taskOrder.indexOf(b.id);
-        if (idxA === -1) idxA = 99999;
-        if (idxB === -1) idxB = 99999;
-        return idxA - idxB;
+        let idxA = taskOrder.indexOf(a.id); let idxB = taskOrder.indexOf(b.id);
+        if (idxA === -1) idxA = 99999; if (idxB === -1) idxB = 99999; return idxA - idxB;
     });
 
     if (searchQ || assigneeQ !== 'All' || urgencyQ !== 'All') {
@@ -649,12 +649,12 @@ function renderBoard() {
     document.getElementById('master-board-wrapper').className = `board-container size-${activeSize}`;
     
     allMatches.forEach(task => {
-        const isCreator = task.creator_id === getActiveUserObj().id || !task.creator_id;
-        const isHidden = hiddenTasks.includes(task.id);
+        const isCreator = task.creator_id === meId || !task.creator_id;
+        const isActuallyHidden = hiddenTasks.includes(task.id) && !(task.assignees || []).includes(meId);
         
         const removeOrUnhideBtn = isCreator 
             ? `<button type="button" class="danger" onclick="handleCardAction(event, 'delete', '${task.id}')" title="Delete">&times;</button>`
-            : (isHidden 
+            : (isActuallyHidden 
                 ? `<button type="button" class="action-warning" onclick="event.stopPropagation(); triggerUnhideTask('${task.id}')" title="Restore Task to Board">👁️</button>`
                 : `<button type="button" class="danger" onclick="handleCardAction(event, 'remove-me', '${task.id}')" title="Hide/Remove Me">🏃</button>`
               );
@@ -737,21 +737,6 @@ function renderBoard() {
     }
 }
 
-async function navigateToProject(wsId, projId) {
-    if (!wsId || !projId) return;
-    if (currentWorkspaceId !== wsId) {
-        currentWorkspaceId = wsId;
-        localStorage.setItem('currentWorkspaceId', wsId);
-        await loadDataFromDB(); 
-    } 
-    
-    currentProjectId = projId;
-    localStorage.setItem('currentProjectId', projId);
-    
-    if (isMasterView) toggleMasterView();
-    else renderAll();
-}
-
 function setMasterTime(time) {
     masterTimeframe = time;
     document.getElementById('mv-time-today').classList.toggle('active', time === 'today');
@@ -800,24 +785,9 @@ function renderMasterView() {
     const urgencyQ = document.getElementById('mv-filter-urgency').value;
 
     const today = new Date();
-    today.setHours(0,0,0,0);
-
-    const activeStatuses = Array.from(document.querySelectorAll('.mv-status-check:checked')).map(cb => cb.value);
-    let scopedTasks = tasks.filter(t => t.parent_task_id === null && activeStatuses.includes(t.status));
-
-    if (masterScope === 'project') {
-        scopedTasks = scopedTasks.filter(t => t.project_id === currentProjectId);
-    } else if (masterScope === 'workspace') {
-        const wsProjectIds = projects.filter(p => p.workspace_id === currentWorkspaceId).map(p => p.id);
-        scopedTasks = scopedTasks.filter(t => wsProjectIds.includes(t.project_id));
-    } else {
-        const allowedWsIds = getActiveUserObj().workspace_ids || [];
-        const allowedProjIds = projects.filter(p => allowedWsIds.includes(p.workspace_id)).map(p => p.id);
-        scopedTasks = scopedTasks.filter(t => allowedProjIds.includes(t.project_id));
-    }
-
-    const userPrefs = getActiveUserObj().preferences;
+   const userPrefs = getActiveUserObj().preferences;
     const hiddenTasks = userPrefs.hiddenTasks || [];
+    const meId = getActiveUserObj().id;
 
     let timeFiltered = scopedTasks.filter(t => {
         if (!t.due_date) return false;
@@ -843,14 +813,17 @@ function renderMasterView() {
         if (!(titleStr.includes(searchQ) || descStr.includes(searchQ))) return false;
         if (urgencyQ !== "All" && urgencyStr !== urgencyQ) return false;
         
+        // Ensure hidden tasks reappear dynamically if reassigned
+        const isActuallyHidden = hiddenTasks.includes(task.id) && !assigneesArray.includes(meId);
+        
         if (assigneeQ === "All") {
-            return !hiddenTasks.includes(task.id);
+            return !isActuallyHidden;
         } else if (assigneeQ === "Unassigned") {
-            return !hiddenTasks.includes(task.id) && assigneesArray.length === 0;
+            return !isActuallyHidden && assigneesArray.length === 0;
         } else if (assigneeQ === "Removed") {
-            return hiddenTasks.includes(task.id); 
+            return isActuallyHidden; 
         } else {
-            return assigneesArray.includes(assigneeQ) && !hiddenTasks.includes(task.id);
+            return assigneesArray.includes(assigneeQ) && !isActuallyHidden;
         }
     });
 
