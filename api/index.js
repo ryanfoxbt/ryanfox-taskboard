@@ -30,8 +30,13 @@ app.get('/api/data', async (req, res) => {
         const users = await pool.query('SELECT * FROM users');
         const workspace_members = await pool.query('SELECT * FROM workspace_members');
         const task_assignees = await pool.query('SELECT * FROM task_assignees');
+        const time_logs = await pool.query('SELECT * FROM time_logs'); // NEW: Fetch time logs
         
-        res.json({ workspaces: workspaces.rows, projects: projects.rows, tasks: tasks.rows, users: users.rows, workspace_members: workspace_members.rows, task_assignees: task_assignees.rows });
+        res.json({ 
+            workspaces: workspaces.rows, projects: projects.rows, tasks: tasks.rows, 
+            users: users.rows, workspace_members: workspace_members.rows, 
+            task_assignees: task_assignees.rows, time_logs: time_logs.rows 
+        });
     } catch (err) { res.status(500).json({ error: 'Failed to fetch data' }); }
 });
 
