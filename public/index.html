@@ -415,6 +415,17 @@
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeModal()">Cancel</button><button type="submit" id="save-task-btn">Save Task</button></div>
         </form>
     </dialog>
+    <dialog id="time-report-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
+        <div class="modal-header-row">
+            <h2 style="margin:0; color: #0052cc;">Task Time Report</h2>
+            <button class="danger" onclick="document.getElementById('time-report-modal').close()" title="Close">&times;</button>
+        </div>
+        <div id="time-report-content" style="padding-top: 15px; min-width: 300px;">
+            </div>
+    </dialog>
+
+    
     <dialog id="analytics-modal" style="width: 95%; max-width: 1000px;">
     <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
     <div class="modal-header-row">
