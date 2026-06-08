@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <title>Personal Task Board</title>
     <link rel="stylesheet" href="/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
-    <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_YnJpZWYtc2F3ZmlzaC02MS5jbGVyay5hY2NvdW50cy5kZXYk" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@4/dist/clerk.browser.js"></script>
+    <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_YOUR_CLERK_PUBLISHABLE_KEY_HERE" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@4/dist/clerk.browser.js"></script>
 
     <div id="sign-in-container" style="display: none; height: 100vh; justify-content: center; align-items: center; background: #f4f5f7;">
         <div id="sign-in"></div>
@@ -182,16 +182,15 @@
     <div id="active-context-menu" class="custom-context-menu"></div>
     <div id="future-context-menu" class="custom-context-menu"></div>
     <div id="archive-context-menu" class="custom-context-menu"></div>
-    <div id="project-context-menu" class="custom-context-menu">
-        <button onclick="contextActionEditProject()">✎ Edit Project</button>
-        <button onclick="contextActionDeleteProject()" class="danger-text">✕ Delete Project</button>
-    </div>
+    <div id="project-context-menu" class="custom-context-menu"></div>
 
     <dialog id="settings-modal">
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0; margin-bottom: 20px;">Board Settings</h2>
+        
         <div class="settings-section-title" style="margin-top: 0;">Analytics</div>
-            <button type="button" class="action-primary" style="width: 100%; margin-bottom: 20px; font-size: 14px;" onclick="openAnalyticsModal()">📊 View Analytics Dashboard</button>
+        <button type="button" class="action-primary" style="width: 100%; margin-bottom: 20px; font-size: 14px;" onclick="openAnalyticsModal()">📊 View Analytics Dashboard</button>
+
         <div class="settings-section-title" style="margin-top: 0;">Workspace Users</div>
         <div class="list-container" id="settings-user-list"></div>
         <button type="button" class="secondary" style="width: 100%; font-size: 13px;" onclick="openAddUserModal()">+ Invite New User</button>
@@ -222,6 +221,73 @@
             <button type="button" class="secondary" onclick="closeSettings()">Cancel</button>
             <button type="button" onclick="saveSettings()">Save Settings</button>
         </div>
+    </dialog>
+
+    <dialog id="analytics-modal" style="width: 95%; max-width: 1000px; height: 90vh; display: flex; flex-direction: column;">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
+        <div class="modal-header-row" style="flex-shrink: 0;">
+            <h2 style="margin:0;">Workspace Analytics</h2>
+            <button class="danger" onclick="closeAnalyticsModal()" title="Close Dashboard">&times;</button>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 10px; border-bottom: 2px solid #ebecf0; padding-bottom: 10px; flex-shrink: 0;">
+            <button id="tab-overview" class="view-toggle active" onclick="switchAnalyticsTab('overview')">Overview Charts</button>
+            <button id="tab-time-report" class="view-toggle" onclick="switchAnalyticsTab('time-report')">Detailed Time Report</button>
+        </div>
+        
+        <div id="analytics-overview" style="flex: 1; overflow-y: auto; padding-top: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+            <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
+                <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Time Allocation (Hours by User)</h3>
+                <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-time-allocation"></canvas></div>
+            </div>
+            <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
+                <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Workload (Active Tasks)</h3>
+                <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-workload"></canvas></div>
+            </div>
+            <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
+                <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Velocity (Completed - Last 7 Days)</h3>
+                <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-velocity"></canvas></div>
+            </div>
+            <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
+                <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Recurring Consistency (Top Repetitions)</h3>
+                <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-recurring"></canvas></div>
+            </div>
+        </div>
+
+        <div id="analytics-time-report" style="flex: 1; overflow-y: auto; padding-top: 15px; display: none; flex-direction: column; gap: 15px;">
+            <div style="display: flex; gap: 15px; background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 200px;">
+                    <label style="font-size: 12px; font-weight: bold; color: #5e6c84; text-transform: uppercase; display: block; margin-bottom: 4px;">Timeframe</label>
+                    <select id="report-timeframe" onchange="renderDetailedTimeReport()" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #dfe1e6;">
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                        <option value="year">This Year</option>
+                        <option value="all" selected>All Time</option>
+                    </select>
+                </div>
+                <div style="flex: 1; min-width: 200px;">
+                    <label style="font-size: 12px; font-weight: bold; color: #5e6c84; text-transform: uppercase; display: block; margin-bottom: 4px;">Group By Hierarchy</label>
+                    <select id="report-groupby" onchange="renderDetailedTimeReport()" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #dfe1e6;">
+                        <option value="user">User ➔ Project ➔ Task</option>
+                        <option value="project">Project ➔ User ➔ Task</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="detailed-time-container" style="background: white; border: 1px solid #dfe1e6; border-radius: 8px; padding: 15px;">
+                </div>
+        </div>
+    </dialog>
+
+    <dialog id="time-report-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
+        <div class="modal-header-row">
+            <h2 style="margin:0; color: #0052cc;">Task Time Report</h2>
+            <button class="danger" onclick="document.getElementById('time-report-modal').close()" title="Close">&times;</button>
+        </div>
+        <div id="time-report-content" style="padding-top: 15px; min-width: 300px;">
+            </div>
     </dialog>
 
     <dialog id="edit-user-email-modal">
@@ -344,11 +410,6 @@
     <dialog id="task-modal">
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
 
-        <div id="subtask-context-menu" class="custom-context-menu">
-            <button type="button" onclick="contextActionEditSubtask()">✎ Edit Subtask</button>
-            <button type="button" onclick="contextActionDeleteSubtask()" class="danger-text">✕ Delete Subtask</button>
-        </div>
-
         <div class="modal-header-row">
             <button type="button" id="modal-back-btn" class="secondary" style="display:none; padding: 4px 8px; font-size: 12px;" onclick="backToParentTask()">← Back to Task</button>
             <h2 id="modal-title" style="margin:0;">Add Task</h2>
@@ -415,43 +476,6 @@
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeModal()">Cancel</button><button type="submit" id="save-task-btn">Save Task</button></div>
         </form>
     </dialog>
-    <dialog id="time-report-modal">
-        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
-        <div class="modal-header-row">
-            <h2 style="margin:0; color: #0052cc;">Task Time Report</h2>
-            <button class="danger" onclick="document.getElementById('time-report-modal').close()" title="Close">&times;</button>
-        </div>
-        <div id="time-report-content" style="padding-top: 15px; min-width: 300px;">
-            </div>
-    </dialog>
-
-    
-    <dialog id="analytics-modal" style="width: 95%; max-width: 1000px;">
-    <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
-    <div class="modal-header-row">
-        <h2 style="margin:0;">Workspace Analytics</h2>
-        <button class="danger" onclick="closeAnalyticsModal()" title="Close Dashboard">&times;</button>
-    </div>
-    
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; padding-top: 15px;">
-        <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
-            <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Time Allocation (Hours by User)</h3>
-            <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-time-allocation"></canvas></div>
-        </div>
-        <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
-            <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Workload (Active Tasks)</h3>
-            <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-workload"></canvas></div>
-        </div>
-        <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
-            <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Velocity (Completed - Last 7 Days)</h3>
-            <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-velocity"></canvas></div>
-        </div>
-        <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
-            <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Recurring Consistency (Top Repetitions)</h3>
-            <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-recurring"></canvas></div>
-        </div>
-    </div>
-</dialog>
     
     <script src="/app.js"></script>
 </body>
