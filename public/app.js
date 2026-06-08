@@ -7,7 +7,8 @@ function sanitize(str) {
 function linkify(text) {
     if (!text) return '';
     const urlPattern = /(\b(https?):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gim;
-    return text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color: #0052cc; text-decoration: underline; pointer-events: auto;">$1</a>');
+    // FIX: Added draggable="false" and ondragstart to prevent browsers from tearing the link out of the draggable card
+    return text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" ondragstart="event.preventDefault()" draggable="false" style="color: #0052cc; text-decoration: underline; pointer-events: auto;">$1</a>');
 }
 
 function generateUUID() {
@@ -201,6 +202,13 @@ function renderChat() {
         const div = document.createElement('div');
         const isMe = msg.sender_id === myId;
         const isSystem = msg.sender_id === 'system' || msg.content.startsWith('🤖 System:');
+        
+        div.style.maxWidth = '85%';
+        div.style.padding = '10px 14px';
+        div.style.borderRadius = '8px';
+        div.style.fontSize = '14px';
+        div.style.lineHeight = '1.4';
+        div.style.wordBreak = 'break-word';
         
         if (isSystem) {
             div.style.alignSelf = 'center';
@@ -962,7 +970,7 @@ async function navigateToProject(wsId, projId) {
     currentProjectId = projId;
     localStorage.setItem('currentProjectId', projId);
     
-    selectedTasks.clear();
+    clearBulkSelect();
     
     if (isMasterView) toggleMasterView();
     else renderAll();
@@ -1214,7 +1222,7 @@ function switchView(v) {
     document.getElementById('view-future').style.display = (v === 'future') ? 'block' : 'none'; 
     document.getElementById('view-archive').style.display = (v === 'archive') ? 'block' : 'none';
     
-    selectedTasks.clear();
+    clearBulkSelect();
     renderBoard();
 }
 
@@ -1272,7 +1280,7 @@ function positionMenu(e, target) {
     }
 }
 
-// --- CONTEXT MENUS (BULK & SINGLE WITH ACCORDION) ---
+// --- CONTEXT MENUS & ACCORDIONS ---
 function toggleContextSubmenu(e, id) {
     e.preventDefault(); e.stopPropagation();
     const el = document.getElementById(id);
@@ -1293,7 +1301,6 @@ function showContextMenuMain(e, id) {
     let target;
     const count = selectedTasks.size;
     
-    // BUILD PROJECT ROUTING ACCORDION
     const me = getActiveUserObj();
     let visibleProjs = projects.filter(p => p.workspace_id === currentWorkspaceId && (!p.isSecret || p.owner_id === me.id) && !(me.preferences.hiddenProjects || []).includes(p.id) && p.id !== currentProjectId);
     
@@ -1313,7 +1320,6 @@ function showContextMenuMain(e, id) {
         projectOptionsHtml += `</div>`;
     }
 
-    // MULTI-SELECT CONTEXT MENU
     if (count > 1) {
         target = document.getElementById('active-context-menu'); 
         target.innerHTML = `
@@ -1332,7 +1338,6 @@ function showContextMenuMain(e, id) {
         return;
     }
     
-    // SINGLE SELECT CONTEXT MENU
     const t = tasks.find(x => x.id === id);
     if (!t) return;
     
@@ -1712,7 +1717,7 @@ function toggleTimer() {
                 duration_ms: sessionDuration,
                 created_at: new Date().toISOString()
             };
-            timeLogs.push(newLog); // Update Local State!
+            timeLogs.push(newLog); 
             apiCall('/time_logs', 'POST', newLog);
         }
         
@@ -1972,7 +1977,6 @@ function updateFormUI() {
         updateTimerDisplay();
     }
 
-    // UPDATE: Make the timer display text clickable to open the report modal
     const timerDisplay = document.getElementById('task-timer-display');
     timerDisplay.style.cursor = 'pointer';
     timerDisplay.style.color = '#0052cc';
@@ -2068,7 +2072,7 @@ document.getElementById('task-form').addEventListener('submit', async function(e
 });
 
 function openAssigneePromptModal() { 
-    syncFormToDraft(); // FIX: Syncs inputs so title isn't wiped!
+    syncFormToDraft(); 
     lockBody(); 
     renderAssigneeCheckboxes();
     const m = document.getElementById('assignee-prompt-modal');
@@ -2110,7 +2114,7 @@ function renderAssigneeCheckboxes() {
 }
 
 function openSubtaskPromptModal() { 
-    syncFormToDraft(); // FIX: Syncs inputs so title isn't wiped!
+    syncFormToDraft(); 
     lockBody(); 
     document.getElementById('new-subtask-name').value = ''; 
     const m = document.getElementById('subtask-prompt-modal');
@@ -2300,12 +2304,21 @@ function closeConfirmModal() {
     document.getElementById('confirm-execute-btn').innerText = 'Confirm';
 }
 
+function switchAnalyticsTab(tab) {
+    document.getElementById('tab-overview').classList.toggle('active', tab === 'overview');
+    document.getElementById('tab-time-report').classList.toggle('active', tab === 'time-report');
+    document.getElementById('analytics-overview').style.display = tab === 'overview' ? 'grid' : 'none';
+    document.getElementById('analytics-time-report').style.display = tab === 'time-report' ? 'flex' : 'none';
+    if (tab === 'time-report') renderDetailedTimeReport();
+}
+
 function openAnalyticsModal() {
     document.getElementById('settings-modal').close(); 
     lockBody(); 
     const m = document.getElementById('analytics-modal');
     if (m) {
         m.showModal(); 
+        switchAnalyticsTab('overview');
         renderAnalyticsCharts();
         setTimeout(() => m.scrollTop = 0, 10);
     }
@@ -2391,4 +2404,102 @@ function renderAnalyticsCharts() {
     buildChart('chart-workload', 'bar', Object.keys(workload), Object.values(workload), 'Active Tasks', 1);
     buildChart('chart-velocity', 'line', Object.keys(velocity).map(d => d.slice(5)), Object.values(velocity), 'Tasks Completed', 0);
     buildChart('chart-recurring', 'bar', recurringLabels, recurringData, 'Total Repetitions', 2);
+}
+
+function renderDetailedTimeReport() {
+    const timeframe = document.getElementById('report-timeframe').value;
+    const groupBy = document.getElementById('report-groupby').value;
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(today); startOfWeek.setDate(today.getDate() - today.getDay());
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const startOfYear = new Date(today.getFullYear(), 0, 1);
+
+    let filteredLogs = timeLogs.filter(l => l.workspace_id === currentWorkspaceId);
+    
+    if (timeframe !== 'all') {
+        filteredLogs = filteredLogs.filter(l => {
+            if (!l.created_at) return false;
+            const logDate = new Date(l.created_at);
+            if (timeframe === 'today') return logDate >= today;
+            if (timeframe === 'week') return logDate >= startOfWeek;
+            if (timeframe === 'month') return logDate >= startOfMonth;
+            if (timeframe === 'year') return logDate >= startOfYear;
+            return true;
+        });
+    }
+
+    const aggregated = {};
+    
+    filteredLogs.forEach(log => {
+        const ms = parseInt(log.duration_ms, 10);
+        
+        const pObj = projects.find(p => p.id === log.project_id);
+        const pName = pObj ? pObj.name : 'Unknown Project';
+        const uName = getUserName(log.user_id);
+        const tObj = tasks.find(t => t.id === log.task_id);
+        const tName = tObj ? tObj.title : 'Deleted/Unknown Task';
+        
+        if (groupBy === 'user') {
+            if (!aggregated[uName]) aggregated[uName] = { total: 0, sub: {} };
+            aggregated[uName].total += ms;
+            if (!aggregated[uName].sub[pName]) aggregated[uName].sub[pName] = { total: 0, sub: {} };
+            aggregated[uName].sub[pName].total += ms;
+            if (!aggregated[uName].sub[pName].sub[tName]) aggregated[uName].sub[pName].sub[tName] = 0;
+            aggregated[uName].sub[pName].sub[tName] += ms;
+        } else {
+            if (!aggregated[pName]) aggregated[pName] = { total: 0, sub: {} };
+            aggregated[pName].total += ms;
+            if (!aggregated[pName].sub[uName]) aggregated[pName].sub[uName] = { total: 0, sub: {} };
+            aggregated[pName].sub[uName].total += ms;
+            if (!aggregated[pName].sub[uName].sub[tName]) aggregated[pName].sub[uName].sub[tName] = 0;
+            aggregated[pName].sub[uName].sub[tName] += ms;
+        }
+    });
+
+    let html = '';
+    if (Object.keys(aggregated).length === 0) {
+        html = '<p style="color: #5e6c84; font-size: 14px; text-align: center; padding: 20px;">No time logged for this timeframe.</p>';
+    } else {
+        const sortedL1 = Object.keys(aggregated).sort((a,b) => aggregated[b].total - aggregated[a].total);
+        sortedL1.forEach(l1 => {
+            const l1Data = aggregated[l1];
+            html += `
+            <details style="margin-bottom: 8px; border: 1px solid #dfe1e6; border-radius: 6px; overflow: hidden;" open>
+                <summary style="background: #f4f5f7; padding: 12px; cursor: pointer; font-weight: bold; color: #172b4d; display: flex; justify-content: space-between; outline: none;">
+                    <span>${sanitize(l1)}</span>
+                    <span style="color: #0052cc;">${formatTime(l1Data.total)}</span>
+                </summary>
+                <div style="padding: 10px 15px;">
+            `;
+            
+            const sortedL2 = Object.keys(l1Data.sub).sort((a,b) => l1Data.sub[b].total - l1Data.sub[a].total);
+            sortedL2.forEach(l2 => {
+                const l2Data = l1Data.sub[l2];
+                html += `
+                <details style="margin-bottom: 6px; border-left: 2px solid #ebecf0; padding-left: 10px;" open>
+                    <summary style="padding: 6px; cursor: pointer; font-weight: 600; color: #42526e; display: flex; justify-content: space-between; border-bottom: 1px solid #ebecf0; outline: none;">
+                        <span>${sanitize(l2)}</span>
+                        <span style="color: #36b37e;">${formatTime(l2Data.total)}</span>
+                    </summary>
+                    <div style="padding: 6px 10px 10px 15px;">
+                `;
+                
+                const sortedL3 = Object.keys(l2Data.sub).sort((a,b) => l2Data.sub[b] - l2Data.sub[a]);
+                html += `<table style="width: 100%; border-collapse: collapse; font-size: 13px;">`;
+                sortedL3.forEach(l3 => {
+                    html += `
+                    <tr style="border-bottom: 1px dashed #ebecf0;">
+                        <td style="padding: 6px 0; color: #5e6c84;">${sanitize(l3)}</td>
+                        <td style="padding: 6px 0; text-align: right; color: #172b4d; font-family: monospace;">${formatTime(l2Data.sub[l3])}</td>
+                    </tr>`;
+                });
+                html += `</table></div></details>`;
+            });
+            
+            html += `</div></details>`;
+        });
+    }
+    document.getElementById('detailed-time-container').innerHTML = html;
 }
