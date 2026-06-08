@@ -112,11 +112,12 @@ app.delete('/api/tasks/:id', async (req, res) => {
 
 // 3. --- TIME LOGS ---
 app.post('/api/time_logs', async (req, res) => {
-    const { id, user_id, workspace_id, project_id, task_id, duration_ms } = req.body;
+    const { id, user_id, workspace_id, project_id, task_id, duration_ms, created_at } = req.body;
     try {
         await pool.query(
-            `INSERT INTO time_logs (id, user_id, workspace_id, project_id, task_id, duration_ms) VALUES ($1, $2, $3, $4, $5, $6)`,
-            [id, user_id, workspace_id, project_id, task_id, duration_ms]
+            `INSERT INTO time_logs (id, user_id, workspace_id, project_id, task_id, duration_ms, created_at) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [id, user_id, workspace_id, project_id, task_id, duration_ms, created_at || new Date().toISOString()]
         );
         res.json({ success: true });
     } catch(err) { res.status(500).json({ error: err.message }); }
