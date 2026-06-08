@@ -1786,49 +1786,58 @@ function updateGlobalTimer() {
 
 // --- TASK SPECIFIC TIME REPORTING MODAL ---
 function generateTimeReportHTML(taskId) {
-    const logs = timeLogs.filter(l => l.task_id === taskId);
+    const logs = timeLogs.filter(l => l.task_id === taskId).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
     if (logs.length === 0) return `<p style="color: #5e6c84; font-size: 13px;">No time logged yet.</p>`;
 
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfWeek = new Date(today); startOfWeek.setDate(today.getDate() - today.getDay());
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const startOfYear = new Date(today.getFullYear(), 0, 1);
-
-    let html = '';
-    const userTotals = {}; const userDaily = {}; const userWeekly = {}; const userMonthly = {}; const userYearly = {};
-
+    const userGroups = {};
     logs.forEach(log => {
         const u = log.user_id;
         const ms = parseInt(log.duration_ms, 10);
-        const logDate = log.created_at ? new Date(log.created_at) : new Date();
-
-        userTotals[u] = (userTotals[u] || 0) + ms;
-        if (logDate >= today) userDaily[u] = (userDaily[u] || 0) + ms;
-        if (logDate >= startOfWeek) userWeekly[u] = (userWeekly[u] || 0) + ms;
-        if (logDate >= startOfMonth) userMonthly[u] = (userMonthly[u] || 0) + ms;
-        if (logDate >= startOfYear) userYearly[u] = (userYearly[u] || 0) + ms;
+        const d = log.created_at ? new Date(log.created_at) : new Date();
+        const dateKey = d.toLocaleDateString();
+        
+        if (!userGroups[u]) userGroups[u] = { total: 0, dates: {} };
+        userGroups[u].total += ms;
+        
+        if (!userGroups[u].dates[dateKey]) userGroups[u].dates[dateKey] = { total: 0, sessions: [] };
+        userGroups[u].dates[dateKey].total += ms;
+        userGroups[u].dates[dateKey].sessions.push({ ms: ms, time: d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) });
     });
 
-    html += `<table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 14px;">
-        <tr style="border-bottom: 2px solid #dfe1e6;">
-            <th style="padding: 8px;">User</th>
-            <th style="padding: 8px;">Today</th>
-            <th style="padding: 8px;">This Week</th>
-            <th style="padding: 8px;">This Month</th>
-            <th style="padding: 8px;">Total Time</th>
-        </tr>`;
-    
-    for (let u in userTotals) {
-        html += `<tr style="border-bottom: 1px solid #ebecf0;">
-            <td style="padding: 8px; font-weight: bold;">${sanitize(getUserName(u))}</td>
-            <td style="padding: 8px;">${formatTime(userDaily[u] || 0)}</td>
-            <td style="padding: 8px;">${formatTime(userWeekly[u] || 0)}</td>
-            <td style="padding: 8px;">${formatTime(userMonthly[u] || 0)}</td>
-            <td style="padding: 8px; color: #0052cc; font-weight: bold;">${formatTime(userTotals[u])}</td>
-        </tr>`;
+    let html = `<div style="display: flex; flex-direction: column; gap: 10px;">`;
+    for (let u in userGroups) {
+        const uData = userGroups[u];
+        html += `
+        <details style="border: 1px solid #dfe1e6; border-radius: 6px; overflow: hidden;" open>
+            <summary style="background: #f4f5f7; padding: 10px 12px; cursor: pointer; font-weight: bold; color: #172b4d; display: flex; justify-content: space-between; outline: none;">
+                <span>👤 ${sanitize(getUserName(u))}</span>
+                <span style="color: #0052cc;">${formatTime(uData.total)}</span>
+            </summary>
+            <div style="padding: 10px;">`;
+        
+        for (let dKey in uData.dates) {
+            const dData = uData.dates[dKey];
+            let isToday = (dKey === new Date().toLocaleDateString()) ? ' (Today)' : '';
+            html += `
+            <details style="margin-bottom: 6px; border-left: 2px solid #ebecf0; padding-left: 10px;" open>
+                <summary style="padding: 4px 6px; cursor: pointer; font-size: 13px; font-weight: 600; color: #42526e; display: flex; justify-content: space-between; outline: none;">
+                    <span>📅 ${dKey}${isToday}</span>
+                    <span style="color: #36b37e;">${formatTime(dData.total)}</span>
+                </summary>
+                <div style="padding: 4px 10px; font-size: 12px; color: #5e6c84;">`;
+            
+            dData.sessions.forEach(sess => {
+                html += `<div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #ebecf0; padding: 4px 0;">
+                    <span>↳ Session at ${sess.time}</span>
+                    <span style="font-family: monospace;">${formatTime(sess.ms)}</span>
+                </div>`;
+            });
+            
+            html += `</div></details>`;
+        }
+        html += `</div></details>`;
     }
-    html += `</table>`;
+    html += `</div>`;
     return html;
 }
 
@@ -1882,6 +1891,21 @@ function editTask(id) {
     clearInterval(activeTimerInterval);
     
     draftTask = JSON.parse(JSON.stringify(tasks.find(t => t.id === id))); 
+    
+    // SELF-HEALING TIMER FIX
+    // Ensures database corruption or offset jumps are silently healed upon load
+    const taskLogs = timeLogs.filter(l => l.task_id === id);
+    let actualElapsed = taskLogs.reduce((sum, log) => sum + parseInt(log.duration_ms || 0, 10), 0);
+    
+    if (actualElapsed > 0) {
+        if (Math.abs(parseInt(draftTask.timer_elapsed || 0, 10) - actualElapsed) > 5000) {
+            draftTask.timer_elapsed = actualElapsed;
+            if (!draftTask.timer_running) {
+                silentSaveTaskDB(draftTask); 
+            }
+        }
+    }
+
     draftSubtasks = tasks.filter(t => t.parent_task_id === id).map(st => JSON.parse(JSON.stringify(st)));
     originalAssignees = [...(draftTask.assignees || [])];
     draftSubtaskId = null; updateFormUI(); 
@@ -2434,6 +2458,8 @@ function renderDetailedTimeReport() {
     
     filteredLogs.forEach(log => {
         const ms = parseInt(log.duration_ms, 10);
+        const d = log.created_at ? new Date(log.created_at) : new Date();
+        const sessStr = `${d.toLocaleDateString()} at ${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
         
         const pObj = projects.find(p => p.id === log.project_id);
         const pName = pObj ? pObj.name : 'Unknown Project';
@@ -2446,15 +2472,17 @@ function renderDetailedTimeReport() {
             aggregated[uName].total += ms;
             if (!aggregated[uName].sub[pName]) aggregated[uName].sub[pName] = { total: 0, sub: {} };
             aggregated[uName].sub[pName].total += ms;
-            if (!aggregated[uName].sub[pName].sub[tName]) aggregated[uName].sub[pName].sub[tName] = 0;
-            aggregated[uName].sub[pName].sub[tName] += ms;
+            if (!aggregated[uName].sub[pName].sub[tName]) aggregated[uName].sub[pName].sub[tName] = { total: 0, sessions: [] };
+            aggregated[uName].sub[pName].sub[tName].total += ms;
+            aggregated[uName].sub[pName].sub[tName].sessions.push({ str: sessStr, ms: ms });
         } else {
             if (!aggregated[pName]) aggregated[pName] = { total: 0, sub: {} };
             aggregated[pName].total += ms;
             if (!aggregated[pName].sub[uName]) aggregated[pName].sub[uName] = { total: 0, sub: {} };
             aggregated[pName].sub[uName].total += ms;
-            if (!aggregated[pName].sub[uName].sub[tName]) aggregated[pName].sub[uName].sub[tName] = 0;
-            aggregated[pName].sub[uName].sub[tName] += ms;
+            if (!aggregated[pName].sub[uName].sub[tName]) aggregated[pName].sub[uName].sub[tName] = { total: 0, sessions: [] };
+            aggregated[pName].sub[uName].sub[tName].total += ms;
+            aggregated[pName].sub[uName].sub[tName].sessions.push({ str: sessStr, ms: ms });
         }
     });
 
@@ -2486,16 +2514,27 @@ function renderDetailedTimeReport() {
                     <div style="padding: 6px 10px 10px 15px;">
                 `;
                 
-                const sortedL3 = Object.keys(l2Data.sub).sort((a,b) => l2Data.sub[b] - l2Data.sub[a]);
-                html += `<table style="width: 100%; border-collapse: collapse; font-size: 13px;">`;
+                const sortedL3 = Object.keys(l2Data.sub).sort((a,b) => l2Data.sub[b].total - l2Data.sub[a].total);
+                html += `<div style="display: flex; flex-direction: column; gap: 4px;">`;
                 sortedL3.forEach(l3 => {
+                    const tData = l2Data.sub[l3];
                     html += `
-                    <tr style="border-bottom: 1px dashed #ebecf0;">
-                        <td style="padding: 6px 0; color: #5e6c84;">${sanitize(l3)}</td>
-                        <td style="padding: 6px 0; text-align: right; color: #172b4d; font-family: monospace;">${formatTime(l2Data.sub[l3])}</td>
-                    </tr>`;
+                    <details style="border-bottom: 1px dashed #ebecf0; padding: 4px 0;" open>
+                        <summary style="cursor: pointer; display: flex; justify-content: space-between; outline: none; color: #5e6c84; font-size: 13px;">
+                            <span>${sanitize(l3)}</span>
+                            <span style="color: #172b4d; font-family: monospace;">${formatTime(tData.total)}</span>
+                        </summary>
+                        <div style="padding-left: 15px; font-size: 11px; margin-top: 4px;">`;
+                    
+                    tData.sessions.forEach(sess => {
+                        html += `<div style="display: flex; justify-content: space-between; color: #8993a4; padding: 2px 0;">
+                            <span>↳ ${sess.str}</span>
+                            <span style="font-family: monospace;">${formatTime(sess.ms)}</span>
+                        </div>`;
+                    });
+                    html += `</div></details>`;
                 });
-                html += `</table></div></details>`;
+                html += `</div></div></details>`;
             });
             
             html += `</div></details>`;
