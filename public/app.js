@@ -202,13 +202,6 @@ function renderChat() {
         const isMe = msg.sender_id === myId;
         const isSystem = msg.sender_id === 'system' || msg.content.startsWith('🤖 System:');
         
-        div.style.maxWidth = '85%';
-        div.style.padding = '10px 14px';
-        div.style.borderRadius = '8px';
-        div.style.fontSize = '14px';
-        div.style.lineHeight = '1.4';
-        div.style.wordBreak = 'break-word';
-        
         if (isSystem) {
             div.style.alignSelf = 'center';
             div.style.background = '#ebecf0';
@@ -442,7 +435,7 @@ function renderWorkspaceMenu() {
         btn.onclick = async () => { 
             currentWorkspaceId = ws.id; localStorage.setItem('currentWorkspaceId', ws.id);
             currentProjectId = null; workspaceContextMenu.style.display = 'none'; 
-            selectedTasks.clear();
+            clearBulkSelect(); 
             await loadDataFromDB(); 
         };
         list.appendChild(btn);
@@ -520,7 +513,7 @@ function renderProjects() {
             } else {
                 currentProjectId = project.id; 
                 localStorage.setItem('currentProjectId', project.id);
-                selectedTasks.clear();
+                clearBulkSelect();
                 if(isMasterView) toggleMasterView(); 
                 renderBoard(); 
                 renderProjects(); 
@@ -530,7 +523,6 @@ function renderProjects() {
         
         btn.oncontextmenu = (e) => showContextMenuProject(e, project.id);
         
-        // PROJECT DROP ZONES ENABLED
         btn.draggable = true; 
         btn.ondragstart = (e) => handleTabDragStart(e, project.id); 
         btn.ondragend = (e) => e.target.classList.remove('dragging-tab'); 
@@ -587,7 +579,108 @@ function updateAssigneeFilterOptions() {
     if (currentSelection) filterSelect.value = currentSelection;
 }
 
-// --- NATIVE OS BULK SELECT ENGINE ---
+// --- BULK ACTION ENGINE ---
+function toggleBulkSelect(taskId, isChecked) {
+    if(isChecked) selectedTasks.add(taskId);
+    else selectedTasks.delete(taskId);
+    renderBulkActionBar();
+}
+
+function clearBulkSelect() {
+    selectedTasks.clear();
+    renderBoard(); 
+    renderBulkActionBar();
+}
+
+function renderBulkActionBar() {
+    let bar = document.getElementById('bulk-action-bar');
+    if(!bar) {
+        bar = document.createElement('div');
+        bar.id = 'bulk-action-bar';
+        bar.style.position = 'fixed';
+        bar.style.bottom = '20px';
+        bar.style.left = '50%';
+        bar.style.transform = 'translateX(-50%)';
+        bar.style.background = '#172b4d';
+        bar.style.color = 'white';
+        bar.style.padding = '12px 24px';
+        bar.style.borderRadius = '8px';
+        bar.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+        bar.style.display = 'flex';
+        bar.style.alignItems = 'center';
+        bar.style.gap = '15px';
+        bar.style.zIndex = '9999';
+        document.body.appendChild(bar);
+    }
+    
+    if(selectedTasks.size === 0) {
+        bar.style.display = 'none';
+        return;
+    }
+    
+    bar.style.display = 'flex';
+    bar.innerHTML = `
+        <span style="font-weight:bold;">${selectedTasks.size} task(s) selected</span>
+        <select id="bulk-status-select" style="padding:6px 12px; border-radius:4px; color:black; font-family:inherit;">
+            <option value="" disabled selected>Move selected to...</option>
+            <option value="todo">To Do</option>
+            <option value="doing">Doing</option>
+            <option value="done">Done</option>
+            <option value="future">Future</option>
+            <option value="recurring">Recurring</option>
+            <option value="complete">Archive (Complete)</option>
+        </select>
+        <button type="button" class="action-success" onclick="executeBulkMove()" style="padding:6px 16px;">Apply Status</button>
+        <button type="button" class="danger" onclick="executeBulkDelete()" style="padding:6px 16px;">Delete All</button>
+        <button type="button" class="secondary" onclick="clearBulkSelect()" style="padding:6px 16px; background:transparent; color:white; border: 1px solid white;">Cancel</button>
+    `;
+}
+
+async function executeBulkMove() {
+    const status = document.getElementById('bulk-status-select').value;
+    if(!status) return;
+    
+    for(let id of selectedTasks) {
+        const t = tasks.find(x => x.id === id);
+        if(t) {
+            const oldStatus = t.status;
+            t.status = status;
+            
+            if ((status === 'done' || status === 'complete' || status === 'archive') && (oldStatus !== 'done' && oldStatus !== 'complete' && oldStatus !== 'archive')) {
+                t.completed_at = new Date().toISOString();
+                if (t.timer_running) {
+                    const now = Date.now();
+                    const start = parseInt(t.timer_started_at, 10) || now;
+                    t.timer_elapsed = parseInt(t.timer_elapsed, 10) + (now - start);
+                    t.timer_running = false;
+                    t.timer_started_at = null;
+                }
+            } else if (status !== 'done' && status !== 'complete' && status !== 'archive') {
+                t.completed_at = null;
+            }
+            
+            const idx = tasks.findIndex(x => x.id === id); 
+            if (idx > -1) tasks[idx] = t;
+            apiCall('/tasks', 'POST', t); 
+        }
+    }
+    selectedTasks.clear();
+    renderBulkActionBar();
+    renderAll();
+}
+
+function executeBulkDelete() {
+    if(!confirm(`Are you sure you want to permanently delete ${selectedTasks.size} task(s)? This cannot be undone.`)) return;
+    
+    for(let id of selectedTasks) {
+        tasks = tasks.filter(t => t.id !== id && t.parent_task_id !== id);
+        apiCall('/tasks/' + id, 'DELETE');
+    }
+    selectedTasks.clear();
+    renderBulkActionBar();
+    renderAll();
+}
+
 function handleCardClick(e, id) {
     if (e.ctrlKey || e.metaKey) {
         e.preventDefault(); e.stopPropagation();
@@ -1179,7 +1272,13 @@ function positionMenu(e, target) {
     }
 }
 
-// --- CONTEXT MENUS (BULK & SINGLE) ---
+// --- CONTEXT MENUS (BULK & SINGLE WITH ACCORDION) ---
+function toggleContextSubmenu(e, id) {
+    e.preventDefault(); e.stopPropagation();
+    const el = document.getElementById(id);
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
 function showContextMenuMain(e, id) { 
     e.preventDefault(); e.stopPropagation(); closeMenus(); 
     contextTargetMainId = id; 
@@ -1188,22 +1287,30 @@ function showContextMenuMain(e, id) {
         selectedTasks.clear();
         selectedTasks.add(id);
         lastSelectedTaskId = id;
-        renderBoard(); // Visual update
+        renderBoard(); 
     }
     
     let target;
     const count = selectedTasks.size;
     
-    // Build Project Routing Sub-Menu
+    // BUILD PROJECT ROUTING ACCORDION
     const me = getActiveUserObj();
     let visibleProjs = projects.filter(p => p.workspace_id === currentWorkspaceId && (!p.isSecret || p.owner_id === me.id) && !(me.preferences.hiddenProjects || []).includes(p.id) && p.id !== currentProjectId);
     
     let projectOptionsHtml = '';
     if (visibleProjs.length > 0) {
-        projectOptionsHtml = `<div style="padding: 4px 12px; font-size: 11px; font-weight: bold; color: #5e6c84; text-transform: uppercase; margin-top: 8px; border-top: 1px solid #dfe1e6; padding-top: 8px;">Move to Project</div>`;
+        projectOptionsHtml = `
+            <div style="margin-top: 8px; border-top: 1px solid #dfe1e6; padding-top: 8px;"></div>
+            <button onclick="toggleContextSubmenu(event, 'submenu-projects')" style="color: #42526e; display: flex; justify-content: space-between; align-items: center; width: 100%; padding-right: 8px;">
+                <span>📁 Move to Project</span>
+                <span style="font-size: 10px;">▼</span>
+            </button>
+            <div id="submenu-projects" style="display: none; padding-left: 12px; margin-top: 4px; border-left: 2px solid #ebecf0;">
+        `;
         visibleProjs.forEach(p => {
-            projectOptionsHtml += `<button onclick="contextActionMoveToProject('${p.id}')" style="color:#172b4d;">↳ ${sanitize(p.name)}</button>`;
+            projectOptionsHtml += `<button onclick="contextActionMoveToProject('${p.id}')" style="color:#172b4d; padding: 6px 8px; font-size: 13px;">↳ ${sanitize(p.name)}</button>`;
         });
+        projectOptionsHtml += `</div>`;
     }
 
     // MULTI-SELECT CONTEXT MENU
@@ -1429,7 +1536,6 @@ function moveTaskStatus(id, newStatus) {
     } 
 }
 
-// MULTI-SELECT COLUMN DRAG & PROJECT DROP LOGIC
 function handleTabDragStart(e, id) { e.dataTransfer.setData("projectId", id); setTimeout(() => e.target.classList.add('dragging-tab'), 0); }
 function handleTabDrop(e, targetId) {
     e.preventDefault(); 
@@ -1453,7 +1559,6 @@ function handleTabDrop(e, targetId) {
         return;
     }
 
-    // Catch tasks dropped onto project tabs
     const draggedTaskId = e.dataTransfer.getData("taskId");
     if (draggedTaskId) {
         let tasksToMove = selectedTasks.size > 0 && selectedTasks.has(draggedTaskId) ? Array.from(selectedTasks) : [draggedTaskId];
@@ -1473,7 +1578,6 @@ function dragStart(e, id) {
     if (!selectedTasks.has(id)) {
         selectedTasks.clear();
         selectedTasks.add(id);
-        // Instant visual update to avoid DOM re-render drag-break
         document.querySelectorAll('.card').forEach(c => {
             if (c.getAttribute('data-id') === id) {
                 c.style.outline = '2px solid #0052cc';
@@ -1541,7 +1645,7 @@ function dragEnd(e) {
         apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: user.id, preferences: user.preferences });
         
         if (tasksToMove.length > 1) {
-            renderBoard(); // Re-render to snap all multiple items to new column instantly
+            renderBoard(); 
         }
     }
 }
@@ -1599,14 +1703,17 @@ function toggleTimer() {
         draftTask.timer_started_at = null;
         
         if (sessionDuration > 1000) { 
-            apiCall('/time_logs', 'POST', {
+            const newLog = {
                 id: generateUUID(),
                 user_id: getActiveUserObj().id,
                 workspace_id: currentWorkspaceId,
                 project_id: currentProjectId,
                 task_id: draftTask.id,
-                duration_ms: sessionDuration
-            });
+                duration_ms: sessionDuration,
+                created_at: new Date().toISOString()
+            };
+            timeLogs.push(newLog); // Update Local State!
+            apiCall('/time_logs', 'POST', newLog);
         }
         
         btn.innerText = '▶ Start';
@@ -1670,6 +1777,63 @@ function updateGlobalTimer() {
     }
     document.getElementById('global-timer-text').innerText = sanitize(runningTask.title) + " - " + formatTime(elapsed);
     indicator.onclick = () => editTask(runningTask.id);
+}
+
+// --- TASK SPECIFIC TIME REPORTING MODAL ---
+function generateTimeReportHTML(taskId) {
+    const logs = timeLogs.filter(l => l.task_id === taskId);
+    if (logs.length === 0) return `<p style="color: #5e6c84; font-size: 13px;">No time logged yet.</p>`;
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(today); startOfWeek.setDate(today.getDate() - today.getDay());
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const startOfYear = new Date(today.getFullYear(), 0, 1);
+
+    let html = '';
+    const userTotals = {}; const userDaily = {}; const userWeekly = {}; const userMonthly = {}; const userYearly = {};
+
+    logs.forEach(log => {
+        const u = log.user_id;
+        const ms = parseInt(log.duration_ms, 10);
+        const logDate = log.created_at ? new Date(log.created_at) : new Date();
+
+        userTotals[u] = (userTotals[u] || 0) + ms;
+        if (logDate >= today) userDaily[u] = (userDaily[u] || 0) + ms;
+        if (logDate >= startOfWeek) userWeekly[u] = (userWeekly[u] || 0) + ms;
+        if (logDate >= startOfMonth) userMonthly[u] = (userMonthly[u] || 0) + ms;
+        if (logDate >= startOfYear) userYearly[u] = (userYearly[u] || 0) + ms;
+    });
+
+    html += `<table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 14px;">
+        <tr style="border-bottom: 2px solid #dfe1e6;">
+            <th style="padding: 8px;">User</th>
+            <th style="padding: 8px;">Today</th>
+            <th style="padding: 8px;">This Week</th>
+            <th style="padding: 8px;">This Month</th>
+            <th style="padding: 8px;">Total Time</th>
+        </tr>`;
+    
+    for (let u in userTotals) {
+        html += `<tr style="border-bottom: 1px solid #ebecf0;">
+            <td style="padding: 8px; font-weight: bold;">${sanitize(getUserName(u))}</td>
+            <td style="padding: 8px;">${formatTime(userDaily[u] || 0)}</td>
+            <td style="padding: 8px;">${formatTime(userWeekly[u] || 0)}</td>
+            <td style="padding: 8px;">${formatTime(userMonthly[u] || 0)}</td>
+            <td style="padding: 8px; color: #0052cc; font-weight: bold;">${formatTime(userTotals[u])}</td>
+        </tr>`;
+    }
+    html += `</table>`;
+    return html;
+}
+
+function openTimeReportModal() {
+    const taskId = draftSubtaskId ? draftSubtaskId : draftTask.id;
+    const content = document.getElementById('time-report-content');
+    content.innerHTML = generateTimeReportHTML(taskId);
+    
+    const m = document.getElementById('time-report-modal');
+    m.showModal();
 }
 
 function openModal(defaultStatus) {
@@ -1808,6 +1972,14 @@ function updateFormUI() {
         updateTimerDisplay();
     }
 
+    // UPDATE: Make the timer display text clickable to open the report modal
+    const timerDisplay = document.getElementById('task-timer-display');
+    timerDisplay.style.cursor = 'pointer';
+    timerDisplay.style.color = '#0052cc';
+    timerDisplay.style.textDecoration = 'underline';
+    timerDisplay.title = "View Time Report";
+    timerDisplay.onclick = openTimeReportModal;
+
     const badgeContainer = document.getElementById('task-assignees-display'); badgeContainer.innerHTML = '';
     (data.assignees || []).forEach(id => { 
         badgeContainer.innerHTML += `
@@ -1896,7 +2068,7 @@ document.getElementById('task-form').addEventListener('submit', async function(e
 });
 
 function openAssigneePromptModal() { 
-    syncFormToDraft(); 
+    syncFormToDraft(); // FIX: Syncs inputs so title isn't wiped!
     lockBody(); 
     renderAssigneeCheckboxes();
     const m = document.getElementById('assignee-prompt-modal');
@@ -1938,7 +2110,7 @@ function renderAssigneeCheckboxes() {
 }
 
 function openSubtaskPromptModal() { 
-    syncFormToDraft(); 
+    syncFormToDraft(); // FIX: Syncs inputs so title isn't wiped!
     lockBody(); 
     document.getElementById('new-subtask-name').value = ''; 
     const m = document.getElementById('subtask-prompt-modal');
@@ -2128,14 +2300,15 @@ function closeConfirmModal() {
     document.getElementById('confirm-execute-btn').innerText = 'Confirm';
 }
 
-// --- ANALYTICS DASHBOARD ENGINE ---
 function openAnalyticsModal() {
     document.getElementById('settings-modal').close(); 
     lockBody(); 
     const m = document.getElementById('analytics-modal');
-    m.showModal(); 
-    renderAnalyticsCharts();
-    setTimeout(() => m.scrollTop = 0, 10);
+    if (m) {
+        m.showModal(); 
+        renderAnalyticsCharts();
+        setTimeout(() => m.scrollTop = 0, 10);
+    }
 }
 
 function closeAnalyticsModal() { 
