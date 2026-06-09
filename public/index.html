@@ -225,7 +225,7 @@
         </div>
     </dialog>
 
-    <dialog id="analytics-modal" style="width: 95%; max-width: 1000px; height: 90vh;">
+  <dialog id="analytics-modal" style="width: 95%; max-width: 1000px; height: 90vh;">
         <div style="display: flex; flex-direction: column; height: 100%;">
             <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
             <div class="modal-header-row" style="flex-shrink: 0;">
@@ -238,7 +238,7 @@
                 <button id="tab-time-report" class="view-toggle" onclick="switchAnalyticsTab('time-report')">Detailed Time Report</button>
             </div>
             
-            <div id="analytics-overview" style="flex: 1; overflow-y: auto; padding-top: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+            <div id="analytics-overview" style="flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-top: 15px; padding-bottom: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
                 <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
                     <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Time Allocation (Hours by User)</h3>
                     <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-time-allocation"></canvas></div>
@@ -257,7 +257,7 @@
                 </div>
             </div>
 
-            <div id="analytics-time-report" style="flex: 1; overflow-y: auto; padding-top: 15px; display: none; flex-direction: column; gap: 15px;">
+            <div id="analytics-time-report" style="flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-top: 15px; padding-bottom: 30px; display: none; flex-direction: column; gap: 15px;">
                 <div style="display: flex; gap: 15px; background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; flex-wrap: wrap;">
                     <div style="flex: 1; min-width: 200px;">
                         <label style="font-size: 12px; font-weight: bold; color: #5e6c84; text-transform: uppercase; display: block; margin-bottom: 4px;">Timeframe</label>
@@ -284,13 +284,13 @@
         </div>
     </dialog>
 
-    <dialog id="time-report-modal">
+    <dialog id="time-report-modal" style="width: 95%; max-width: 600px; max-height: 80vh; overflow-y: auto; -webkit-overflow-scrolling: touch;">
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
-        <div class="modal-header-row">
+        <div class="modal-header-row" style="position: sticky; top: 0; background: white; z-index: 10; padding-bottom: 10px; border-bottom: 1px solid #dfe1e6;">
             <h2 style="margin:0; color: #0052cc;">Task Time Report</h2>
             <button class="danger" onclick="document.getElementById('time-report-modal').close()" title="Close">&times;</button>
         </div>
-        <div id="time-report-content" style="padding-top: 15px; min-width: 300px;">
+        <div id="time-report-content" style="padding-top: 15px; min-width: 250px;">
             </div>
     </dialog>
 
