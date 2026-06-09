@@ -1784,7 +1784,6 @@ function updateGlobalTimer() {
     indicator.onclick = () => editTask(runningTask.id);
 }
 
-// --- TASK SPECIFIC TIME REPORTING MODAL ---
 function generateTimeReportHTML(taskId) {
     const logs = timeLogs.filter(l => l.task_id === taskId).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
     if (logs.length === 0) return `<p style="color: #5e6c84; font-size: 13px;">No time logged yet.</p>`;
@@ -1807,8 +1806,9 @@ function generateTimeReportHTML(taskId) {
     let html = `<div style="display: flex; flex-direction: column; gap: 10px;">`;
     for (let u in userGroups) {
         const uData = userGroups[u];
+        // FIX: Removed the 'open' attribute so it defaults to closed
         html += `
-        <details style="border: 1px solid #dfe1e6; border-radius: 6px; overflow: hidden;" open>
+        <details style="border: 1px solid #dfe1e6; border-radius: 6px; overflow: hidden;">
             <summary style="background: #f4f5f7; padding: 10px 12px; cursor: pointer; font-weight: bold; color: #172b4d; display: flex; justify-content: space-between; outline: none;">
                 <span>👤 ${sanitize(getUserName(u))}</span>
                 <span style="color: #0052cc;">${formatTime(uData.total)}</span>
@@ -1818,8 +1818,9 @@ function generateTimeReportHTML(taskId) {
         for (let dKey in uData.dates) {
             const dData = uData.dates[dKey];
             let isToday = (dKey === new Date().toLocaleDateString()) ? ' (Today)' : '';
+            // FIX: Removed the 'open' attribute
             html += `
-            <details style="margin-bottom: 6px; border-left: 2px solid #ebecf0; padding-left: 10px;" open>
+            <details style="margin-bottom: 6px; border-left: 2px solid #ebecf0; padding-left: 10px;">
                 <summary style="padding: 4px 6px; cursor: pointer; font-size: 13px; font-weight: 600; color: #42526e; display: flex; justify-content: space-between; outline: none;">
                     <span>📅 ${dKey}${isToday}</span>
                     <span style="color: #36b37e;">${formatTime(dData.total)}</span>
@@ -2493,8 +2494,9 @@ function renderDetailedTimeReport() {
         const sortedL1 = Object.keys(aggregated).sort((a,b) => aggregated[b].total - aggregated[a].total);
         sortedL1.forEach(l1 => {
             const l1Data = aggregated[l1];
+            // FIX: Removed 'open' attribute
             html += `
-            <details style="margin-bottom: 8px; border: 1px solid #dfe1e6; border-radius: 6px; overflow: hidden;" open>
+            <details style="margin-bottom: 8px; border: 1px solid #dfe1e6; border-radius: 6px; overflow: hidden;">
                 <summary style="background: #f4f5f7; padding: 12px; cursor: pointer; font-weight: bold; color: #172b4d; display: flex; justify-content: space-between; outline: none;">
                     <span>${sanitize(l1)}</span>
                     <span style="color: #0052cc;">${formatTime(l1Data.total)}</span>
@@ -2505,8 +2507,9 @@ function renderDetailedTimeReport() {
             const sortedL2 = Object.keys(l1Data.sub).sort((a,b) => l1Data.sub[b].total - l1Data.sub[a].total);
             sortedL2.forEach(l2 => {
                 const l2Data = l1Data.sub[l2];
+                // FIX: Removed 'open' attribute
                 html += `
-                <details style="margin-bottom: 6px; border-left: 2px solid #ebecf0; padding-left: 10px;" open>
+                <details style="margin-bottom: 6px; border-left: 2px solid #ebecf0; padding-left: 10px;">
                     <summary style="padding: 6px; cursor: pointer; font-weight: 600; color: #42526e; display: flex; justify-content: space-between; border-bottom: 1px solid #ebecf0; outline: none;">
                         <span>${sanitize(l2)}</span>
                         <span style="color: #36b37e;">${formatTime(l2Data.total)}</span>
@@ -2518,8 +2521,9 @@ function renderDetailedTimeReport() {
                 html += `<div style="display: flex; flex-direction: column; gap: 4px;">`;
                 sortedL3.forEach(l3 => {
                     const tData = l2Data.sub[l3];
+                    // FIX: Removed 'open' attribute
                     html += `
-                    <details style="border-bottom: 1px dashed #ebecf0; padding: 4px 0;" open>
+                    <details style="border-bottom: 1px dashed #ebecf0; padding: 4px 0;">
                         <summary style="cursor: pointer; display: flex; justify-content: space-between; outline: none; color: #5e6c84; font-size: 13px;">
                             <span>${sanitize(l3)}</span>
                             <span style="color: #172b4d; font-family: monospace;">${formatTime(tData.total)}</span>
