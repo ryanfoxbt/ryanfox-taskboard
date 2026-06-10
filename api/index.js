@@ -24,7 +24,6 @@ const defaultPrefs = JSON.stringify({
 // 1. GET ALL DATA (SOFT DELETE FILTER ADDED)
 app.get('/api/data', async (req, res) => {
     try {
-        // Only pull data that has NOT been soft-deleted
         const workspaces = await pool.query('SELECT * FROM workspaces WHERE is_deleted IS NOT TRUE');
         const projects = await pool.query('SELECT * FROM projects WHERE is_deleted IS NOT TRUE');
         const tasks = await pool.query('SELECT * FROM tasks WHERE is_deleted IS NOT TRUE');
@@ -33,11 +32,13 @@ app.get('/api/data', async (req, res) => {
         const workspace_members = await pool.query('SELECT * FROM workspace_members');
         const task_assignees = await pool.query('SELECT * FROM task_assignees');
         const time_logs = await pool.query('SELECT * FROM time_logs'); 
+        const task_repetitions = await pool.query('SELECT * FROM task_repetitions'); // NEW
         
         res.json({ 
             workspaces: workspaces.rows, projects: projects.rows, tasks: tasks.rows, 
             users: users.rows, workspace_members: workspace_members.rows, 
-            task_assignees: task_assignees.rows, time_logs: time_logs.rows 
+            task_assignees: task_assignees.rows, time_logs: time_logs.rows,
+            task_repetitions: task_repetitions.rows // NEW
         });
     } catch (err) { res.status(500).json({ error: 'Failed to fetch data' }); }
 });
@@ -118,6 +119,18 @@ app.post('/api/time_logs', async (req, res) => {
             `INSERT INTO time_logs (id, user_id, workspace_id, project_id, task_id, duration_ms, created_at) 
              VALUES ($1, $2, $3, $4, $5, $6, $7)`,
             [id, user_id, workspace_id, project_id, task_id, duration_ms, created_at || new Date().toISOString()]
+        );
+        res.json({ success: true });
+    } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- REPETITION LOGS ---
+app.post('/api/repetitions', async (req, res) => {
+    const { id, task_id, user_id, created_at } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO task_repetitions (id, task_id, user_id, created_at) VALUES ($1, $2, $3, $4)`,
+            [id, task_id, user_id, created_at || new Date().toISOString()]
         );
         res.json({ success: true });
     } catch(err) { res.status(500).json({ error: err.message }); }
