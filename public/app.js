@@ -73,6 +73,7 @@ let masterScope = 'workspace';
 
 let activeTimerInterval = null;
 let timeLogs = [];
+let taskRepetitions = [];
 let chartInstances = {};
 
 const lists = { future: document.getElementById('future-list'), todo: document.getElementById('todo-list'), doing: document.getElementById('doing-list'), done: document.getElementById('done-list'), recurring: document.getElementById('recurring-list'), complete: document.getElementById('complete-list') };
@@ -296,6 +297,7 @@ async function loadDataFromDB() {
         
         workspaces = data.workspaces || [];
         timeLogs = data.time_logs || [];
+        taskRepetitions = data.task_repetitions || [];
         
         projects = (data.projects || []).map(p => { 
             p.isSecret = p.is_secret; 
@@ -926,7 +928,7 @@ function renderBoard() {
                 <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #dfe1e6;" onclick="event.stopPropagation()">
                     <span style="font-size: 11px; color: #5e6c84; font-weight: bold; text-transform: uppercase;">Repetitions:</span>
                     <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="handleCardAction(event, 'inline-counter-minus', '${task.id}')">-</button>
-                    <span class="inline-counter-val-${task.id}" style="font-weight: bold; font-size: 14px; min-width: 24px; text-align: center; color: #172b4d;">${count}</span>
+                    <span class="inline-counter-val-${task.id}" style="font-weight: bold; font-size: 14px; min-width: 24px; text-align: center; color: #0052cc; text-decoration: underline; cursor: pointer;" onclick="event.stopPropagation(); openRepetitionReportModal('${task.id}')" title="View Repetition History">${count}</span>
                     <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="handleCardAction(event, 'inline-counter-plus', '${task.id}')">+</button>
                 </div>
             `;
@@ -1118,14 +1120,14 @@ function renderMasterView() {
             dateHtml = `<span class="date-badge" style="margin:0; background: transparent; border: none; padding: 0;">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; 
         }
 
-        let recurringCounterHtml = '';
+       let recurringCounterHtml = '';
         if (task.status === 'recurring') {
             const count = task.counter || 0;
             recurringCounterHtml = `
                 <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #dfe1e6;" onclick="event.stopPropagation()">
                     <span style="font-size: 11px; color: #5e6c84; font-weight: bold; text-transform: uppercase;">Repetitions:</span>
                     <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="handleCardAction(event, 'inline-counter-minus', '${task.id}')">-</button>
-                    <span class="inline-counter-val-${task.id}" style="font-weight: bold; font-size: 14px; min-width: 24px; text-align: center; color: #172b4d;">${count}</span>
+                    <span class="inline-counter-val-${task.id}" style="font-weight: bold; font-size: 14px; min-width: 24px; text-align: center; color: #0052cc; text-decoration: underline; cursor: pointer;" onclick="event.stopPropagation(); openRepetitionReportModal('${task.id}')" title="View Repetition History">${count}</span>
                     <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="handleCardAction(event, 'inline-counter-plus', '${task.id}')">+</button>
                 </div>
             `;
@@ -1667,6 +1669,18 @@ function inlineAdjustCounter(id, amount) {
     t.counter = parseInt(t.counter || 0, 10) + amount;
     if (t.counter < 0) t.counter = 0;
 
+    // Log the repetition if it's an addition!
+    if (amount > 0) {
+        const rep = {
+            id: generateUUID(),
+            task_id: id,
+            user_id: getActiveUserObj().id,
+            created_at: new Date().toISOString()
+        };
+        taskRepetitions.push(rep);
+        apiCall('/repetitions', 'POST', rep);
+    }
+
     document.querySelectorAll(`.inline-counter-val-${id}`).forEach(el => {
         el.innerText = t.counter;
     });
@@ -1707,12 +1721,16 @@ function toggleTimer() {
         draftTask.timer_running = false;
         draftTask.timer_started_at = null;
         
-        if (sessionDuration > 1000) { 
+       if (sessionDuration > 1000) { 
+            // Fix: Pull native project to prevent cross-workspace contamination
+            const nativeProj = projects.find(p => p.id === draftTask.project_id);
+            const nativeWsId = nativeProj ? nativeProj.workspace_id : currentWorkspaceId;
+            
             const newLog = {
                 id: generateUUID(),
                 user_id: getActiveUserObj().id,
-                workspace_id: currentWorkspaceId,
-                project_id: currentProjectId,
+                workspace_id: nativeWsId,
+                project_id: draftTask.project_id,
                 task_id: draftTask.id,
                 duration_ms: sessionDuration,
                 created_at: new Date().toISOString()
@@ -1848,6 +1866,34 @@ function openTimeReportModal() {
     content.innerHTML = generateTimeReportHTML(taskId);
     
     const m = document.getElementById('time-report-modal');
+    m.showModal();
+}
+
+function openRepetitionReportModal(taskId) {
+    const reps = taskRepetitions.filter(r => r.task_id === taskId).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+    let html = '';
+    
+    if (reps.length === 0) {
+        html = '<p style="color: #5e6c84; font-size: 13px;">No repetitions logged yet.</p>';
+    } else {
+        html += `<table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 14px;">
+            <tr style="border-bottom: 2px solid #dfe1e6;">
+                <th style="padding: 8px;">Date & Time</th>
+                <th style="padding: 8px;">Completed By</th>
+            </tr>`;
+        reps.forEach(r => {
+            const d = new Date(r.created_at);
+            const dateStr = d.toLocaleDateString() + ' at ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            html += `<tr style="border-bottom: 1px solid #ebecf0;">
+                <td style="padding: 8px;">${dateStr}</td>
+                <td style="padding: 8px; font-weight: bold;">${sanitize(getUserName(r.user_id))}</td>
+            </tr>`;
+        });
+        html += `</table>`;
+    }
+
+    document.getElementById('repetition-report-content').innerHTML = html;
+    const m = document.getElementById('repetition-report-modal');
     m.showModal();
 }
 
