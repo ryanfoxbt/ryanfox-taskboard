@@ -294,6 +294,16 @@
             </div>
     </dialog>
 
+    <dialog id="repetition-report-modal" style="width: 95%; max-width: 500px; max-height: 80vh; overflow-y: auto; -webkit-overflow-scrolling: touch;">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
+        <div class="modal-header-row" style="position: sticky; top: 0; background: white; z-index: 10; padding-bottom: 10px; border-bottom: 1px solid #dfe1e6;">
+            <h2 style="margin:0; color: #0052cc;">Repetition History</h2>
+            <button class="danger" onclick="document.getElementById('repetition-report-modal').close()" title="Close">&times;</button>
+        </div>
+        <div id="repetition-report-content" style="padding-top: 15px; min-width: 250px;">
+            </div>
+    </dialog>
+
     <dialog id="edit-user-email-modal">
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">Edit User Email</h2>
