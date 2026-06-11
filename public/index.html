@@ -5,12 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <title>Personal Task Board</title>
     <link rel="stylesheet" href="/style.css">
-    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
-    <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_YnJpZWYtc2F3ZmlzaC02MS5jbGVyay5hY2NvdW50cy5kZXYk" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@4/dist/clerk.browser.js"></script>
+    <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_YOUR_CLERK_PUBLISHABLE_KEY_HERE" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@4/dist/clerk.browser.js"></script>
 
     <div id="sign-in-container" style="display: none; height: 100vh; justify-content: center; align-items: center; background: #f4f5f7;">
         <div id="sign-in"></div>
@@ -34,8 +33,7 @@
                 <option value="team">Team Chat (Workspace)</option>
             </select>
         </div>
-        <div id="chat-messages">
-            </div>
+        <div id="chat-messages"></div>
         <form id="chat-form">
             <input type="text" id="chat-input" placeholder="Type a message..." required spellcheck="true">
             <button type="submit" style="padding: 10px 16px;">Send</button>
@@ -225,7 +223,7 @@
         </div>
     </dialog>
 
-  <dialog id="analytics-modal" style="width: 95%; max-width: 1000px; height: 90vh;">
+    <dialog id="analytics-modal" style="width: 95%; max-width: 1000px; height: 90vh;">
         <div style="display: flex; flex-direction: column; height: 100%;">
             <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
             <div class="modal-header-row" style="flex-shrink: 0;">
@@ -278,8 +276,7 @@
                     </div>
                 </div>
                 
-                <div id="detailed-time-container" style="background: white; border: 1px solid #dfe1e6; border-radius: 8px; padding: 15px;">
-                    </div>
+                <div id="detailed-time-container" style="background: white; border: 1px solid #dfe1e6; border-radius: 8px; padding: 15px;"></div>
             </div>
         </div>
     </dialog>
@@ -290,8 +287,7 @@
             <h2 style="margin:0; color: #0052cc;">Task Time Report</h2>
             <button class="danger" onclick="document.getElementById('time-report-modal').close()" title="Close">&times;</button>
         </div>
-        <div id="time-report-content" style="padding-top: 15px; min-width: 250px;">
-            </div>
+        <div id="time-report-content" style="padding-top: 15px; min-width: 250px;"></div>
     </dialog>
 
     <dialog id="repetition-report-modal" style="width: 95%; max-width: 500px; max-height: 80vh; overflow-y: auto; -webkit-overflow-scrolling: touch;">
@@ -300,8 +296,7 @@
             <h2 style="margin:0; color: #0052cc;">Repetition History</h2>
             <button class="danger" onclick="document.getElementById('repetition-report-modal').close()" title="Close">&times;</button>
         </div>
-        <div id="repetition-report-content" style="padding-top: 15px; min-width: 250px;">
-            </div>
+        <div id="repetition-report-content" style="padding-top: 15px; min-width: 250px;"></div>
     </dialog>
 
     <dialog id="edit-user-email-modal">
@@ -488,7 +483,6 @@
             <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;" id="gcal-checkbox-container">
                 <input type="checkbox" id="task-gcal-sync"><label for="task-gcal-sync" style="margin:0; font-weight:bold; color: #0052cc;">📅 Add to Google Calendar on Save</label>
             </div>
-
             
             <div id="task-comments-section" class="form-group" style="display: none; margin-top: 20px; border-top: 2px solid #ebecf0; padding-top: 15px;">
                 <label style="margin: 0; font-size: 14px; font-weight: bold; color: #172b4d; padding-bottom: 6px; display: block; margin-bottom: 10px;">Comments & Notes</label>
@@ -500,10 +494,24 @@
             </div>
 
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeModal()">Cancel</button><button type="submit" id="save-task-btn">Save Task</button></div>
-            
         </form>
     </dialog>
-    
+
+    <dialog id="edit-comment-modal" style="width: 95%; max-width: 500px; z-index: 9999;">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
+        <h2 style="margin-top:0; color: #172b4d;">Edit Comment</h2>
+        <form id="edit-comment-form">
+            <input type="hidden" id="edit-comment-id">
+            <div class="form-group">
+                <textarea id="edit-comment-input" rows="3" required spellcheck="true" style="width: 100%; padding: 8px; border: 1px solid #dfe1e6; border-radius: 4px; resize: vertical; font-family: inherit;"></textarea>
+            </div>
+            <div class="dialog-actions">
+                <button type="button" class="secondary" onclick="document.getElementById('edit-comment-modal').close()">Cancel</button>
+                <button type="submit" class="action-primary">Save Changes</button>
+            </div>
+        </form>
+    </dialog>
+
     <script src="/app.js"></script>
 </body>
 </html>
