@@ -378,18 +378,20 @@
         <form id="edit-project-form">
             <div class="form-group"><label>Project Name</label><input type="text" id="edit-project-name" required autocomplete="off" spellcheck="true"></div>
             
-            <div class="form-group">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <label style="margin: 0;">Project Notes / Scratchpad</label>
-                    <button type="button" class="danger" onclick="document.getElementById('edit-project-notes').value = ''" title="Clear text (Requires Save to commit)">Clear</button>
-                </div>
-                <textarea id="edit-project-notes" rows="6" placeholder="Jot down quick ideas, meeting notes, or draft future tasks here..." style="resize: vertical;" spellcheck="true"></textarea>
-            </div>
-
             <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;">
                 <input type="checkbox" id="edit-project-secret"><label for="edit-project-secret" style="margin:0; font-weight:bold; color: #006644;">🔒 Make Secret (Only visible to me)</label>
             </div>
-            <div class="dialog-actions"><button type="button" class="secondary" onclick="closeEditProjectModal()">Cancel</button><button type="submit">Save Changes</button></div>
+
+            <div class="form-group">
+                <label style="margin: 0; font-size: 14px; font-weight: bold; color: #172b4d; border-bottom: 2px solid #ebecf0; padding-bottom: 6px; display: block; margin-top: 15px; margin-bottom: 10px;">Project Activity & Notes</label>
+                <div id="project-comments-list" style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px;"></div>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="new-project-comment" placeholder="Add a note or update..." style="flex: 1; padding: 8px; border: 1px solid #dfe1e6; border-radius: 4px;" autocomplete="off" spellcheck="true" onkeydown="if(event.key === 'Enter') { event.preventDefault(); postProjectComment(); }">
+                    <button type="button" class="action-primary" onclick="postProjectComment()" style="padding: 6px 12px;">Post</button>
+                </div>
+            </div>
+
+            <div class="dialog-actions"><button type="button" class="secondary" onclick="closeEditProjectModal()">Close</button><button type="submit">Save Name/Privacy</button></div>
         </form>
     </dialog>
 
@@ -486,6 +488,21 @@
             <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;" id="gcal-checkbox-container">
                 <input type="checkbox" id="task-gcal-sync"><label for="task-gcal-sync" style="margin:0; font-weight:bold; color: #0052cc;">📅 Add to Google Calendar on Save</label>
             </div>
+
+            <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;" id="gcal-checkbox-container">
+                <input type="checkbox" id="task-gcal-sync"><label for="task-gcal-sync" style="margin:0; font-weight:bold; color: #0052cc;">📅 Add to Google Calendar on Save</label>
+            </div>
+            
+            <div id="task-comments-section" class="form-group" style="display: none; margin-top: 20px; border-top: 2px solid #ebecf0; padding-top: 15px;">
+                <label style="margin: 0; font-size: 14px; font-weight: bold; color: #172b4d; padding-bottom: 6px; display: block; margin-bottom: 10px;">Comments & Notes</label>
+                <div id="task-comments-list" style="max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; -webkit-overflow-scrolling: touch;"></div>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="new-task-comment" placeholder="Ask a question or log a note..." style="flex: 1; padding: 8px; border: 1px solid #dfe1e6; border-radius: 4px;" autocomplete="off" spellcheck="true" onkeydown="if(event.key === 'Enter') { event.preventDefault(); postTaskComment(); }">
+                    <button type="button" class="action-primary" onclick="postTaskComment()" style="padding: 6px 12px;">Post</button>
+                </div>
+            </div>
+
+            <div class="dialog-actions"><button type="button" class="secondary" onclick="closeModal()">Cancel</button><button type="submit" id="save-task-btn">Save Task</button></div>
             
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeModal()">Cancel</button><button type="submit" id="save-task-btn">Save Task</button></div>
         </form>
