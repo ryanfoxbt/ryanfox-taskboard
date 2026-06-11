@@ -56,6 +56,7 @@ let displayConfig = { showDate: true, showUrgency: true, showDesc: true, showAss
 
 let currentView = 'active'; let draftTask = null; let draftSubtasks = []; let pendingConfirmAction = null; 
 let contextTargetMainId = null; let contextTargetSubtaskId = null; let contextTargetProjectId = null;
+let draftSubtaskId = null; // FIX: Declared cleanly at the top to prevent parsing crashes!
 
 // BULK SELECT STATE
 let selectedTasks = new Set();
@@ -1247,24 +1248,6 @@ function toggleWorkspaceMenu(e) {
     menu.style.display = menu.style.display === 'block' ? 'none' : 'block'; 
 }
 
-document.addEventListener('click', (e) => { 
-    closeMenus(); 
-    if (!e.target.closest('.card') && !e.target.closest('.custom-context-menu') && selectedTasks.size > 0) {
-        selectedTasks.clear();
-        renderBoard();
-    }
-    
-    // Auto-close UI Pills when clicking away
-    if (!e.target.closest('#pill-urgency') && !e.target.closest('#urgency-dropdown')) {
-        const d = document.getElementById('urgency-dropdown');
-        if (d) d.style.display = 'none';
-    }
-    if (!e.target.closest('#pill-status') && !e.target.closest('#status-dropdown')) {
-        const d = document.getElementById('status-dropdown');
-        if (d) d.style.display = 'none';
-    }
-});
-
 function closeMenus() { 
     activeContextMenu.style.display = 'none'; 
     futureContextMenu.style.display = 'none'; 
@@ -1937,44 +1920,12 @@ function editTask(id) {
 function closeModal() { 
     unlockBody(); 
     clearInterval(activeTimerInterval);
-    document.getElementById('task-modal').close(); 
-    draftTask = null; draftSubtasks = []; 
+    const m = document.getElementById('task-modal');
+    if(m) m.close(); 
+    draftTask = null; 
+    draftSubtasks = []; 
+    draftSubtaskId = null;
 }
-
-
-function triggerRemoveMeTask(id) {
-    const t = tasks.find(x => x.id === id);
-    if (!t) return;
-    
-    const me = getActiveUserObj();
-    t.assignees = t.assignees.filter(uid => uid !== me.id); 
-    
-    if (!me.preferences.hiddenTasks) me.preferences.hiddenTasks = [];
-    if (!me.preferences.hiddenTasks.includes(id)) me.preferences.hiddenTasks.push(id);
-    
-    saveTaskDB(t);
-    apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: me.id, preferences: me.preferences });
-}
-
-function triggerUnhideTask(id) {
-    const me = getActiveUserObj();
-    if (!me.preferences.hiddenTasks) return;
-    me.preferences.hiddenTasks = me.preferences.hiddenTasks.filter(tid => tid !== id);
-    apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: me.id, preferences: me.preferences });
-    renderAll();
-}
-
-function removeAssigneeFromTask(userId) {
-    if (!draftTask) return;
-    syncFormToDraft();
-    const cb = document.querySelector(`.assignee-check[value="${userId}"]`);
-    if (cb) cb.checked = false;
-    draftTask.assignees = draftTask.assignees.filter(id => id !== userId);
-    updateFormUI();
-}
-
-// Force initialization of the subtask state variable to prevent memory leaks
-let draftSubtaskId = null;
 
 function updateFormUI() {
     if (!draftTask) return; const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask; if (!data) return;
@@ -1982,30 +1933,22 @@ function updateFormUI() {
     document.getElementById('task-title').value = data.title || '';
     document.getElementById('task-desc').value = data.description || '';
 
-    // FIX: Bypasses iOS overlay blocks by programmatically triggering the native picker
+    // FIX: Perfectly overlays the input on top of the date button so Safari registers the tap immediately
     const dateInput = document.getElementById('task-due-date');
     const dateBtn = document.getElementById('pill-date');
     if (dateInput && dateBtn) {
         dateInput.value = data.due_date || '';
-        dateInput.style.position = 'absolute';
-        dateInput.style.opacity = '0';
-        dateInput.style.width = '1px';
-        dateInput.style.height = '1px';
-        dateInput.style.pointerEvents = 'none';
         
-        dateBtn.style.pointerEvents = 'auto'; 
-        dateBtn.onclick = (e) => {
-            e.preventDefault();
-            try { 
-                dateInput.showPicker(); 
-            } catch(err) { 
-                dateInput.style.opacity = '1';
-                dateInput.style.width = 'auto';
-                dateInput.style.height = 'auto';
-                dateInput.style.position = 'static';
-                dateInput.focus(); 
-            }
-        };
+        const parent = dateBtn.parentElement;
+        parent.style.position = 'relative';
+        dateInput.style.position = 'absolute';
+        dateInput.style.top = '0';
+        dateInput.style.left = '0';
+        dateInput.style.width = '100%';
+        dateInput.style.height = '100%';
+        dateInput.style.opacity = '0';
+        dateInput.style.cursor = 'pointer';
+        dateInput.style.zIndex = '10';
         
         dateInput.onchange = (e) => {
             const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
@@ -2067,21 +2010,10 @@ function syncFormToDraft() {
         data.title = document.getElementById('task-title').value.trim();
         data.description = document.getElementById('task-desc').value;
         const dateEl = document.getElementById('task-due-date');
-        if (dateEl && dateEl.value) {
+        if (dateEl) {
             data.due_date = dateEl.value;
         }
     }
-}
-
-// FIX: Explicitly clears memory so subtask states don't bleed into main tasks
-function closeModal() { 
-    unlockBody(); 
-    clearInterval(activeTimerInterval);
-    const m = document.getElementById('task-modal');
-    if(m) m.close(); 
-    draftTask = null; 
-    draftSubtasks = []; 
-    draftSubtaskId = null;
 }
 
 document.getElementById('task-form').addEventListener('submit', async function(e) {
@@ -2819,7 +2751,6 @@ function triggerDeleteComment(id) {
     else if (c.project_id) renderProjectComments(c.project_id);
 }
 
-// Global Click Listener to close UI dropdowns safely
 document.addEventListener('click', (e) => {
     if (!e.target.closest('#pill-urgency') && !e.target.closest('#urgency-dropdown')) {
         const d = document.getElementById('urgency-dropdown');
