@@ -2029,66 +2029,56 @@ function removeAssigneeFromTask(userId) {
 
 function updateFormUI() {
     if (!draftTask) return; const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask; if (!data) return;
-    document.getElementById('task-title').value = data.title || ''; document.getElementById('task-desc').value = data.description || ''; document.getElementById('task-due-date').value = data.due_date || ''; document.getElementById('task-status').value = data.status || 'todo'; document.getElementById('task-urgency').value = data.urgency || 'low';
     
-    handleStatusChange(data.status || 'todo');
+    document.getElementById('task-title').value = data.title || ''; 
+    document.getElementById('task-desc').value = data.description || ''; 
+    document.getElementById('task-due-date').value = data.due_date || ''; 
     
-    const btn = document.getElementById('timer-toggle-btn');
-    if (data.timer_running) {
-        btn.innerText = '⏸ Pause';
-        btn.className = 'danger-solid';
-        btn.style.background = '#de350b';
-        btn.style.color = 'white';
-        btn.style.border = '1px solid #de350b';
-        startTimerInterval();
+    switchTaskModalTab('details');
+    updatePills(); 
+
+    // Handle Timer Empty State
+    const hasTime = parseInt(data.timer_elapsed, 10) > 0 || data.timer_running;
+    if (hasTime) {
+        document.getElementById('timer-empty-btn').style.display = 'none';
+        document.getElementById('timer-active-section').style.display = 'flex';
+        const btn = document.getElementById('timer-toggle-btn');
+        if (data.timer_running) {
+            btn.innerText = '⏸ Pause';
+            btn.className = 'danger-solid';
+            btn.style.background = '#de350b';
+            btn.style.color = 'white';
+            btn.style.border = '1px solid #de350b';
+            startTimerInterval();
+        } else {
+            btn.innerText = '▶ Start';
+            btn.className = 'action-success';
+            btn.style.background = '#e3fcef';
+            btn.style.color = '#006644';
+            btn.style.border = '1px solid #36b37e';
+            updateTimerDisplay();
+        }
     } else {
-        btn.innerText = '▶ Start';
-        btn.className = 'action-success';
-        btn.style.background = '#e3fcef';
-        btn.style.color = '#006644';
-        btn.style.border = '1px solid #36b37e';
-        updateTimerDisplay();
+        document.getElementById('timer-empty-btn').style.display = 'block';
+        document.getElementById('timer-active-section').style.display = 'none';
     }
 
-    const timerDisplay = document.getElementById('task-timer-display');
-    timerDisplay.style.cursor = 'pointer';
-    timerDisplay.style.color = '#0052cc';
-    timerDisplay.style.textDecoration = 'underline';
-    timerDisplay.title = "View Time Report";
-    timerDisplay.onclick = openTimeReportModal;
-
-    const badgeContainer = document.getElementById('task-assignees-display'); badgeContainer.innerHTML = '';
-    (data.assignees || []).forEach(id => { 
-        badgeContainer.innerHTML += `
-            <span class="badge" style="margin-right:4px; display: inline-flex; align-items: center; white-space: nowrap; max-width: 100%; overflow: hidden;">
-                <span style="text-overflow: ellipsis; overflow: hidden;">👤 ${sanitize(getUserName(id))}</span>
-                <button type="button" class="danger" style="padding: 0 4px; margin-left: 4px; font-size: 12px; height: 16px; line-height: 1; flex-shrink: 0;" onclick="removeAssigneeFromTask('${id}')" title="Remove Assignee">&times;</button>
-            </span>
-        `; 
-    });
-    
-    document.getElementById('dynamic-tools-section').style.display = draftSubtaskId ? 'none' : 'block';
-    document.getElementById('subtasks-form-section').style.display = draftSubtaskId ? 'none' : 'block'; 
-    document.getElementById('status-form-section').style.display = draftSubtaskId ? 'none' : 'block'; 
+    // Toggle back button for subtasks
     document.getElementById('modal-back-btn').style.display = draftSubtaskId ? 'inline-block' : 'none'; 
-    document.getElementById('modal-title').innerText = draftSubtaskId ? "Subtask Details" : 'Task Configuration';
+    document.getElementById('subtasks-form-section').style.display = draftSubtaskId ? 'none' : 'block'; 
     
-    if (draftSubtaskId) document.getElementById('gcal-checkbox-container').style.display = 'none';
-    
-  // NEW: Show comments on existing tasks AND existing subtasks
-    const currentTargetId = draftSubtaskId || draftTask.id;
-    
-    // A subtask is existing if its ID does NOT start with 'sub_' (our temporary prefix before saving)
-    const isExisting = draftSubtaskId ? !draftSubtaskId.startsWith('sub_') : tasks.some(t => t.id === draftTask.id);
-    
-    if (isExisting) {
-        document.getElementById('task-comments-section').style.display = 'block';
-        renderTaskComments(currentTargetId);
+    if (draftSubtaskId) {
+        document.getElementById('gcal-checkbox-container').style.display = 'none';
+        document.getElementById('task-gcal-sync').checked = false;
     } else {
-        document.getElementById('task-comments-section').style.display = 'none';
+        document.getElementById('gcal-checkbox-container').style.display = 'flex';
     }
     
     if(!draftSubtaskId) renderSubtasks();
+
+    // Hide activity tab button entirely if the task isn't saved to the DB yet
+    const isExisting = draftSubtaskId ? !draftSubtaskId.startsWith('sub_') : tasks.some(t => t.id === draftTask.id);
+    document.getElementById('tab-btn-activity').style.display = isExisting ? 'block' : 'none';
 }
 
 document.getElementById('task-form').addEventListener('submit', async function(e) {
@@ -2256,20 +2246,18 @@ function openEditProjectModal(id) {
 
 function closeEditProjectModal() { unlockBody(); document.getElementById('edit-project-modal').close(); }
 
-document.getElementById('edit-project-form').addEventListener('submit', async function(e) {
-    e.preventDefault(); 
+async function autoSaveProject() {
     const name = document.getElementById('edit-project-name').value.trim();
     const isSecret = document.getElementById('edit-project-secret').checked;
-    if (name) { 
-        const p = projects.find(x => x.id === contextTargetProjectId); 
-        if (p) { 
-            p.name = name; 
-            p.isSecret = isSecret; 
-            await saveProjectDB(p); 
-        } 
+    if (name && contextTargetProjectId) {
+        const p = projects.find(x => x.id === contextTargetProjectId);
+        if (p) {
+            p.name = name;
+            p.isSecret = isSecret;
+            await saveProjectDB(p);
+        }
     }
-    closeEditProjectModal();
-});
+}
 
 document.getElementById('create-workspace-form').addEventListener('submit', async function(e) {
     e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
@@ -2390,6 +2378,70 @@ function executeConfirm() {
 function closeConfirmModal() { 
     unlockBody(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; 
     document.getElementById('confirm-execute-btn').innerText = 'Confirm';
+}
+
+// --- MINIMALIST UI STATE HANDLERS ---
+function switchTaskModalTab(tab) {
+    document.getElementById('tab-btn-details').classList.toggle('active', tab === 'details');
+    document.getElementById('tab-btn-activity').classList.toggle('active', tab === 'activity');
+    document.getElementById('task-tab-details').style.display = tab === 'details' ? 'block' : 'none';
+    document.getElementById('task-tab-activity').style.display = tab === 'activity' ? 'flex' : 'none';
+    
+    if (tab === 'activity' && draftTask) {
+        renderTaskComments(draftSubtaskId || draftTask.id);
+    }
+}
+
+function setTaskStatus(val) {
+    if(!draftTask) return;
+    const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
+    target.status = val;
+    updatePills();
+}
+
+function setTaskUrgency(val) {
+    if(!draftTask) return;
+    const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
+    target.urgency = val;
+    updatePills();
+}
+
+function revealTimer() {
+    document.getElementById('timer-empty-btn').style.display = 'none';
+    document.getElementById('timer-active-section').style.display = 'flex';
+}
+
+function updatePills() {
+    const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
+    if (!target) return;
+
+    // Assignees Pill
+    const assigneeBtn = document.getElementById('pill-assignee');
+    if (!target.assignees || target.assignees.length === 0) {
+        assigneeBtn.innerText = '👤 Unassigned';
+    } else if (target.assignees.length === 1) {
+        assigneeBtn.innerText = `👤 ${sanitize(getUserName(target.assignees[0]))}`;
+    } else {
+        assigneeBtn.innerText = `👤 ${target.assignees.length} Assignees`;
+    }
+
+    // Date Pill
+    const dateInput = document.getElementById('task-due-date');
+    const dateBtn = document.getElementById('pill-date');
+    if (dateInput.value) {
+        const d = new Date(dateInput.value + 'T12:00:00');
+        dateBtn.innerText = `📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+    } else {
+        dateBtn.innerText = '📅 No Date';
+    }
+
+    // Urgency Pill
+    const uMap = { low: '🟢 Low', medium: '🟡 Medium', high: '🔴 High' };
+    document.getElementById('pill-urgency').innerText = uMap[target.urgency] || '🟢 Low';
+
+    // Status Pill
+    const sMap = { todo: '▶️ To Do', doing: '⏳ Doing', done: '✅ Done', future: '🔮 Future', recurring: '🔁 Recurring', complete: '📦 Archived' };
+    document.getElementById('pill-status').innerText = sMap[target.status] || '▶️ To Do';
 }
 
 function switchAnalyticsTab(tab) {
