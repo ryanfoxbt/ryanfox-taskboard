@@ -32,13 +32,14 @@ app.get('/api/data', async (req, res) => {
         const workspace_members = await pool.query('SELECT * FROM workspace_members');
         const task_assignees = await pool.query('SELECT * FROM task_assignees');
         const time_logs = await pool.query('SELECT * FROM time_logs'); 
-        const task_repetitions = await pool.query('SELECT * FROM task_repetitions'); // NEW
+        const task_repetitions = await pool.query('SELECT * FROM task_repetitions');
+        const comments = await pool.query('SELECT * FROM comments ORDER BY created_at ASC'); // NEW
         
         res.json({ 
             workspaces: workspaces.rows, projects: projects.rows, tasks: tasks.rows, 
             users: users.rows, workspace_members: workspace_members.rows, 
             task_assignees: task_assignees.rows, time_logs: time_logs.rows,
-            task_repetitions: task_repetitions.rows // NEW
+            task_repetitions: task_repetitions.rows, comments: comments.rows // NEW
         });
     } catch (err) { res.status(500).json({ error: 'Failed to fetch data' }); }
 });
@@ -229,6 +230,7 @@ app.delete('/api/workspaces/:id', async (req, res) => {
     } finally { client.release(); }
 });
 
+
 // --- 7. MESSAGES (CHILL CHAT) ---
 app.get('/api/messages/:workspace_id', async (req, res) => {
     try {
@@ -300,6 +302,19 @@ app.delete('/api/users/:userId/:workspaceId', async (req, res) => {
         await pool.query('DELETE FROM workspace_members WHERE user_id = $1 AND workspace_id = $2', [req.params.userId, req.params.workspaceId]); 
         res.json({ success: true }); 
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- COMMENTS / NOTES ---
+app.post('/api/comments', async (req, res) => {
+    const { id, workspace_id, project_id, task_id, user_id, content, created_at } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO comments (id, workspace_id, project_id, task_id, user_id, content, created_at) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [id, workspace_id, project_id || null, task_id || null, user_id, content, created_at || new Date().toISOString()]
+        );
+        res.json({ success: true });
+    } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/settings', async (req, res) => {
