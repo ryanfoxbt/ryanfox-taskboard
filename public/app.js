@@ -2081,7 +2081,6 @@ function updateFormUI() {
     document.getElementById('tab-btn-activity').style.display = isExisting ? 'block' : 'none';
 }
 
-// FIX: syncFormToDraft no longer looks for deleted HTML dropdowns!
 function syncFormToDraft() {
     if (!draftTask) return;
     const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
@@ -2089,7 +2088,6 @@ function syncFormToDraft() {
         data.title = document.getElementById('task-title').value.trim(); 
         data.description = document.getElementById('task-desc').value; 
         data.due_date = document.getElementById('task-due-date').value; 
-        // Note: Status and Urgency are now manipulated directly via the Pills in state!
     }
 }
 
@@ -2161,7 +2159,7 @@ document.getElementById('task-form').addEventListener('submit', async function(e
 
 function openAssigneePromptModal() { 
     syncFormToDraft(); 
-    lockBody(); 
+    // FIX: Removed double body-lock to prevent breaking scrolling
     renderAssigneeCheckboxes();
     const m = document.getElementById('assignee-prompt-modal');
     m.showModal(); 
@@ -2169,16 +2167,20 @@ function openAssigneePromptModal() {
 } 
 
 function toggleDraftAssignee(userId, isChecked) {
-    if (!draftTask.assignees) draftTask.assignees = [];
+    // FIX: Dynamically target the subtask if open, otherwise target main task
+    const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
+    if (!target) return;
+    
+    if (!target.assignees) target.assignees = [];
     if (isChecked) {
-        if (!draftTask.assignees.includes(userId)) draftTask.assignees.push(userId);
+        if (!target.assignees.includes(userId)) target.assignees.push(userId);
     } else {
-        draftTask.assignees = draftTask.assignees.filter(id => id !== userId);
+        target.assignees = target.assignees.filter(id => id !== userId);
     }
 }
 
 function closeAssigneePromptModal() { 
-    unlockBody(); 
+    // FIX: Removed unlockBody so the main Task Modal doesn't lose its background lock
     document.getElementById('assignee-prompt-modal').close(); 
     updateFormUI(); 
 }
@@ -2188,7 +2190,9 @@ function renderAssigneeCheckboxes() {
     const allKnownUsers = getVisibleUsers();
     if (allKnownUsers.length === 0) { container.innerHTML = '<span style="color:#5e6c84; font-size:12px;">No one added yet.</span>'; return; }
     
-    const selected = draftTask ? (draftTask.assignees || []) : [];
+    // FIX: Load assignees dynamically from subtask OR main task
+    const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
+    const selected = target ? (target.assignees || []) : [];
     
     allKnownUsers.forEach(u => { 
         const isChecked = selected.includes(u.id) ? 'checked' : ''; 
@@ -2203,13 +2207,13 @@ function renderAssigneeCheckboxes() {
 
 function openSubtaskPromptModal() { 
     syncFormToDraft(); 
-    lockBody(); 
+    // FIX: Avoid double body lock here as well
     document.getElementById('new-subtask-name').value = ''; 
     const m = document.getElementById('subtask-prompt-modal');
     m.showModal(); 
     setTimeout(() => m.scrollTop = 0, 10);
 } 
-function closeSubtaskPromptModal() { unlockBody(); document.getElementById('subtask-prompt-modal').close(); }
+function closeSubtaskPromptModal() { document.getElementById('subtask-prompt-modal').close(); }
 
 document.getElementById('subtask-prompt-form').addEventListener('submit', function(e) { e.preventDefault(); const title = document.getElementById('new-subtask-name').value.trim(); if(title && draftTask) { draftSubtasks.push({ id: 'sub_' + generateUUID(), project_id: currentProjectId, parent_task_id: draftTask.id, title: title, status: 'todo', description: '', assignees: [], due_date: '', urgency: 'low', creator_id: getActiveUserObj().id }); renderSubtasks(); } closeSubtaskPromptModal(); });
 function openSubtaskDetails(id) { syncFormToDraft(); draftSubtaskId = id; updateFormUI(); } function backToParentTask() { syncFormToDraft(); draftSubtaskId = null; updateFormUI(); }
@@ -2389,80 +2393,6 @@ function executeConfirm() {
 function closeConfirmModal() { 
     unlockBody(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; 
     document.getElementById('confirm-execute-btn').innerText = 'Confirm';
-}
-
-// --- MINIMALIST UI STATE HANDLERS ---
-function switchTaskModalTab(tab) {
-    document.getElementById('tab-btn-details').classList.toggle('active', tab === 'details');
-    document.getElementById('tab-btn-activity').classList.toggle('active', tab === 'activity');
-    document.getElementById('task-tab-details').style.display = tab === 'details' ? 'block' : 'none';
-    document.getElementById('task-tab-activity').style.display = tab === 'activity' ? 'flex' : 'none';
-    
-    if (tab === 'activity' && draftTask) {
-        renderTaskComments(draftSubtaskId || draftTask.id);
-    }
-}
-
-// FIX: Updated setTaskStatus to correctly capture completion timestamp logic
-function setTaskStatus(val) {
-    if(!draftTask) return;
-    const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
-    
-    const oldStatus = target.status;
-    target.status = val;
-    
-    if ((val === 'done' || val === 'complete' || val === 'archive') && (oldStatus !== 'done' && oldStatus !== 'complete' && oldStatus !== 'archive')) {
-        target.completed_at = new Date().toISOString();
-    } else if (val !== 'done' && val !== 'complete' && val !== 'archive') {
-        target.completed_at = null;
-    }
-    
-    updatePills();
-}
-
-function setTaskUrgency(val) {
-    if(!draftTask) return;
-    const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
-    target.urgency = val;
-    updatePills();
-}
-
-function revealTimer() {
-    document.getElementById('timer-empty-btn').style.display = 'none';
-    document.getElementById('timer-active-section').style.display = 'flex';
-}
-
-function updatePills() {
-    const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
-    if (!target) return;
-
-    // Assignees Pill
-    const assigneeBtn = document.getElementById('pill-assignee');
-    if (!target.assignees || target.assignees.length === 0) {
-        assigneeBtn.innerText = '👤 Unassigned';
-    } else if (target.assignees.length === 1) {
-        assigneeBtn.innerText = `👤 ${sanitize(getUserName(target.assignees[0]))}`;
-    } else {
-        assigneeBtn.innerText = `👤 ${target.assignees.length} Assignees`;
-    }
-
-    // Date Pill
-    const dateInput = document.getElementById('task-due-date');
-    const dateBtn = document.getElementById('pill-date');
-    if (dateInput.value) {
-        const d = new Date(dateInput.value + 'T12:00:00');
-        dateBtn.innerText = `📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
-    } else {
-        dateBtn.innerText = '📅 No Date';
-    }
-
-    // Urgency Pill
-    const uMap = { low: '🟢 Low', medium: '🟡 Medium', high: '🔴 High' };
-    document.getElementById('pill-urgency').innerText = uMap[target.urgency] || '🟢 Low';
-
-    // Status Pill
-    const sMap = { todo: '▶️ To Do', doing: '⏳ Doing', done: '✅ Done', future: '🔮 Future', recurring: '🔁 Recurring', complete: '📦 Archived' };
-    document.getElementById('pill-status').innerText = sMap[target.status] || '▶️ To Do';
 }
 
 function switchAnalyticsTab(tab) {
@@ -2822,3 +2752,15 @@ function renderDetailedTimeReport() {
     }
     document.getElementById('detailed-time-container').innerHTML = html;
 }
+
+// FIX: Auto-close UI Pills when clicking away
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#pill-urgency') && !e.target.closest('#urgency-dropdown')) {
+        const d = document.getElementById('urgency-dropdown');
+        if (d) d.style.display = 'none';
+    }
+    if (!e.target.closest('#pill-status') && !e.target.closest('#status-dropdown')) {
+        const d = document.getElementById('status-dropdown');
+        if (d) d.style.display = 'none';
+    }
+});
