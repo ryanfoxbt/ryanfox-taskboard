@@ -2081,6 +2081,18 @@ function updateFormUI() {
     document.getElementById('tab-btn-activity').style.display = isExisting ? 'block' : 'none';
 }
 
+// FIX: syncFormToDraft no longer looks for deleted HTML dropdowns!
+function syncFormToDraft() {
+    if (!draftTask) return;
+    const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
+    if (data) { 
+        data.title = document.getElementById('task-title').value.trim(); 
+        data.description = document.getElementById('task-desc').value; 
+        data.due_date = document.getElementById('task-due-date').value; 
+        // Note: Status and Urgency are now manipulated directly via the Pills in state!
+    }
+}
+
 document.getElementById('task-form').addEventListener('submit', async function(e) {
     e.preventDefault(); syncFormToDraft(); 
     
@@ -2236,7 +2248,6 @@ function openEditProjectModal(id) {
     document.getElementById('edit-project-name').value = p.name;
     document.getElementById('edit-project-secret').checked = p.isSecret;
     
-    // NEW: Render the project comments
     renderProjectComments(id);
 
     const m = document.getElementById('edit-project-modal');
@@ -2392,10 +2403,20 @@ function switchTaskModalTab(tab) {
     }
 }
 
+// FIX: Updated setTaskStatus to correctly capture completion timestamp logic
 function setTaskStatus(val) {
     if(!draftTask) return;
     const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
+    
+    const oldStatus = target.status;
     target.status = val;
+    
+    if ((val === 'done' || val === 'complete' || val === 'archive') && (oldStatus !== 'done' && oldStatus !== 'complete' && oldStatus !== 'archive')) {
+        target.completed_at = new Date().toISOString();
+    } else if (val !== 'done' && val !== 'complete' && val !== 'archive') {
+        target.completed_at = null;
+    }
+    
     updatePills();
 }
 
@@ -2607,6 +2628,29 @@ function renderProjectComments(projectId) {
     list.scrollTop = list.scrollHeight;
 }
 
+function postTaskComment() {
+    const input = document.getElementById('new-task-comment');
+    const content = input.value.trim();
+    if (!content || !draftTask) return;
+    
+    const targetId = draftSubtaskId || draftTask.id;
+    
+    const newComment = {
+        id: generateUUID(),
+        workspace_id: currentWorkspaceId,
+        project_id: draftTask.project_id,
+        task_id: targetId,
+        user_id: getActiveUserObj().id,
+        content: content,
+        created_at: new Date().toISOString()
+    };
+    
+    comments.push(newComment);
+    input.value = '';
+    renderTaskComments(targetId);
+    apiCall('/comments', 'POST', newComment);
+}
+
 function postProjectComment() {
     const input = document.getElementById('new-project-comment');
     const content = input.value.trim();
@@ -2729,7 +2773,6 @@ function renderDetailedTimeReport() {
         const sortedL1 = Object.keys(aggregated).sort((a,b) => aggregated[b].total - aggregated[a].total);
         sortedL1.forEach(l1 => {
             const l1Data = aggregated[l1];
-            // FIX: Removed 'open' attribute
             html += `
             <details style="margin-bottom: 8px; border: 1px solid #dfe1e6; border-radius: 6px; overflow: hidden;">
                 <summary style="background: #f4f5f7; padding: 12px; cursor: pointer; font-weight: bold; color: #172b4d; display: flex; justify-content: space-between; outline: none;">
@@ -2742,7 +2785,6 @@ function renderDetailedTimeReport() {
             const sortedL2 = Object.keys(l1Data.sub).sort((a,b) => l1Data.sub[b].total - l1Data.sub[a].total);
             sortedL2.forEach(l2 => {
                 const l2Data = l1Data.sub[l2];
-                // FIX: Removed 'open' attribute
                 html += `
                 <details style="margin-bottom: 6px; border-left: 2px solid #ebecf0; padding-left: 10px;">
                     <summary style="padding: 6px; cursor: pointer; font-weight: 600; color: #42526e; display: flex; justify-content: space-between; border-bottom: 1px solid #ebecf0; outline: none;">
@@ -2756,7 +2798,6 @@ function renderDetailedTimeReport() {
                 html += `<div style="display: flex; flex-direction: column; gap: 4px;">`;
                 sortedL3.forEach(l3 => {
                     const tData = l2Data.sub[l3];
-                    // FIX: Removed 'open' attribute
                     html += `
                     <details style="border-bottom: 1px dashed #ebecf0; padding: 4px 0;">
                         <summary style="cursor: pointer; display: flex; justify-content: space-between; outline: none; color: #5e6c84; font-size: 13px;">
