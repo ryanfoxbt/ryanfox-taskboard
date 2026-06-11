@@ -7,7 +7,6 @@ function sanitize(str) {
 function linkify(text) {
     if (!text) return '';
     const urlPattern = /(\b(https?):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gim;
-    // FIX: Added draggable="false" and ondragstart to prevent browsers from tearing the link out of the draggable card
     return text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" ondragstart="event.preventDefault()" draggable="false" style="color: #0052cc; text-decoration: underline; pointer-events: auto;">$1</a>');
 }
 
@@ -1122,7 +1121,7 @@ function renderMasterView() {
             dateHtml = `<span class="date-badge" style="margin:0; background: transparent; border: none; padding: 0;">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; 
         }
 
-       let recurringCounterHtml = '';
+        let recurringCounterHtml = '';
         if (task.status === 'recurring') {
             const count = task.counter || 0;
             recurringCounterHtml = `
@@ -1253,6 +1252,16 @@ document.addEventListener('click', (e) => {
     if (!e.target.closest('.card') && !e.target.closest('.custom-context-menu') && selectedTasks.size > 0) {
         selectedTasks.clear();
         renderBoard();
+    }
+    
+    // Auto-close UI Pills when clicking away
+    if (!e.target.closest('#pill-urgency') && !e.target.closest('#urgency-dropdown')) {
+        const d = document.getElementById('urgency-dropdown');
+        if (d) d.style.display = 'none';
+    }
+    if (!e.target.closest('#pill-status') && !e.target.closest('#status-dropdown')) {
+        const d = document.getElementById('status-dropdown');
+        if (d) d.style.display = 'none';
     }
 });
 
@@ -1514,37 +1523,6 @@ function contextActionRemoveMeMain() { triggerRemoveMeTask(contextTargetMainId);
 function contextActionEditSubtask() { openSubtaskDetails(contextTargetSubtaskId); closeMenus(); } 
 function contextActionDeleteSubtask() { removeSubtask(contextTargetSubtaskId); closeMenus(); }
 
-function moveTaskStatus(id, newStatus) { 
-    const t = tasks.find(t => t.id === id); 
-    if (t) { 
-        const oldStatus = t.status;
-        t.status = newStatus; 
-        
-        if ((newStatus === 'done' || newStatus === 'complete' || newStatus === 'archive') && (oldStatus !== 'done' && oldStatus !== 'complete' && oldStatus !== 'archive')) {
-            t.completed_at = new Date().toISOString();
-            
-            if (t.timer_running) {
-                const now = Date.now();
-                const start = parseInt(t.timer_started_at, 10) || now;
-                t.timer_elapsed = parseInt(t.timer_elapsed, 10) + (now - start);
-                t.timer_running = false;
-                t.timer_started_at = null;
-                
-                if (draftTask && draftTask.id === t.id) {
-                    draftTask.timer_elapsed = t.timer_elapsed;
-                    draftTask.timer_running = false;
-                    draftTask.timer_started_at = null;
-                    clearInterval(activeTimerInterval);
-                }
-            }
-        } else if (newStatus !== 'done' && newStatus !== 'complete' && newStatus !== 'archive') {
-            t.completed_at = null;
-        }
-        
-        saveTaskDB(t); 
-    } 
-}
-
 function handleTabDragStart(e, id) { e.dataTransfer.setData("projectId", id); setTimeout(() => e.target.classList.add('dragging-tab'), 0); }
 function handleTabDrop(e, targetId) {
     e.preventDefault(); 
@@ -1660,18 +1638,12 @@ function dragEnd(e) {
 }
 function allowDrop(e, status) { e.preventDefault(); const list = document.getElementById(status + '-list'); const dragEl = document.querySelector('.dragging'); if (!dragEl) return; const afterEl = [...list.querySelectorAll('.card:not(.dragging)')].reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = e.clientY - box.top - box.height / 2; return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest; }, { offset: Number.NEGATIVE_INFINITY }).element; if (afterEl == null) list.appendChild(dragEl); else list.insertBefore(dragEl, afterEl); }
 
-function handleStatusChange(status) {
-    document.getElementById('date-label').innerText = (status === 'recurring') ? 'End Recurring Date' : 'Due Date';
-    document.getElementById('timer-section').style.display = (!draftSubtaskId) ? 'block' : 'none';
-}
-
 function inlineAdjustCounter(id, amount) {
     const t = tasks.find(x => x.id === id);
     if (!t) return;
     t.counter = parseInt(t.counter || 0, 10) + amount;
     if (t.counter < 0) t.counter = 0;
 
-    // Log the repetition if it's an addition!
     if (amount > 0) {
         const rep = {
             id: generateUUID(),
@@ -1724,7 +1696,6 @@ function toggleTimer() {
         draftTask.timer_started_at = null;
         
        if (sessionDuration > 1000) { 
-            // Fix: Pull native project to prevent cross-workspace contamination
             const nativeProj = projects.find(p => p.id === draftTask.project_id);
             const nativeWsId = nativeProj ? nativeProj.workspace_id : currentWorkspaceId;
             
@@ -1826,7 +1797,6 @@ function generateTimeReportHTML(taskId) {
     let html = `<div style="display: flex; flex-direction: column; gap: 10px;">`;
     for (let u in userGroups) {
         const uData = userGroups[u];
-        // FIX: Removed the 'open' attribute so it defaults to closed
         html += `
         <details style="border: 1px solid #dfe1e6; border-radius: 6px; overflow: hidden;">
             <summary style="background: #f4f5f7; padding: 10px 12px; cursor: pointer; font-weight: bold; color: #172b4d; display: flex; justify-content: space-between; outline: none;">
@@ -1838,7 +1808,6 @@ function generateTimeReportHTML(taskId) {
         for (let dKey in uData.dates) {
             const dData = uData.dates[dKey];
             let isToday = (dKey === new Date().toLocaleDateString()) ? ' (Today)' : '';
-            // FIX: Removed the 'open' attribute
             html += `
             <details style="margin-bottom: 6px; border-left: 2px solid #ebecf0; padding-left: 10px;">
                 <summary style="padding: 4px 6px; cursor: pointer; font-size: 13px; font-weight: 600; color: #42526e; display: flex; justify-content: space-between; outline: none;">
@@ -1941,8 +1910,6 @@ function editTask(id) {
     
     draftTask = JSON.parse(JSON.stringify(tasks.find(t => t.id === id))); 
     
-    // SELF-HEALING TIMER FIX
-    // Ensures database corruption or offset jumps are silently healed upon load
     const taskLogs = timeLogs.filter(l => l.task_id === id);
     let actualElapsed = taskLogs.reduce((sum, log) => sum + parseInt(log.duration_ms || 0, 10), 0);
     
@@ -1974,61 +1941,28 @@ function closeModal() {
     draftTask = null; draftSubtasks = []; 
 }
 
-
-function triggerRemoveMeTask(id) {
-    const t = tasks.find(x => x.id === id);
-    if (!t) return;
-    
-    const me = getActiveUserObj();
-    t.assignees = t.assignees.filter(uid => uid !== me.id); 
-    
-    if (!me.preferences.hiddenTasks) me.preferences.hiddenTasks = [];
-    if (!me.preferences.hiddenTasks.includes(id)) me.preferences.hiddenTasks.push(id);
-    
-    saveTaskDB(t);
-    apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: me.id, preferences: me.preferences });
-}
-
-function triggerUnhideTask(id) {
-    const me = getActiveUserObj();
-    if (!me.preferences.hiddenTasks) return;
-    me.preferences.hiddenTasks = me.preferences.hiddenTasks.filter(tid => tid !== id);
-    apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: me.id, preferences: me.preferences });
-    renderAll();
-}
-
-function removeAssigneeFromTask(userId) {
-    if (!draftTask) return;
-    syncFormToDraft();
-    const cb = document.querySelector(`.assignee-check[value="${userId}"]`);
-    if (cb) cb.checked = false;
-    draftTask.assignees = draftTask.assignees.filter(id => id !== userId);
-    updateFormUI();
-}
-
 function updateFormUI() {
     if (!draftTask) return; const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask; if (!data) return;
-    
-    document.getElementById('task-title').value = data.title || ''; 
-    document.getElementById('task-desc').value = data.description || ''; 
-    
-    // FIX: Stretch the invisible Date Input to perfectly cover the entire Pill button
+
+    document.getElementById('task-title').value = data.title || '';
+    document.getElementById('task-desc').value = data.description || '';
+
     const dateInput = document.getElementById('task-due-date');
     const dateBtn = document.getElementById('pill-date');
     if (dateInput && dateBtn) {
+        const parent = dateBtn.parentElement;
+        parent.style.position = 'relative';
         dateInput.style.position = 'absolute';
-        dateInput.style.left = '0';
         dateInput.style.top = '0';
+        dateInput.style.left = '0';
         dateInput.style.width = '100%';
         dateInput.style.height = '100%';
         dateInput.style.opacity = '0';
         dateInput.style.cursor = 'pointer';
-        dateInput.style.right = 'auto'; // Resets any old styling
+        dateInput.style.zIndex = '10';
         
-        // Load existing date into the input so the calendar picker opens to the right month
         dateInput.value = data.due_date || '';
         
-        // Save the date to memory instantly when the user picks a day
         dateInput.onchange = (e) => {
             const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
             if(target) {
@@ -2037,11 +1971,10 @@ function updateFormUI() {
             }
         };
     }
-    
-    switchTaskModalTab('details');
-    updatePills(); 
 
-    // Handle Timer Empty State
+    switchTaskModalTab('details');
+    updatePills();
+
     const hasTime = parseInt(data.timer_elapsed, 10) > 0 || data.timer_running;
     if (hasTime) {
         document.getElementById('timer-empty-btn').style.display = 'none';
@@ -2067,32 +2000,30 @@ function updateFormUI() {
         document.getElementById('timer-active-section').style.display = 'none';
     }
 
-    // Toggle back button for subtasks
-    document.getElementById('modal-back-btn').style.display = draftSubtaskId ? 'inline-block' : 'none'; 
-    document.getElementById('subtasks-form-section').style.display = draftSubtaskId ? 'none' : 'block'; 
-    
+    document.getElementById('modal-back-btn').style.display = draftSubtaskId ? 'inline-block' : 'none';
+    document.getElementById('subtasks-form-section').style.display = draftSubtaskId ? 'none' : 'block';
+
     if (draftSubtaskId) {
         document.getElementById('gcal-checkbox-container').style.display = 'none';
         document.getElementById('task-gcal-sync').checked = false;
     } else {
         document.getElementById('gcal-checkbox-container').style.display = 'flex';
     }
-    
+
     if(!draftSubtaskId) renderSubtasks();
 
-    // Hide activity tab button entirely if the task isn't saved to the DB yet
     const isExisting = draftSubtaskId ? !draftSubtaskId.startsWith('sub_') : tasks.some(t => t.id === draftTask.id);
     document.getElementById('tab-btn-activity').style.display = isExisting ? 'block' : 'none';
 }
 
-// FIX: This now safely saves the form without crashing on deleted dropdowns!
 function syncFormToDraft() {
     if (!draftTask) return;
     const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
-    if (data) { 
-        data.title = document.getElementById('task-title').value.trim(); 
-        data.description = document.getElementById('task-desc').value; 
-        // Note: Date, Status, and Urgency are now flawlessly synced live via their Pill clicks!
+    if (data) {
+        data.title = document.getElementById('task-title').value.trim();
+        data.description = document.getElementById('task-desc').value;
+        const dateEl = document.getElementById('task-due-date');
+        if (dateEl) data.due_date = dateEl.value;
     }
 }
 
@@ -2395,6 +2326,37 @@ function closeConfirmModal() {
     document.getElementById('confirm-execute-btn').innerText = 'Confirm';
 }
 
+function triggerRemoveMeTask(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    
+    const me = getActiveUserObj();
+    t.assignees = t.assignees.filter(uid => uid !== me.id); 
+    
+    if (!me.preferences.hiddenTasks) me.preferences.hiddenTasks = [];
+    if (!me.preferences.hiddenTasks.includes(id)) me.preferences.hiddenTasks.push(id);
+    
+    saveTaskDB(t);
+    apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: me.id, preferences: me.preferences });
+}
+
+function triggerUnhideTask(id) {
+    const me = getActiveUserObj();
+    if (!me.preferences.hiddenTasks) return;
+    me.preferences.hiddenTasks = me.preferences.hiddenTasks.filter(tid => tid !== id);
+    apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: me.id, preferences: me.preferences });
+    renderAll();
+}
+
+function removeAssigneeFromTask(userId) {
+    if (!draftTask) return;
+    syncFormToDraft();
+    const cb = document.querySelector(`.assignee-check[value="${userId}"]`);
+    if (cb) cb.checked = false;
+    draftTask.assignees = draftTask.assignees.filter(id => id !== userId);
+    updateFormUI();
+}
+
 // --- MINIMALIST UI STATE HANDLERS ---
 function switchTaskModalTab(tab) {
     document.getElementById('tab-btn-details').classList.toggle('active', tab === 'details');
@@ -2450,6 +2412,7 @@ function updatePills() {
     }
 
     // Date Pill
+    const dateInput = document.getElementById('task-due-date');
     const dateBtn = document.getElementById('pill-date');
     if (target.due_date) {
         const d = new Date(target.due_date + 'T12:00:00');
@@ -2567,6 +2530,119 @@ function renderAnalyticsCharts() {
     buildChart('chart-workload', 'bar', Object.keys(workload), Object.values(workload), 'Active Tasks', 1);
     buildChart('chart-velocity', 'line', Object.keys(velocity).map(d => d.slice(5)), Object.values(velocity), 'Tasks Completed', 0);
     buildChart('chart-recurring', 'bar', recurringLabels, recurringData, 'Total Repetitions', 2);
+}
+
+function renderDetailedTimeReport() {
+    const timeframe = document.getElementById('report-timeframe').value;
+    const groupBy = document.getElementById('report-groupby').value;
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(today); startOfWeek.setDate(today.getDate() - today.getDay());
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const startOfYear = new Date(today.getFullYear(), 0, 1);
+
+    let filteredLogs = timeLogs.filter(l => l.workspace_id === currentWorkspaceId);
+    
+    if (timeframe !== 'all') {
+        filteredLogs = filteredLogs.filter(l => {
+            if (!l.created_at) return false;
+            const logDate = new Date(l.created_at);
+            if (timeframe === 'today') return logDate >= today;
+            if (timeframe === 'week') return logDate >= startOfWeek;
+            if (timeframe === 'month') return logDate >= startOfMonth;
+            if (timeframe === 'year') return logDate >= startOfYear;
+            return true;
+        });
+    }
+
+    const aggregated = {};
+    
+    filteredLogs.forEach(log => {
+        const ms = parseInt(log.duration_ms, 10);
+        const d = log.created_at ? new Date(log.created_at) : new Date();
+        const sessStr = `${d.toLocaleDateString()} at ${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+        
+        const pObj = projects.find(p => p.id === log.project_id);
+        const pName = pObj ? pObj.name : 'Unknown Project';
+        const uName = getUserName(log.user_id);
+        const tObj = tasks.find(t => t.id === log.task_id);
+        const tName = tObj ? tObj.title : 'Deleted/Unknown Task';
+        
+        if (groupBy === 'user') {
+            if (!aggregated[uName]) aggregated[uName] = { total: 0, sub: {} };
+            aggregated[uName].total += ms;
+            if (!aggregated[uName].sub[pName]) aggregated[uName].sub[pName] = { total: 0, sub: {} };
+            aggregated[uName].sub[pName].total += ms;
+            if (!aggregated[uName].sub[pName].sub[tName]) aggregated[uName].sub[pName].sub[tName] = { total: 0, sessions: [] };
+            aggregated[uName].sub[pName].sub[tName].total += ms;
+            aggregated[uName].sub[pName].sub[tName].sessions.push({ str: sessStr, ms: ms });
+        } else {
+            if (!aggregated[pName]) aggregated[pName] = { total: 0, sub: {} };
+            aggregated[pName].total += ms;
+            if (!aggregated[pName].sub[uName]) aggregated[pName].sub[uName] = { total: 0, sub: {} };
+            aggregated[pName].sub[uName].total += ms;
+            if (!aggregated[pName].sub[uName].sub[tName]) aggregated[pName].sub[uName].sub[tName] = { total: 0, sessions: [] };
+            aggregated[pName].sub[uName].sub[tName].total += ms;
+            aggregated[pName].sub[uName].sub[tName].sessions.push({ str: sessStr, ms: ms });
+        }
+    });
+
+    let html = '';
+    if (Object.keys(aggregated).length === 0) {
+        html = '<p style="color: #5e6c84; font-size: 14px; text-align: center; padding: 20px;">No time logged for this timeframe.</p>';
+    } else {
+        const sortedL1 = Object.keys(aggregated).sort((a,b) => aggregated[b].total - aggregated[a].total);
+        sortedL1.forEach(l1 => {
+            const l1Data = aggregated[l1];
+            html += `
+            <details style="margin-bottom: 8px; border: 1px solid #dfe1e6; border-radius: 6px; overflow: hidden;">
+                <summary style="background: #f4f5f7; padding: 12px; cursor: pointer; font-weight: bold; color: #172b4d; display: flex; justify-content: space-between; outline: none;">
+                    <span>${sanitize(l1)}</span>
+                    <span style="color: #0052cc;">${formatTime(l1Data.total)}</span>
+                </summary>
+                <div style="padding: 10px 15px;">
+            `;
+            
+            const sortedL2 = Object.keys(l1Data.sub).sort((a,b) => l1Data.sub[b].total - l1Data.sub[a].total);
+            sortedL2.forEach(l2 => {
+                const l2Data = l1Data.sub[l2];
+                html += `
+                <details style="margin-bottom: 6px; border-left: 2px solid #ebecf0; padding-left: 10px;">
+                    <summary style="padding: 6px; cursor: pointer; font-weight: 600; color: #42526e; display: flex; justify-content: space-between; border-bottom: 1px solid #ebecf0; outline: none;">
+                        <span>${sanitize(l2)}</span>
+                        <span style="color: #36b37e;">${formatTime(l2Data.total)}</span>
+                    </summary>
+                    <div style="padding: 6px 10px 10px 15px;">
+                `;
+                
+                const sortedL3 = Object.keys(l2Data.sub).sort((a,b) => l2Data.sub[b].total - l2Data.sub[a].total);
+                html += `<div style="display: flex; flex-direction: column; gap: 4px;">`;
+                sortedL3.forEach(l3 => {
+                    const tData = l2Data.sub[l3];
+                    html += `
+                    <details style="border-bottom: 1px dashed #ebecf0; padding: 4px 0;">
+                        <summary style="cursor: pointer; display: flex; justify-content: space-between; outline: none; color: #5e6c84; font-size: 13px;">
+                            <span>${sanitize(l3)}</span>
+                            <span style="color: #172b4d; font-family: monospace;">${formatTime(tData.total)}</span>
+                        </summary>
+                        <div style="padding-left: 15px; font-size: 11px; margin-top: 4px;">`;
+                    
+                    tData.sessions.forEach(sess => {
+                        html += `<div style="display: flex; justify-content: space-between; color: #8993a4; padding: 2px 0;">
+                            <span>↳ ${sess.str}</span>
+                            <span style="font-family: monospace;">${formatTime(sess.ms)}</span>
+                        </div>`;
+                    });
+                    html += `</div></details>`;
+                });
+                html += `</div></div></details>`;
+            });
+            
+            html += `</div></details>`;
+        });
+    }
+    document.getElementById('detailed-time-container').innerHTML = html;
 }
 
 // --- CONTEXTUAL COMMENTS / NOTES ENGINE ---
@@ -2712,120 +2788,7 @@ function triggerDeleteComment(id) {
     else if (c.project_id) renderProjectComments(c.project_id);
 }
 
-function renderDetailedTimeReport() {
-    const timeframe = document.getElementById('report-timeframe').value;
-    const groupBy = document.getElementById('report-groupby').value;
-    
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfWeek = new Date(today); startOfWeek.setDate(today.getDate() - today.getDay());
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const startOfYear = new Date(today.getFullYear(), 0, 1);
-
-    let filteredLogs = timeLogs.filter(l => l.workspace_id === currentWorkspaceId);
-    
-    if (timeframe !== 'all') {
-        filteredLogs = filteredLogs.filter(l => {
-            if (!l.created_at) return false;
-            const logDate = new Date(l.created_at);
-            if (timeframe === 'today') return logDate >= today;
-            if (timeframe === 'week') return logDate >= startOfWeek;
-            if (timeframe === 'month') return logDate >= startOfMonth;
-            if (timeframe === 'year') return logDate >= startOfYear;
-            return true;
-        });
-    }
-
-    const aggregated = {};
-    
-    filteredLogs.forEach(log => {
-        const ms = parseInt(log.duration_ms, 10);
-        const d = log.created_at ? new Date(log.created_at) : new Date();
-        const sessStr = `${d.toLocaleDateString()} at ${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
-        
-        const pObj = projects.find(p => p.id === log.project_id);
-        const pName = pObj ? pObj.name : 'Unknown Project';
-        const uName = getUserName(log.user_id);
-        const tObj = tasks.find(t => t.id === log.task_id);
-        const tName = tObj ? tObj.title : 'Deleted/Unknown Task';
-        
-        if (groupBy === 'user') {
-            if (!aggregated[uName]) aggregated[uName] = { total: 0, sub: {} };
-            aggregated[uName].total += ms;
-            if (!aggregated[uName].sub[pName]) aggregated[uName].sub[pName] = { total: 0, sub: {} };
-            aggregated[uName].sub[pName].total += ms;
-            if (!aggregated[uName].sub[pName].sub[tName]) aggregated[uName].sub[pName].sub[tName] = { total: 0, sessions: [] };
-            aggregated[uName].sub[pName].sub[tName].total += ms;
-            aggregated[uName].sub[pName].sub[tName].sessions.push({ str: sessStr, ms: ms });
-        } else {
-            if (!aggregated[pName]) aggregated[pName] = { total: 0, sub: {} };
-            aggregated[pName].total += ms;
-            if (!aggregated[pName].sub[uName]) aggregated[pName].sub[uName] = { total: 0, sub: {} };
-            aggregated[pName].sub[uName].total += ms;
-            if (!aggregated[pName].sub[uName].sub[tName]) aggregated[pName].sub[uName].sub[tName] = { total: 0, sessions: [] };
-            aggregated[pName].sub[uName].sub[tName].total += ms;
-            aggregated[pName].sub[uName].sub[tName].sessions.push({ str: sessStr, ms: ms });
-        }
-    });
-
-    let html = '';
-    if (Object.keys(aggregated).length === 0) {
-        html = '<p style="color: #5e6c84; font-size: 14px; text-align: center; padding: 20px;">No time logged for this timeframe.</p>';
-    } else {
-        const sortedL1 = Object.keys(aggregated).sort((a,b) => aggregated[b].total - aggregated[a].total);
-        sortedL1.forEach(l1 => {
-            const l1Data = aggregated[l1];
-            html += `
-            <details style="margin-bottom: 8px; border: 1px solid #dfe1e6; border-radius: 6px; overflow: hidden;">
-                <summary style="background: #f4f5f7; padding: 12px; cursor: pointer; font-weight: bold; color: #172b4d; display: flex; justify-content: space-between; outline: none;">
-                    <span>${sanitize(l1)}</span>
-                    <span style="color: #0052cc;">${formatTime(l1Data.total)}</span>
-                </summary>
-                <div style="padding: 10px 15px;">
-            `;
-            
-            const sortedL2 = Object.keys(l1Data.sub).sort((a,b) => l1Data.sub[b].total - l1Data.sub[a].total);
-            sortedL2.forEach(l2 => {
-                const l2Data = l1Data.sub[l2];
-                html += `
-                <details style="margin-bottom: 6px; border-left: 2px solid #ebecf0; padding-left: 10px;">
-                    <summary style="padding: 6px; cursor: pointer; font-weight: 600; color: #42526e; display: flex; justify-content: space-between; border-bottom: 1px solid #ebecf0; outline: none;">
-                        <span>${sanitize(l2)}</span>
-                        <span style="color: #36b37e;">${formatTime(l2Data.total)}</span>
-                    </summary>
-                    <div style="padding: 6px 10px 10px 15px;">
-                `;
-                
-                const sortedL3 = Object.keys(l2Data.sub).sort((a,b) => l2Data.sub[b].total - l2Data.sub[a].total);
-                html += `<div style="display: flex; flex-direction: column; gap: 4px;">`;
-                sortedL3.forEach(l3 => {
-                    const tData = l2Data.sub[l3];
-                    html += `
-                    <details style="border-bottom: 1px dashed #ebecf0; padding: 4px 0;">
-                        <summary style="cursor: pointer; display: flex; justify-content: space-between; outline: none; color: #5e6c84; font-size: 13px;">
-                            <span>${sanitize(l3)}</span>
-                            <span style="color: #172b4d; font-family: monospace;">${formatTime(tData.total)}</span>
-                        </summary>
-                        <div style="padding-left: 15px; font-size: 11px; margin-top: 4px;">`;
-                    
-                    tData.sessions.forEach(sess => {
-                        html += `<div style="display: flex; justify-content: space-between; color: #8993a4; padding: 2px 0;">
-                            <span>↳ ${sess.str}</span>
-                            <span style="font-family: monospace;">${formatTime(sess.ms)}</span>
-                        </div>`;
-                    });
-                    html += `</div></details>`;
-                });
-                html += `</div></div></details>`;
-            });
-            
-            html += `</div></details>`;
-        });
-    }
-    document.getElementById('detailed-time-container').innerHTML = html;
-}
-
-// FIX: Click outside closes pill dropdowns safely
+// Global Click Listener to close UI dropdowns safely
 document.addEventListener('click', (e) => {
     if (!e.target.closest('#pill-urgency') && !e.target.closest('#urgency-dropdown')) {
         const d = document.getElementById('urgency-dropdown');
