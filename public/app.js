@@ -2074,11 +2074,16 @@ function updateFormUI() {
     document.getElementById('modal-title').innerText = draftSubtaskId ? "Subtask Details" : 'Task Configuration';
     
     if (draftSubtaskId) document.getElementById('gcal-checkbox-container').style.display = 'none';
-    // NEW: Only show comments on tasks that have been saved to the DB (not brand new drafts)
-    const isExistingTask = tasks.some(t => t.id === draftTask.id);
-    if (isExistingTask && !draftSubtaskId) {
+    
+  // NEW: Show comments on existing tasks AND existing subtasks
+    const currentTargetId = draftSubtaskId || draftTask.id;
+    
+    // A subtask is existing if its ID does NOT start with 'sub_' (our temporary prefix before saving)
+    const isExisting = draftSubtaskId ? !draftSubtaskId.startsWith('sub_') : tasks.some(t => t.id === draftTask.id);
+    
+    if (isExisting) {
         document.getElementById('task-comments-section').style.display = 'block';
-        renderTaskComments(draftTask.id);
+        renderTaskComments(currentTargetId);
     } else {
         document.getElementById('task-comments-section').style.display = 'none';
     }
@@ -2493,16 +2498,29 @@ function renderAnalyticsCharts() {
 function renderTaskComments(taskId) {
     const list = document.getElementById('task-comments-list');
     const taskComms = comments.filter(c => c.task_id === taskId);
+    const myId = getActiveUserObj().id;
     
-    list.innerHTML = taskComms.map(c => `
+    list.innerHTML = taskComms.map(c => {
+        const isMine = c.user_id === myId;
+        const actionsHtml = isMine ? `
+            <div style="display:flex; gap: 8px; align-items: center; margin-left: 10px;">
+                <button type="button" style="background:none; border:none; padding:0; cursor:pointer; color:#5e6c84; font-size: 14px;" onclick="triggerEditComment('${c.id}')" title="Edit">✎</button>
+                <button type="button" style="background:none; border:none; padding:0; cursor:pointer; color:#de350b; font-size: 14px;" onclick="triggerDeleteComment('${c.id}')" title="Delete">✕</button>
+            </div>
+        ` : '';
+
+        return `
         <div style="background: #f4f5f7; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px; align-items: center;">
                 <strong style="color: #172b4d;">${sanitize(getUserName(c.user_id))}</strong>
-                <span style="color: #5e6c84; font-size: 11px;">${new Date(c.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+                <div style="display: flex; align-items: center;">
+                    <span style="color: #5e6c84; font-size: 11px;">${new Date(c.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+                    ${actionsHtml}
+                </div>
             </div>
             <div style="color: #172b4d; line-height: 1.4;">${linkify(sanitize(c.content))}</div>
-        </div>
-    `).join('') || '<div style="color: #5e6c84; font-size: 13px; text-align: center;">No activity recorded yet.</div>';
+        </div>`;
+    }).join('') || '<div style="color: #5e6c84; font-size: 13px; text-align: center;">No activity recorded yet.</div>';
     
     list.scrollTop = list.scrollHeight;
 }
@@ -2510,39 +2528,31 @@ function renderTaskComments(taskId) {
 function renderProjectComments(projectId) {
     const list = document.getElementById('project-comments-list');
     const projComms = comments.filter(c => c.project_id === projectId && !c.task_id);
+    const myId = getActiveUserObj().id;
     
-    list.innerHTML = projComms.map(c => `
+    list.innerHTML = projComms.map(c => {
+        const isMine = c.user_id === myId;
+        const actionsHtml = isMine ? `
+            <div style="display:flex; gap: 8px; align-items: center; margin-left: 10px;">
+                <button type="button" style="background:none; border:none; padding:0; cursor:pointer; color:#5e6c84; font-size: 14px;" onclick="triggerEditComment('${c.id}')" title="Edit">✎</button>
+                <button type="button" style="background:none; border:none; padding:0; cursor:pointer; color:#de350b; font-size: 14px;" onclick="triggerDeleteComment('${c.id}')" title="Delete">✕</button>
+            </div>
+        ` : '';
+
+        return `
         <div style="background: #f4f5f7; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px; align-items: center;">
                 <strong style="color: #172b4d;">${sanitize(getUserName(c.user_id))}</strong>
-                <span style="color: #5e6c84; font-size: 11px;">${new Date(c.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+                <div style="display: flex; align-items: center;">
+                    <span style="color: #5e6c84; font-size: 11px;">${new Date(c.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+                    ${actionsHtml}
+                </div>
             </div>
             <div style="color: #172b4d; line-height: 1.4;">${linkify(sanitize(c.content))}</div>
-        </div>
-    `).join('') || '<div style="color: #5e6c84; font-size: 13px; text-align: center;">No project notes yet.</div>';
+        </div>`;
+    }).join('') || '<div style="color: #5e6c84; font-size: 13px; text-align: center;">No project notes yet.</div>';
     
     list.scrollTop = list.scrollHeight;
-}
-
-function postTaskComment() {
-    const input = document.getElementById('new-task-comment');
-    const content = input.value.trim();
-    if (!content || !draftTask) return;
-    
-    const newComment = {
-        id: generateUUID(),
-        workspace_id: currentWorkspaceId,
-        project_id: draftTask.project_id,
-        task_id: draftTask.id,
-        user_id: getActiveUserObj().id,
-        content: content,
-        created_at: new Date().toISOString()
-    };
-    
-    comments.push(newComment);
-    input.value = '';
-    renderTaskComments(draftTask.id);
-    apiCall('/comments', 'POST', newComment);
 }
 
 function postProjectComment() {
@@ -2564,6 +2574,44 @@ function postProjectComment() {
     input.value = '';
     renderProjectComments(contextTargetProjectId);
     apiCall('/comments', 'POST', newComment);
+}
+
+function triggerEditComment(id) {
+    const c = comments.find(x => x.id === id);
+    if (!c) return;
+    
+    document.getElementById('edit-comment-id').value = id;
+    document.getElementById('edit-comment-input').value = c.content;
+    document.getElementById('edit-comment-modal').showModal();
+}
+
+document.getElementById('edit-comment-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('edit-comment-id').value;
+    const newContent = document.getElementById('edit-comment-input').value.trim();
+    const c = comments.find(x => x.id === id);
+    
+    if (c && newContent) {
+        c.content = newContent;
+        apiCall(`/comments/${id}`, 'PUT', { content: c.content });
+        
+        if (c.task_id) renderTaskComments(c.task_id);
+        else if (c.project_id) renderProjectComments(c.project_id);
+    }
+    document.getElementById('edit-comment-modal').close();
+});
+
+function triggerDeleteComment(id) {
+    if (!confirm("Are you sure you want to delete this comment? This cannot be undone.")) return;
+    
+    const c = comments.find(x => x.id === id);
+    if (!c) return;
+    
+    comments = comments.filter(x => x.id !== id);
+    apiCall(`/comments/${id}`, 'DELETE');
+    
+    if (c.task_id) renderTaskComments(c.task_id);
+    else if (c.project_id) renderProjectComments(c.project_id);
 }
 
 function renderDetailedTimeReport() {
