@@ -1974,27 +1974,6 @@ function closeModal() {
     draftTask = null; draftSubtasks = []; 
 }
 
-function syncFormToDraft() {
-    if (!draftTask) return;
-    const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
-    if (data) { 
-        data.title = document.getElementById('task-title').value.trim(); 
-        data.description = document.getElementById('task-desc').value; 
-        data.due_date = document.getElementById('task-due-date').value; 
-        
-        const oldStatus = data.status;
-        const newStatus = document.getElementById('task-status').value;
-        data.status = newStatus;
-        
-        if ((newStatus === 'done' || newStatus === 'complete' || newStatus === 'archive') && (oldStatus !== 'done' && oldStatus !== 'complete' && oldStatus !== 'archive')) {
-            data.completed_at = new Date().toISOString();
-        } else if (newStatus !== 'done' && newStatus !== 'complete' && newStatus !== 'archive') {
-            data.completed_at = null;
-        }
-        
-        data.urgency = document.getElementById('task-urgency').value; 
-    }
-}
 
 function triggerRemoveMeTask(id) {
     const t = tasks.find(x => x.id === id);
@@ -2032,7 +2011,32 @@ function updateFormUI() {
     
     document.getElementById('task-title').value = data.title || ''; 
     document.getElementById('task-desc').value = data.description || ''; 
-    document.getElementById('task-due-date').value = data.due_date || ''; 
+    
+    // FIX: Stretch the invisible Date Input to perfectly cover the entire Pill button
+    const dateInput = document.getElementById('task-due-date');
+    const dateBtn = document.getElementById('pill-date');
+    if (dateInput && dateBtn) {
+        dateInput.style.position = 'absolute';
+        dateInput.style.left = '0';
+        dateInput.style.top = '0';
+        dateInput.style.width = '100%';
+        dateInput.style.height = '100%';
+        dateInput.style.opacity = '0';
+        dateInput.style.cursor = 'pointer';
+        dateInput.style.right = 'auto'; // Resets any old styling
+        
+        // Load existing date into the input so the calendar picker opens to the right month
+        dateInput.value = data.due_date || '';
+        
+        // Save the date to memory instantly when the user picks a day
+        dateInput.onchange = (e) => {
+            const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
+            if(target) {
+                target.due_date = e.target.value;
+                updatePills();
+            }
+        };
+    }
     
     switchTaskModalTab('details');
     updatePills(); 
@@ -2081,13 +2085,14 @@ function updateFormUI() {
     document.getElementById('tab-btn-activity').style.display = isExisting ? 'block' : 'none';
 }
 
+// FIX: This now safely saves the form without crashing on deleted dropdowns!
 function syncFormToDraft() {
     if (!draftTask) return;
     const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
     if (data) { 
         data.title = document.getElementById('task-title').value.trim(); 
         data.description = document.getElementById('task-desc').value; 
-        data.due_date = document.getElementById('task-due-date').value; 
+        // Note: Date, Status, and Urgency are now flawlessly synced live via their Pill clicks!
     }
 }
 
@@ -2159,7 +2164,6 @@ document.getElementById('task-form').addEventListener('submit', async function(e
 
 function openAssigneePromptModal() { 
     syncFormToDraft(); 
-    // FIX: Removed double body-lock to prevent breaking scrolling
     renderAssigneeCheckboxes();
     const m = document.getElementById('assignee-prompt-modal');
     m.showModal(); 
@@ -2167,7 +2171,6 @@ function openAssigneePromptModal() {
 } 
 
 function toggleDraftAssignee(userId, isChecked) {
-    // FIX: Dynamically target the subtask if open, otherwise target main task
     const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
     if (!target) return;
     
@@ -2180,7 +2183,6 @@ function toggleDraftAssignee(userId, isChecked) {
 }
 
 function closeAssigneePromptModal() { 
-    // FIX: Removed unlockBody so the main Task Modal doesn't lose its background lock
     document.getElementById('assignee-prompt-modal').close(); 
     updateFormUI(); 
 }
@@ -2190,7 +2192,6 @@ function renderAssigneeCheckboxes() {
     const allKnownUsers = getVisibleUsers();
     if (allKnownUsers.length === 0) { container.innerHTML = '<span style="color:#5e6c84; font-size:12px;">No one added yet.</span>'; return; }
     
-    // FIX: Load assignees dynamically from subtask OR main task
     const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
     const selected = target ? (target.assignees || []) : [];
     
@@ -2207,7 +2208,6 @@ function renderAssigneeCheckboxes() {
 
 function openSubtaskPromptModal() { 
     syncFormToDraft(); 
-    // FIX: Avoid double body lock here as well
     document.getElementById('new-subtask-name').value = ''; 
     const m = document.getElementById('subtask-prompt-modal');
     m.showModal(); 
@@ -2393,6 +2393,78 @@ function executeConfirm() {
 function closeConfirmModal() { 
     unlockBody(); document.getElementById('confirm-modal').close(); pendingConfirmAction = null; 
     document.getElementById('confirm-execute-btn').innerText = 'Confirm';
+}
+
+// --- MINIMALIST UI STATE HANDLERS ---
+function switchTaskModalTab(tab) {
+    document.getElementById('tab-btn-details').classList.toggle('active', tab === 'details');
+    document.getElementById('tab-btn-activity').classList.toggle('active', tab === 'activity');
+    document.getElementById('task-tab-details').style.display = tab === 'details' ? 'block' : 'none';
+    document.getElementById('task-tab-activity').style.display = tab === 'activity' ? 'flex' : 'none';
+    
+    if (tab === 'activity' && draftTask) {
+        renderTaskComments(draftSubtaskId || draftTask.id);
+    }
+}
+
+function setTaskStatus(val) {
+    if(!draftTask) return;
+    const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
+    
+    const oldStatus = target.status;
+    target.status = val;
+    
+    if ((val === 'done' || val === 'complete' || val === 'archive') && (oldStatus !== 'done' && oldStatus !== 'complete' && oldStatus !== 'archive')) {
+        target.completed_at = new Date().toISOString();
+    } else if (val !== 'done' && val !== 'complete' && val !== 'archive') {
+        target.completed_at = null;
+    }
+    
+    updatePills();
+}
+
+function setTaskUrgency(val) {
+    if(!draftTask) return;
+    const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
+    target.urgency = val;
+    updatePills();
+}
+
+function revealTimer() {
+    document.getElementById('timer-empty-btn').style.display = 'none';
+    document.getElementById('timer-active-section').style.display = 'flex';
+}
+
+function updatePills() {
+    const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
+    if (!target) return;
+
+    // Assignees Pill
+    const assigneeBtn = document.getElementById('pill-assignee');
+    if (!target.assignees || target.assignees.length === 0) {
+        assigneeBtn.innerText = '👤 Unassigned';
+    } else if (target.assignees.length === 1) {
+        assigneeBtn.innerText = `👤 ${sanitize(getUserName(target.assignees[0]))}`;
+    } else {
+        assigneeBtn.innerText = `👤 ${target.assignees.length} Assignees`;
+    }
+
+    // Date Pill
+    const dateBtn = document.getElementById('pill-date');
+    if (target.due_date) {
+        const d = new Date(target.due_date + 'T12:00:00');
+        dateBtn.innerText = `📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+    } else {
+        dateBtn.innerText = '📅 No Date';
+    }
+
+    // Urgency Pill
+    const uMap = { low: '🟢 Low', medium: '🟡 Medium', high: '🔴 High' };
+    document.getElementById('pill-urgency').innerText = uMap[target.urgency] || '🟢 Low';
+
+    // Status Pill
+    const sMap = { todo: '▶️ To Do', doing: '⏳ Doing', done: '✅ Done', future: '🔮 Future', recurring: '🔁 Recurring', complete: '📦 Archived' };
+    document.getElementById('pill-status').innerText = sMap[target.status] || '▶️ To Do';
 }
 
 function switchAnalyticsTab(tab) {
@@ -2753,7 +2825,7 @@ function renderDetailedTimeReport() {
     document.getElementById('detailed-time-container').innerHTML = html;
 }
 
-// FIX: Auto-close UI Pills when clicking away
+// FIX: Click outside closes pill dropdowns safely
 document.addEventListener('click', (e) => {
     if (!e.target.closest('#pill-urgency') && !e.target.closest('#urgency-dropdown')) {
         const d = document.getElementById('urgency-dropdown');
