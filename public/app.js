@@ -56,7 +56,7 @@ let displayConfig = { showDate: true, showUrgency: true, showDesc: true, showAss
 
 let currentView = 'active'; let draftTask = null; let draftSubtasks = []; let pendingConfirmAction = null; 
 let contextTargetMainId = null; let contextTargetSubtaskId = null; let contextTargetProjectId = null;
-let draftSubtaskId = null; // FIX: Declared cleanly at the top to prevent parsing crashes!
+let draftSubtaskId = null;
 
 // BULK SELECT STATE
 let selectedTasks = new Set();
@@ -1249,14 +1249,16 @@ function toggleWorkspaceMenu(e) {
 }
 
 function closeMenus() { 
-    activeContextMenu.style.display = 'none'; 
-    futureContextMenu.style.display = 'none'; 
-    archiveContextMenu.style.display = 'none'; 
-    subtaskContextMenu.style.display = 'none'; 
-    workspaceContextMenu.style.display = 'none'; 
+    if(activeContextMenu) activeContextMenu.style.display = 'none'; 
+    if(futureContextMenu) futureContextMenu.style.display = 'none'; 
+    if(archiveContextMenu) archiveContextMenu.style.display = 'none'; 
+    if(subtaskContextMenu) subtaskContextMenu.style.display = 'none'; 
+    if(workspaceContextMenu) workspaceContextMenu.style.display = 'none'; 
     if(projectContextMenu) projectContextMenu.style.display = 'none'; 
-    const statusDropdown = document.getElementById('mv-status-dropdown');
-    if(statusDropdown) statusDropdown.style.display = 'none';
+    
+    const d1 = document.getElementById('status-dropdown'); if(d1) d1.style.display = 'none';
+    const d2 = document.getElementById('urgency-dropdown'); if(d2) d2.style.display = 'none';
+    const d3 = document.getElementById('mv-status-dropdown'); if(d3) d3.style.display = 'none';
 }
 
 function positionMenu(e, target) {
@@ -1933,22 +1935,29 @@ function updateFormUI() {
     document.getElementById('task-title').value = data.title || '';
     document.getElementById('task-desc').value = data.description || '';
 
-    // FIX: Perfectly overlays the input on top of the date button so Safari registers the tap immediately
     const dateInput = document.getElementById('task-due-date');
     const dateBtn = document.getElementById('pill-date');
     if (dateInput && dateBtn) {
         dateInput.value = data.due_date || '';
-        
-        const parent = dateBtn.parentElement;
-        parent.style.position = 'relative';
         dateInput.style.position = 'absolute';
-        dateInput.style.top = '0';
-        dateInput.style.left = '0';
-        dateInput.style.width = '100%';
-        dateInput.style.height = '100%';
         dateInput.style.opacity = '0';
-        dateInput.style.cursor = 'pointer';
-        dateInput.style.zIndex = '10';
+        dateInput.style.width = '1px';
+        dateInput.style.height = '1px';
+        dateInput.style.pointerEvents = 'none';
+        
+        dateBtn.style.pointerEvents = 'auto'; 
+        dateBtn.onclick = (e) => {
+            e.preventDefault();
+            try { 
+                dateInput.showPicker(); 
+            } catch(err) { 
+                dateInput.style.opacity = '1';
+                dateInput.style.width = 'auto';
+                dateInput.style.height = 'auto';
+                dateInput.style.position = 'static';
+                dateInput.focus(); 
+            }
+        };
         
         dateInput.onchange = (e) => {
             const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
@@ -2010,7 +2019,7 @@ function syncFormToDraft() {
         data.title = document.getElementById('task-title').value.trim();
         data.description = document.getElementById('task-desc').value;
         const dateEl = document.getElementById('task-due-date');
-        if (dateEl) {
+        if (dateEl && dateEl.value) {
             data.due_date = dateEl.value;
         }
     }
@@ -2020,7 +2029,14 @@ document.getElementById('task-form').addEventListener('submit', async function(e
     e.preventDefault(); syncFormToDraft(); 
     
     await saveTaskDB(draftTask);
-    for (const st of draftSubtasks) { if (st.id.includes('sub_') || st.id.includes('temp')) st.id = generateUUID(); st.parent_task_id = draftTask.id; await saveTaskDB(st); }
+    
+    for (const st of draftSubtasks) { 
+        if (st.id.includes('sub_') || st.id.includes('temp')) {
+            st.id = generateUUID(); 
+        }
+        st.parent_task_id = draftTask.id; 
+        await saveTaskDB(st); 
+    }
 
     const me = getActiveUserObj();
     const allAssignees = draftTask.assignees || [];
@@ -2351,6 +2367,7 @@ function setTaskStatus(val) {
         }
         
         updatePills();
+        closeMenus(); 
     } catch(e) { console.error("Error setting status:", e); }
 }
 
@@ -2359,6 +2376,7 @@ function setTaskUrgency(val) {
     const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
     target.urgency = val;
     updatePills();
+    closeMenus(); 
 }
 
 function revealTimer() {
