@@ -421,7 +421,7 @@
         </div>
     </dialog>
 
-    <dialog id="task-modal">
+   <dialog id="task-modal">
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
 
         <div class="modal-header-row">
@@ -502,6 +502,29 @@
             </div>
             
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closeModal()">Cancel</button><button type="submit" id="save-task-btn">Save Task</button></div>
+        </form>
+    </dialog
+        
+    <dialog id="edit-project-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
+        <h2 style="margin-top:0;">Edit Project</h2>
+        <form id="edit-project-form">
+            <div class="form-group"><label>Project Name</label><input type="text" id="edit-project-name" required autocomplete="off" spellcheck="true"></div>
+            
+            <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;">
+                <input type="checkbox" id="edit-project-secret"><label for="edit-project-secret" style="margin:0; font-weight:bold; color: #006644;">🔒 Make Secret (Only visible to me)</label>
+            </div>
+
+            <div class="form-group">
+                <label style="margin: 0; font-size: 14px; font-weight: bold; color: #172b4d; border-bottom: 2px solid #ebecf0; padding-bottom: 6px; display: block; margin-top: 15px; margin-bottom: 10px;">Project Activity & Notes</label>
+                <div id="project-comments-list" style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px;"></div>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="new-project-comment" placeholder="Add a note or update..." style="flex: 1; padding: 8px; border: 1px solid #dfe1e6; border-radius: 4px;" autocomplete="off" spellcheck="true" onkeydown="if(event.key === 'Enter') { event.preventDefault(); postProjectComment(); }">
+                    <button type="button" class="action-primary" onclick="postProjectComment()" style="padding: 6px 12px;">Post</button>
+                </div>
+            </div>
+
+            <div class="dialog-actions"><button type="button" class="secondary" onclick="closeEditProjectModal()">Close</button><button type="submit">Save Name/Privacy</button></div>
         </form>
     </dialog>
     
