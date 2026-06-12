@@ -2027,6 +2027,20 @@ function removeAssigneeFromTask(userId) {
     updateFormUI();
 }
 
+function switchTaskTab(tab) {
+    document.getElementById('task-tab-details').classList.toggle('active', tab === 'details');
+    document.getElementById('task-tab-activity').classList.toggle('active', tab === 'activity');
+    document.getElementById('task-content-details').style.display = tab === 'details' ? 'block' : 'none';
+    document.getElementById('task-content-activity').style.display = tab === 'activity' ? 'block' : 'none';
+}
+
+function switchProjectTab(tab) {
+    document.getElementById('project-tab-settings').classList.toggle('active', tab === 'settings');
+    document.getElementById('project-tab-activity').classList.toggle('active', tab === 'activity');
+    document.getElementById('project-content-settings').style.display = tab === 'settings' ? 'block' : 'none';
+    document.getElementById('project-content-activity').style.display = tab === 'activity' ? 'block' : 'none';
+}
+
 function updateFormUI() {
     if (!draftTask) return; const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask; if (!data) return;
     document.getElementById('task-title').value = data.title || ''; document.getElementById('task-desc').value = data.description || ''; document.getElementById('task-due-date').value = data.due_date || ''; document.getElementById('task-status').value = data.status || 'todo'; document.getElementById('task-urgency').value = data.urgency || 'low';
@@ -2074,14 +2088,14 @@ function updateFormUI() {
     document.getElementById('modal-title').innerText = draftSubtaskId ? "Subtask Details" : 'Task Configuration';
     
     if (draftSubtaskId) document.getElementById('gcal-checkbox-container').style.display = 'none';
-    // NEW: Only show comments on tasks that have been saved to the DB (not brand new drafts)
-    const isExistingTask = tasks.some(t => t.id === draftTask.id);
+   const isExistingTask = tasks.some(t => t.id === draftTask.id);
     if (isExistingTask && !draftSubtaskId) {
-        document.getElementById('task-comments-section').style.display = 'block';
+        document.getElementById('task-tab-activity').style.display = 'block'; // Show Activity tab
         renderTaskComments(draftTask.id);
     } else {
-        document.getElementById('task-comments-section').style.display = 'none';
+        document.getElementById('task-tab-activity').style.display = 'none'; // Hide Activity tab for brand new tasks
     }
+    switchTaskTab('details'); // Always default back to the Details view when UI updates
     
     if(!draftSubtaskId) renderSubtasks();
 }
@@ -2243,6 +2257,7 @@ function openEditProjectModal(id) {
     
     // NEW: Render the project comments
     renderProjectComments(id);
+    switchProjectTab('settings');
 
     const m = document.getElementById('edit-project-modal');
     m.showModal();
