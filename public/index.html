@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <title>Personal Task Board</title>
-    
     <link rel="stylesheet" href="/style.css">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -19,6 +18,28 @@
 
     <div id="global-timer-indicator">
         <span style="font-size: 16px;">⏱️</span> <span id="global-timer-text">00:00:00</span>
+    </div>
+
+    <div id="chat-overlay" onclick="toggleChatPanel()"></div>
+    <div id="chat-panel">
+        <div style="padding: 20px; border-bottom: 2px solid #ebecf0; display: flex; justify-content: space-between; align-items: center; background: white;">
+            <h2 style="margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">Chill Chat <span style="font-size: 14px; opacity: 0.5;">☕️</span></h2>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button type="button" class="secondary" style="padding: 4px 8px; font-size: 14px;" onclick="fetchMessages()" title="Refresh Messages">↻</button>
+                <button class="danger" onclick="toggleChatPanel()" style="font-size: 18px; padding: 2px 8px;">&times;</button>
+            </div>
+        </div>
+        <div style="padding: 10px 20px; background: #fafbfc; border-bottom: 1px solid #ebecf0;">
+            <select id="chat-recipient-select" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #dfe1e6; font-size: 14px;" onchange="switchChatRecipient(this.value)">
+                <option value="team">Team Chat (Workspace)</option>
+            </select>
+        </div>
+        <div id="chat-messages">
+            </div>
+        <form id="chat-form">
+            <input type="text" id="chat-input" placeholder="Type a message..." required spellcheck="true">
+            <button type="submit" style="padding: 10px 16px;">Send</button>
+        </form>
     </div>
 
     <div id="app-container" style="display: none;">
@@ -38,6 +59,7 @@
             
             <div class="header-controls">
                 <div id="user-button"></div>
+                <button class="gear-btn" onclick="toggleChatPanel()" title="Chill Chat">☕️</button>
                 <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
             </div>
         </div>
@@ -153,7 +175,8 @@
                 </div>
             </div>
 
-            <div id="master-task-list" class="board-container size-small" style="display: flex; flex-direction: column; gap: 8px; max-width: 800px; margin: 0 auto; padding-bottom: 60px;"></div>
+            <div id="master-task-list" class="board-container size-small" style="display: flex; flex-direction: column; gap: 8px; max-width: 800px; margin: 0 auto; padding-bottom: 60px;">
+                </div>
         </div>
     </div>
 
@@ -162,119 +185,6 @@
     <div id="archive-context-menu" class="custom-context-menu"></div>
     <div id="project-context-menu" class="custom-context-menu"></div>
     <div id="subtask-context-menu" class="custom-context-menu"></div>
-
-    <dialog id="task-modal" style="width: 95%; max-width: 600px; padding: 0; overflow: hidden; border-radius: 12px;">
-        <button autofocus style="position: absolute; opacity: 0;" tabindex="-1"></button>
-        <form id="task-form" style="display: flex; flex-direction: column; height: 100%; max-height: 85vh;">
-            
-            <div style="padding: 15px 20px; border-bottom: 1px solid #ebecf0; display: flex; justify-content: space-between; align-items: center; background: white; position: sticky; top: 0; z-index: 10;">
-                <button type="button" class="secondary" style="border: none; background: transparent; padding: 0; font-size: 15px; color: #5e6c84;" onclick="closeModal()">Cancel</button>
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <button type="button" id="modal-back-btn" class="secondary" style="display:none; padding: 4px 8px; font-size: 12px;" onclick="backToParentTask()">← Back to Parent Task</button>
-                    <button type="submit" id="save-task-btn" style="background: transparent; border: none; font-weight: bold; color: #0052cc; font-size: 15px; padding: 0;">Done</button>
-                </div>
-            </div>
-
-            <div style="padding: 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1;">
-                
-                <input type="text" id="task-title" class="ghost-input" required placeholder="Task Title" spellcheck="true" style="font-size: 24px; font-weight: bold; margin-bottom: 15px;">
-                
-                <div class="pill-row">
-                    <button type="button" class="pill-btn" onclick="openAssigneePromptModal()" id="pill-assignee">👤 Unassigned</button>
-                    
-                    <div style="position: relative; overflow: hidden; border-radius: 20px;">
-                        <input type="date" id="task-due-date" onchange="updatePills()" style="position: absolute; opacity: 0; right: 0; top: 0; bottom: 0; width: 40px; cursor: pointer;">
-                        <button type="button" class="pill-btn" id="pill-date" style="pointer-events: none;">📅 No Date</button>
-                    </div>
-
-                    <div style="position: relative;">
-                        <button type="button" class="pill-btn" onclick="toggleContextSubmenu(event, 'urgency-dropdown')" id="pill-urgency">🟢 Low</button>
-                        <div id="urgency-dropdown" class="custom-context-menu" style="position: absolute; margin-top: 4px; z-index: 20; display: none;">
-                            <button type="button" onclick="setTaskUrgency('low'); toggleContextSubmenu(event, 'urgency-dropdown')">🟢 Low</button>
-                            <button type="button" onclick="setTaskUrgency('medium'); toggleContextSubmenu(event, 'urgency-dropdown')">🟡 Medium</button>
-                            <button type="button" onclick="setTaskUrgency('high'); toggleContextSubmenu(event, 'urgency-dropdown')">🔴 High</button>
-                        </div>
-                    </div>
-
-                    <div style="position: relative;">
-                        <button type="button" class="pill-btn" onclick="toggleContextSubmenu(event, 'status-dropdown')" id="pill-status">▶️ To Do</button>
-                        <div id="status-dropdown" class="custom-context-menu" style="position: absolute; margin-top: 4px; z-index: 20; display: none;">
-                            <button type="button" onclick="setTaskStatus('todo'); toggleContextSubmenu(event, 'status-dropdown')">▶️ To Do</button>
-                            <button type="button" onclick="setTaskStatus('doing'); toggleContextSubmenu(event, 'status-dropdown')">⏳ Doing</button>
-                            <button type="button" onclick="setTaskStatus('done'); toggleContextSubmenu(event, 'status-dropdown')">✅ Done</button>
-                            <button type="button" onclick="setTaskStatus('future'); toggleContextSubmenu(event, 'status-dropdown')">🔮 Future</button>
-                            <button type="button" onclick="setTaskStatus('recurring'); toggleContextSubmenu(event, 'status-dropdown')">🔁 Recurring</button>
-                            <button type="button" onclick="setTaskStatus('complete'); toggleContextSubmenu(event, 'status-dropdown')">📦 Archived</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="segmented-control">
-                    <button type="button" class="segment-btn active" id="tab-btn-details" onclick="switchTaskModalTab('details')">Details</button>
-                    <button type="button" class="segment-btn" id="tab-btn-activity" onclick="switchTaskModalTab('activity')">Activity</button>
-                </div>
-
-                <div id="task-tab-details">
-                    <textarea id="task-desc" class="ghost-input" rows="3" placeholder="Add a description..." spellcheck="true" style="margin-bottom: 20px; font-size: 15px;"></textarea>
-                    
-                    <div id="dynamic-tools-section" style="margin-bottom: 20px;">
-                        <div id="timer-active-section" style="display: none; background: #fafbfc; padding: 12px; border-radius: 8px; border: 1px solid #dfe1e6; align-items: center; justify-content: space-between;">
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <button type="button" id="timer-toggle-btn" class="action-success" onclick="toggleTimer()" style="font-size: 13px; padding: 6px 12px; background: #e3fcef; color: #006644; border: 1px solid #36b37e; border-radius: 16px;">▶ Start</button>
-                                <span id="task-timer-display" style="font-weight: bold; font-size: 18px; font-variant-numeric: tabular-nums; cursor: pointer; color: #0052cc; text-decoration: underline;" onclick="openTimeReportModal()">00:00:00</span>
-                            </div>
-                            <button type="button" style="background: transparent; border: none; color: #de350b; font-size: 13px; cursor: pointer; font-weight: bold;" onclick="clearTimer()">Clear</button>
-                        </div>
-                        <button type="button" id="timer-empty-btn" class="empty-state-btn" onclick="revealTimer()">⏱️ Track Time Log</button>
-                    </div>
-
-                    <div id="subtasks-form-section" style="margin-bottom: 20px;">
-                        <div id="subtasks-container" style="margin-bottom: 10px;"></div>
-                        <button type="button" class="empty-state-btn" onclick="openSubtaskPromptModal()">☑ Add Subtasks</button>
-                    </div>
-
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-top: 1px solid #ebecf0;" id="gcal-checkbox-container">
-                        <span style="font-size: 14px; font-weight: 600; color: #172b4d;">📅 Add to Google Calendar on Save</span>
-                        <input type="checkbox" id="task-gcal-sync" class="ios-toggle">
-                    </div>
-                </div>
-
-                <div id="task-tab-activity" style="display: none; flex-direction: column; min-height: 250px;">
-                    <div id="task-comments-list" style="flex: 1; display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px;"></div>
-                    <div style="display: flex; gap: 8px; position: sticky; bottom: 0; background: white; padding-top: 10px; border-top: 1px solid #ebecf0;">
-                        <input type="text" id="new-task-comment" placeholder="Log a note or comment..." class="ghost-input" style="flex: 1; padding: 10px 15px; border: 1px solid #dfe1e6; border-radius: 20px; background: #f4f5f7;" autocomplete="off" spellcheck="true" onkeydown="if(event.key === 'Enter') { event.preventDefault(); postTaskComment(); }">
-                        <button type="button" class="action-primary" onclick="postTaskComment()" style="border-radius: 20px; padding: 0 16px;">Post</button>
-                    </div>
-                </div>
-            </div>
-        </form>
-    </dialog>
-
-    <dialog id="edit-project-modal" style="width: 95%; max-width: 500px; padding: 0; overflow: hidden; border-radius: 12px;">
-        <button autofocus style="position: absolute; opacity: 0;" tabindex="-1"></button>
-        <div style="padding: 15px 20px; border-bottom: 1px solid #ebecf0; display: flex; justify-content: space-between; align-items: center; background: white; position: sticky; top: 0; z-index: 10;">
-            <button type="button" class="secondary" style="border: none; background: transparent; padding: 0; font-size: 15px; color: #5e6c84;" onclick="closeEditProjectModal()">Close</button>
-        </div>
-
-        <div style="padding: 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; max-height: 80vh;">
-            
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #ebecf0; padding-bottom: 15px;">
-                <input type="text" id="edit-project-name" class="ghost-input" required autocomplete="off" spellcheck="true" style="font-size: 24px; font-weight: bold; flex: 1;" onchange="autoSaveProject()" placeholder="Project Name">
-                <div style="display: flex; align-items: center; gap: 8px; margin-left: 10px;">
-                    <span style="font-size: 18px;" title="Make Secret">🔒</span>
-                    <input type="checkbox" id="edit-project-secret" class="ios-toggle" onchange="autoSaveProject()">
-                </div>
-            </div>
-
-            <div id="project-comments-list" style="min-height: 250px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;"></div>
-            
-            <div style="display: flex; gap: 8px; position: sticky; bottom: 0; background: white; padding-top: 10px; border-top: 1px solid #ebecf0;">
-                <input type="text" id="new-project-comment" placeholder="Add a project note..." class="ghost-input" style="flex: 1; padding: 10px 15px; border: 1px solid #dfe1e6; border-radius: 20px; background: #f4f5f7;" autocomplete="off" spellcheck="true" onkeydown="if(event.key === 'Enter') { event.preventDefault(); postProjectComment(); }">
-                <button type="button" class="action-primary" onclick="postProjectComment()" style="border-radius: 20px; padding: 0 16px;">Post</button>
-            </div>
-        </div>
-    </dialog>
-
 
     <dialog id="settings-modal">
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
@@ -315,17 +225,19 @@
         </div>
     </dialog>
 
-    <dialog id="analytics-modal" style="width: 95%; max-width: 1000px; height: 90vh;">
+  <dialog id="analytics-modal" style="width: 95%; max-width: 1000px; height: 90vh;">
         <div style="display: flex; flex-direction: column; height: 100%;">
             <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
             <div class="modal-header-row" style="flex-shrink: 0;">
                 <h2 style="margin:0;">Workspace Analytics</h2>
                 <button class="danger" onclick="closeAnalyticsModal()" title="Close Dashboard">&times;</button>
             </div>
+
             <div style="display: flex; gap: 10px; margin-top: 10px; border-bottom: 2px solid #ebecf0; padding-bottom: 10px; flex-shrink: 0;">
                 <button id="tab-overview" class="view-toggle active" onclick="switchAnalyticsTab('overview')">Overview Charts</button>
                 <button id="tab-time-report" class="view-toggle" onclick="switchAnalyticsTab('time-report')">Detailed Time Report</button>
             </div>
+            
             <div id="analytics-overview" style="flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-top: 15px; padding-bottom: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
                 <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
                     <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Time Allocation (Hours by User)</h3>
@@ -344,6 +256,7 @@
                     <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-recurring"></canvas></div>
                 </div>
             </div>
+
             <div id="analytics-time-report" style="flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-top: 15px; padding-bottom: 30px; display: none; flex-direction: column; gap: 15px;">
                 <div style="display: flex; gap: 15px; background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; flex-wrap: wrap;">
                     <div style="flex: 1; min-width: 200px;">
@@ -364,7 +277,9 @@
                         </select>
                     </div>
                 </div>
-                <div id="detailed-time-container" style="background: white; border: 1px solid #dfe1e6; border-radius: 8px; padding: 15px;"></div>
+                
+                <div id="detailed-time-container" style="background: white; border: 1px solid #dfe1e6; border-radius: 8px; padding: 15px;">
+                    </div>
             </div>
         </div>
     </dialog>
@@ -375,7 +290,8 @@
             <h2 style="margin:0; color: #0052cc;">Task Time Report</h2>
             <button class="danger" onclick="document.getElementById('time-report-modal').close()" title="Close">&times;</button>
         </div>
-        <div id="time-report-content" style="padding-top: 15px; min-width: 250px;"></div>
+        <div id="time-report-content" style="padding-top: 15px; min-width: 250px;">
+            </div>
     </dialog>
 
     <dialog id="repetition-report-modal" style="width: 95%; max-width: 500px; max-height: 80vh; overflow-y: auto; -webkit-overflow-scrolling: touch;">
@@ -384,7 +300,8 @@
             <h2 style="margin:0; color: #0052cc;">Repetition History</h2>
             <button class="danger" onclick="document.getElementById('repetition-report-modal').close()" title="Close">&times;</button>
         </div>
-        <div id="repetition-report-content" style="padding-top: 15px; min-width: 250px;"></div>
+        <div id="repetition-report-content" style="padding-top: 15px; min-width: 250px;">
+            </div>
     </dialog>
 
     <dialog id="edit-user-email-modal">
@@ -448,11 +365,31 @@
         <h2 style="margin-top:0;">New Project</h2>
         <form id="prompt-form">
             <div class="form-group"><label>Project Name</label><input type="text" id="new-project-name" required placeholder="E.g., Vacation Planning" autocomplete="off" spellcheck="true"></div>
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-top: 1px solid #ebecf0;">
-                <span style="font-size: 14px; font-weight: 600; color: #172b4d;">🔒 Make Secret</span>
-                <input type="checkbox" id="new-project-secret" class="ios-toggle">
+            <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;">
+                <input type="checkbox" id="new-project-secret"><label for="new-project-secret" style="margin:0; font-weight:bold; color: #006644;">🔒 Make Secret (Only visible to me)</label>
             </div>
             <div class="dialog-actions"><button type="button" class="secondary" onclick="closePromptModal()">Cancel</button><button type="submit">Create</button></div>
+        </form>
+    </dialog>
+
+    <dialog id="edit-project-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
+        <h2 style="margin-top:0;">Edit Project</h2>
+        <form id="edit-project-form">
+            <div class="form-group"><label>Project Name</label><input type="text" id="edit-project-name" required autocomplete="off" spellcheck="true"></div>
+            
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label style="margin: 0;">Project Notes / Scratchpad</label>
+                    <button type="button" class="danger" onclick="document.getElementById('edit-project-notes').value = ''" title="Clear text (Requires Save to commit)">Clear</button>
+                </div>
+                <textarea id="edit-project-notes" rows="6" placeholder="Jot down quick ideas, meeting notes, or draft future tasks here..." style="resize: vertical;" spellcheck="true"></textarea>
+            </div>
+
+            <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;">
+                <input type="checkbox" id="edit-project-secret"><label for="edit-project-secret" style="margin:0; font-weight:bold; color: #006644;">🔒 Make Secret (Only visible to me)</label>
+            </div>
+            <div class="dialog-actions"><button type="button" class="secondary" onclick="closeEditProjectModal()">Cancel</button><button type="submit">Save Changes</button></div>
         </form>
     </dialog>
 
@@ -484,21 +421,90 @@
         </div>
     </dialog>
 
-    <dialog id="edit-comment-modal" style="width: 95%; max-width: 500px; z-index: 9999;">
+    <dialog id="task-modal">
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
-        <h2 style="margin-top:0; color: #172b4d;">Edit Comment</h2>
-        <form id="edit-comment-form">
-            <input type="hidden" id="edit-comment-id">
-            <div class="form-group">
-                <textarea id="edit-comment-input" rows="3" required spellcheck="true" style="width: 100%; padding: 8px; border: 1px solid #dfe1e6; border-radius: 4px; resize: vertical; font-family: inherit;"></textarea>
+
+        <div class="modal-header-row">
+            <button type="button" id="modal-back-btn" class="secondary" style="display:none; padding: 4px 8px; font-size: 12px;" onclick="backToParentTask()">← Back to Task</button>
+            <h2 id="modal-title" style="margin:0;">Add Task</h2>
+        </div>
+        
+        <div style="display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #ebecf0; padding-bottom: 10px;">
+            <button type="button" class="view-toggle active" id="tab-btn-details" onclick="switchTaskModalTab('details')">Details</button>
+            <button type="button" class="view-toggle" id="tab-btn-activity" onclick="switchTaskModalTab('activity')" style="display: none;">Activity</button>
+        </div>
+        
+        <form id="task-form">
+            <div id="task-tab-details">
+                <div class="form-group"><label>Title</label><input type="text" id="task-title" required placeholder="E.g., Take out recycling" spellcheck="true"></div>
+                <div class="form-group"><label>Description</label><textarea id="task-desc" rows="2" placeholder="Details go here..." spellcheck="true"></textarea></div>
+                
+                <div class="form-group" id="subtasks-form-section">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <label style="margin: 0;">Subtasks</label>
+                        <button type="button" class="add-icon" onclick="openSubtaskPromptModal()" title="Add Subtask">+</button>
+                    </div>
+                    <div class="list-container" id="subtasks-container"></div>
+                </div>
+                
+                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                    <div class="form-group" style="flex: 1; min-width: 140px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <label style="margin: 0;">Assignees</label>
+                            <button type="button" class="add-icon" onclick="openAssigneePromptModal()" title="Add Assignee">+</button>
+                        </div>
+                        <div class="list-container" id="task-assignees-display" style="border:none; padding:0; background:transparent; margin-bottom: 10px;"></div>
+                        
+                        <div id="dynamic-tools-section" style="margin-top: 15px; background: #fafbfc; padding: 10px; border-radius: 4px; border: 1px solid #dfe1e6; display: none;">
+                            <div id="timer-section" style="display: none;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <label style="margin: 0; font-size: 12px; color: #5e6c84;">Time Spent</label>
+                                    <button type="button" class="danger" style="padding: 0; font-size: 11px;" onclick="clearTimer()">Clear</button>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <button type="button" id="timer-toggle-btn" class="action-success" onclick="toggleTimer()" style="font-size: 12px; padding: 6px 12px; background: #e3fcef; color: #006644; border: 1px solid #36b37e;">▶ Start</button>
+                                    <span id="task-timer-display" style="font-weight: bold; font-size: 16px; font-variant-numeric: tabular-nums;">00:00:00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="flex: 1; min-width: 140px;">
+                        <label id="date-label">Due Date</label><input type="date" id="task-due-date" style="margin-bottom: 12px;">
+                        <label>Urgency</label>
+                        <select id="task-urgency" style="margin-bottom: 12px;"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
+                        <div id="status-form-section">
+                            <label>Status</label>
+                            <select id="task-status" onchange="handleStatusChange(this.value)">
+                                <option value="future">Future</option>
+                                <option value="todo">To Do</option>
+                                <option value="doing">Doing</option>
+                                <option value="recurring">Recurring</option>
+                                <option value="done">Done</option>
+                                <option value="complete">Complete (Archived)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;" id="gcal-checkbox-container">
+                    <input type="checkbox" id="task-gcal-sync"><label for="task-gcal-sync" style="margin:0; font-weight:bold; color: #0052cc;">📅 Add to Google Calendar on Save</label>
+                </div>
             </div>
-            <div class="dialog-actions">
-                <button type="button" class="secondary" onclick="document.getElementById('edit-comment-modal').close()">Cancel</button>
-                <button type="submit" class="action-primary">Save Changes</button>
+
+            <div id="task-tab-activity" style="display: none;">
+                <label style="margin: 0; font-size: 14px; font-weight: bold; color: #172b4d; padding-bottom: 6px; display: block; margin-bottom: 10px;">Comments & Notes</label>
+                <div id="task-comments-list" style="max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; -webkit-overflow-scrolling: touch;"></div>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="new-task-comment" placeholder="Ask a question or log a note..." style="flex: 1; padding: 8px; border: 1px solid #dfe1e6; border-radius: 4px;" autocomplete="off" spellcheck="true" onkeydown="if(event.key === 'Enter') { event.preventDefault(); postTaskComment(); }">
+                    <button type="button" class="action-primary" onclick="postTaskComment()" style="padding: 6px 12px;">Post</button>
+                </div>
             </div>
+            
+            <div class="dialog-actions"><button type="button" class="secondary" onclick="closeModal()">Cancel</button><button type="submit" id="save-task-btn">Save Task</button></div>
         </form>
     </dialog>
-
+    
     <script src="/app.js"></script>
 </body>
 </html>
