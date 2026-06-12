@@ -405,8 +405,12 @@ async function apiCall(endpoint, method, body = null) {
     try {
         const options = { method, headers: { 'Content-Type': 'application/json' } };
         if (body) options.body = JSON.stringify(body);
-        await fetch(`${API_URL}${endpoint}`, options);
-    } catch (err) { console.error(`API Error on ${endpoint}:`, err); }
+        const res = await fetch(`${API_URL}${endpoint}`, options);
+        if (!res.ok) {
+            const text = await res.text();
+            console.error(`API Error on ${endpoint}:`, text);
+        }
+    } catch (err) { console.error(`Network Error on ${endpoint}:`, err); }
 }
 
 async function saveTaskDB(t) {
@@ -1249,16 +1253,15 @@ function toggleWorkspaceMenu(e) {
 }
 
 function closeMenus() { 
-    if(activeContextMenu) activeContextMenu.style.display = 'none'; 
-    if(futureContextMenu) futureContextMenu.style.display = 'none'; 
-    if(archiveContextMenu) archiveContextMenu.style.display = 'none'; 
-    if(subtaskContextMenu) subtaskContextMenu.style.display = 'none'; 
-    if(workspaceContextMenu) workspaceContextMenu.style.display = 'none'; 
-    if(projectContextMenu) projectContextMenu.style.display = 'none'; 
-    
-    const d1 = document.getElementById('status-dropdown'); if(d1) d1.style.display = 'none';
-    const d2 = document.getElementById('urgency-dropdown'); if(d2) d2.style.display = 'none';
-    const d3 = document.getElementById('mv-status-dropdown'); if(d3) d3.style.display = 'none';
+    const menus = [
+        'active-context-menu', 'future-context-menu', 'archive-context-menu',
+        'subtask-context-menu', 'workspace-context-menu', 'project-context-menu',
+        'status-dropdown', 'urgency-dropdown', 'mv-status-dropdown'
+    ];
+    menus.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
 }
 
 function positionMenu(e, target) {
@@ -1935,29 +1938,15 @@ function updateFormUI() {
     document.getElementById('task-title').value = data.title || '';
     document.getElementById('task-desc').value = data.description || '';
 
+    // FIX: Bypasses iOS overlay blocks by programmatically triggering the native picker via cssText override
     const dateInput = document.getElementById('task-due-date');
     const dateBtn = document.getElementById('pill-date');
     if (dateInput && dateBtn) {
         dateInput.value = data.due_date || '';
-        dateInput.style.position = 'absolute';
-        dateInput.style.opacity = '0';
-        dateInput.style.width = '1px';
-        dateInput.style.height = '1px';
-        dateInput.style.pointerEvents = 'none';
+        dateInput.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10; margin: 0; padding: 0;';
         
+        dateBtn.parentElement.style.position = 'relative';
         dateBtn.style.pointerEvents = 'auto'; 
-        dateBtn.onclick = (e) => {
-            e.preventDefault();
-            try { 
-                dateInput.showPicker(); 
-            } catch(err) { 
-                dateInput.style.opacity = '1';
-                dateInput.style.width = 'auto';
-                dateInput.style.height = 'auto';
-                dateInput.style.position = 'static';
-                dateInput.focus(); 
-            }
-        };
         
         dateInput.onchange = (e) => {
             const target = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
@@ -2012,6 +2001,7 @@ function updateFormUI() {
     document.getElementById('tab-btn-activity').style.display = isExisting ? 'block' : 'none';
 }
 
+// FIX: Explicitly handles empty strings from the date input to prevent backend crashes
 function syncFormToDraft() {
     if (!draftTask) return;
     const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask;
@@ -2019,8 +2009,8 @@ function syncFormToDraft() {
         data.title = document.getElementById('task-title').value.trim();
         data.description = document.getElementById('task-desc').value;
         const dateEl = document.getElementById('task-due-date');
-        if (dateEl && dateEl.value) {
-            data.due_date = dateEl.value;
+        if (dateEl) {
+            data.due_date = dateEl.value || null;
         }
     }
 }
@@ -2154,6 +2144,7 @@ function closeSubtaskPromptModal() { document.getElementById('subtask-prompt-mod
 document.getElementById('subtask-prompt-form').addEventListener('submit', function(e) { e.preventDefault(); const title = document.getElementById('new-subtask-name').value.trim(); if(title && draftTask) { draftSubtasks.push({ id: 'sub_' + generateUUID(), project_id: currentProjectId, parent_task_id: draftTask.id, title: title, status: 'todo', description: '', assignees: [], due_date: '', urgency: 'low', creator_id: getActiveUserObj().id }); renderSubtasks(); } closeSubtaskPromptModal(); });
 function openSubtaskDetails(id) { syncFormToDraft(); draftSubtaskId = id; updateFormUI(); } function backToParentTask() { syncFormToDraft(); draftSubtaskId = null; updateFormUI(); }
 
+// FIX: Bulletproof subtask toggling mapped to all completion states
 function toggleSubtask(id) { 
     const st = draftSubtasks.find(s => s.id === id); 
     if(st) {
@@ -2173,6 +2164,7 @@ function removeSubtask(id) {
     }
 }
 
+// FIX: Maps checkboxes perfectly to the new minimalist UI status choices
 function renderSubtasks() {
     const container = document.getElementById('subtasks-container'); container.innerHTML = '';
     if (draftSubtasks.length === 0) { container.innerHTML = '<span style="color:#5e6c84; font-size:12px; margin-top:4px;">No subtasks added yet.</span>'; return; }
@@ -2769,6 +2761,7 @@ function triggerDeleteComment(id) {
     else if (c.project_id) renderProjectComments(c.project_id);
 }
 
+// Global Click Listener to close UI dropdowns safely
 document.addEventListener('click', (e) => {
     if (!e.target.closest('#pill-urgency') && !e.target.closest('#urgency-dropdown')) {
         const d = document.getElementById('urgency-dropdown');
