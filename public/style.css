@@ -235,3 +235,43 @@ dialog::backdrop { background: rgba(9, 30, 66, 0.54); }
     
     @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 }
+
+/* Modal Tabs */
+.modal-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    border-bottom: 2px solid #ebecf0;
+}
+
+.modal-tab {
+    background: transparent;
+    color: #5e6c84;
+    font-weight: bold;
+    font-size: 14px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    padding: 8px 12px;
+    margin-bottom: -2px; /* Pull down to overlap the container's bottom border */
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.modal-tab:hover {
+    color: #172b4d;
+    background: #fafbfc;
+}
+
+.modal-tab.active {
+    color: #0052cc;
+    border-bottom: 2px solid #0052cc;
+}
+
+.modal-tab-content {
+    display: none;
+}
+
+.modal-tab-content.active {
+    display: block;
+}
