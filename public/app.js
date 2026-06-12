@@ -74,6 +74,7 @@ let masterScope = 'workspace';
 let activeTimerInterval = null;
 let timeLogs = [];
 let taskRepetitions = [];
+let comments = [];
 let chartInstances = {};
 
 const lists = { future: document.getElementById('future-list'), todo: document.getElementById('todo-list'), doing: document.getElementById('doing-list'), done: document.getElementById('done-list'), recurring: document.getElementById('recurring-list'), complete: document.getElementById('complete-list') };
@@ -298,6 +299,7 @@ async function loadDataFromDB() {
         workspaces = data.workspaces || [];
         timeLogs = data.time_logs || [];
         taskRepetitions = data.task_repetitions || [];
+        comments = data.comments || [];
         
         projects = (data.projects || []).map(p => { 
             p.isSecret = p.is_secret; 
@@ -2025,28 +2027,11 @@ function removeAssigneeFromTask(userId) {
     updateFormUI();
 }
 
-function switchTaskModalTab(tab) {
-    document.getElementById('tab-btn-details').classList.toggle('active', tab === 'details');
-    document.getElementById('tab-btn-activity').classList.toggle('active', tab === 'activity');
-    document.getElementById('task-tab-details').style.display = tab === 'details' ? 'block' : 'none';
-    document.getElementById('task-tab-activity').style.display = tab === 'activity' ? 'block' : 'none';
-    
-    if (tab === 'activity' && draftTask) {
-        renderTaskComments(draftSubtaskId || draftTask.id);
-    }
-}
-
 function updateFormUI() {
     if (!draftTask) return; const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask; if (!data) return;
-    
-    document.getElementById('task-title').value = data.title || ''; 
-    document.getElementById('task-desc').value = data.description || ''; 
-    document.getElementById('task-due-date').value = data.due_date || ''; 
-    document.getElementById('task-status').value = data.status || 'todo'; 
-    document.getElementById('task-urgency').value = data.urgency || 'low';
+    document.getElementById('task-title').value = data.title || ''; document.getElementById('task-desc').value = data.description || ''; document.getElementById('task-due-date').value = data.due_date || ''; document.getElementById('task-status').value = data.status || 'todo'; document.getElementById('task-urgency').value = data.urgency || 'low';
     
     handleStatusChange(data.status || 'todo');
-    switchTaskModalTab('details'); 
     
     const btn = document.getElementById('timer-toggle-btn');
     if (data.timer_running) {
@@ -2088,16 +2073,17 @@ function updateFormUI() {
     document.getElementById('modal-back-btn').style.display = draftSubtaskId ? 'inline-block' : 'none'; 
     document.getElementById('modal-title').innerText = draftSubtaskId ? "Subtask Details" : 'Task Configuration';
     
-    if (draftSubtaskId) {
-        document.getElementById('gcal-checkbox-container').style.display = 'none';
+    if (draftSubtaskId) document.getElementById('gcal-checkbox-container').style.display = 'none';
+    // NEW: Only show comments on tasks that have been saved to the DB (not brand new drafts)
+    const isExistingTask = tasks.some(t => t.id === draftTask.id);
+    if (isExistingTask && !draftSubtaskId) {
+        document.getElementById('task-comments-section').style.display = 'block';
+        renderTaskComments(draftTask.id);
     } else {
-        document.getElementById('gcal-checkbox-container').style.display = 'flex';
+        document.getElementById('task-comments-section').style.display = 'none';
     }
     
     if(!draftSubtaskId) renderSubtasks();
-
-    const isExisting = draftSubtaskId ? !draftSubtaskId.startsWith('sub_') : tasks.some(t => t.id === draftTask.id);
-    document.getElementById('tab-btn-activity').style.display = isExisting ? 'block' : 'none';
 }
 
 document.getElementById('task-form').addEventListener('submit', async function(e) {
@@ -2255,16 +2241,16 @@ function openEditProjectModal(id) {
     document.getElementById('edit-project-name').value = p.name;
     document.getElementById('edit-project-secret').checked = p.isSecret;
     
-    // NEW: Render the project comments!
+    // NEW: Render the project comments
     renderProjectComments(id);
 
     const m = document.getElementById('edit-project-modal');
     m.showModal();
     setTimeout(() => m.scrollTop = 0, 10);
 }
+
 function closeEditProjectModal() { unlockBody(); document.getElementById('edit-project-modal').close(); }
 
-// FIX: Removed the old 'notes' textarea reference so it doesn't crash
 document.getElementById('edit-project-form').addEventListener('submit', async function(e) {
     e.preventDefault(); 
     const name = document.getElementById('edit-project-name').value.trim();
@@ -2503,6 +2489,83 @@ function renderAnalyticsCharts() {
     buildChart('chart-recurring', 'bar', recurringLabels, recurringData, 'Total Repetitions', 2);
 }
 
+// --- CONTEXTUAL COMMENTS / NOTES ENGINE ---
+function renderTaskComments(taskId) {
+    const list = document.getElementById('task-comments-list');
+    const taskComms = comments.filter(c => c.task_id === taskId);
+    
+    list.innerHTML = taskComms.map(c => `
+        <div style="background: #f4f5f7; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <strong style="color: #172b4d;">${sanitize(getUserName(c.user_id))}</strong>
+                <span style="color: #5e6c84; font-size: 11px;">${new Date(c.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+            </div>
+            <div style="color: #172b4d; line-height: 1.4;">${linkify(sanitize(c.content))}</div>
+        </div>
+    `).join('') || '<div style="color: #5e6c84; font-size: 13px; text-align: center;">No activity recorded yet.</div>';
+    
+    list.scrollTop = list.scrollHeight;
+}
+
+function renderProjectComments(projectId) {
+    const list = document.getElementById('project-comments-list');
+    const projComms = comments.filter(c => c.project_id === projectId && !c.task_id);
+    
+    list.innerHTML = projComms.map(c => `
+        <div style="background: #f4f5f7; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <strong style="color: #172b4d;">${sanitize(getUserName(c.user_id))}</strong>
+                <span style="color: #5e6c84; font-size: 11px;">${new Date(c.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+            </div>
+            <div style="color: #172b4d; line-height: 1.4;">${linkify(sanitize(c.content))}</div>
+        </div>
+    `).join('') || '<div style="color: #5e6c84; font-size: 13px; text-align: center;">No project notes yet.</div>';
+    
+    list.scrollTop = list.scrollHeight;
+}
+
+function postTaskComment() {
+    const input = document.getElementById('new-task-comment');
+    const content = input.value.trim();
+    if (!content || !draftTask) return;
+    
+    const newComment = {
+        id: generateUUID(),
+        workspace_id: currentWorkspaceId,
+        project_id: draftTask.project_id,
+        task_id: draftTask.id,
+        user_id: getActiveUserObj().id,
+        content: content,
+        created_at: new Date().toISOString()
+    };
+    
+    comments.push(newComment);
+    input.value = '';
+    renderTaskComments(draftTask.id);
+    apiCall('/comments', 'POST', newComment);
+}
+
+function postProjectComment() {
+    const input = document.getElementById('new-project-comment');
+    const content = input.value.trim();
+    if (!content || !contextTargetProjectId) return;
+    
+    const newComment = {
+        id: generateUUID(),
+        workspace_id: currentWorkspaceId,
+        project_id: contextTargetProjectId,
+        task_id: null,
+        user_id: getActiveUserObj().id,
+        content: content,
+        created_at: new Date().toISOString()
+    };
+    
+    comments.push(newComment);
+    input.value = '';
+    renderProjectComments(contextTargetProjectId);
+    apiCall('/comments', 'POST', newComment);
+}
+
 function renderDetailedTimeReport() {
     const timeframe = document.getElementById('report-timeframe').value;
     const groupBy = document.getElementById('report-groupby').value;
@@ -2617,160 +2680,4 @@ function renderDetailedTimeReport() {
         });
     }
     document.getElementById('detailed-time-container').innerHTML = html;
-}
-
-// --- CONTEXTUAL COMMENTS / NOTES ENGINE ---
-function switchTaskModalTab(tab) {
-    document.getElementById('tab-btn-details').classList.toggle('active', tab === 'details');
-    document.getElementById('tab-btn-activity').classList.toggle('active', tab === 'activity');
-    document.getElementById('task-tab-details').style.display = tab === 'details' ? 'block' : 'none';
-    document.getElementById('task-tab-activity').style.display = tab === 'activity' ? 'block' : 'none';
-    
-    if (tab === 'activity' && draftTask) {
-        renderTaskComments(draftSubtaskId || draftTask.id);
-    }
-}
-
-function renderTaskComments(taskId) {
-    const list = document.getElementById('task-comments-list');
-    if (!list) return;
-    const taskComms = comments.filter(c => c.task_id === taskId);
-    const myId = getActiveUserObj().id;
-    
-    list.innerHTML = taskComms.map(c => {
-        const isMine = c.user_id === myId;
-        const actionsHtml = isMine ? `
-            <div style="display:flex; gap: 8px; align-items: center; margin-left: 10px;">
-                <button type="button" style="background:none; border:none; padding:0; cursor:pointer; color:#5e6c84; font-size: 14px;" onclick="triggerEditComment('${c.id}')" title="Edit">✎</button>
-                <button type="button" style="background:none; border:none; padding:0; cursor:pointer; color:#de350b; font-size: 14px;" onclick="triggerDeleteComment('${c.id}')" title="Delete">✕</button>
-            </div>
-        ` : '';
-
-        return `
-        <div style="background: #f4f5f7; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px; align-items: center;">
-                <strong style="color: #172b4d;">${sanitize(getUserName(c.user_id))}</strong>
-                <div style="display: flex; align-items: center;">
-                    <span style="color: #5e6c84; font-size: 11px;">${new Date(c.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
-                    ${actionsHtml}
-                </div>
-            </div>
-            <div style="color: #172b4d; line-height: 1.4;">${linkify(sanitize(c.content))}</div>
-        </div>`;
-    }).join('') || '<div style="color: #5e6c84; font-size: 13px; text-align: center;">No activity recorded yet.</div>';
-    
-    list.scrollTop = list.scrollHeight;
-}
-
-function renderProjectComments(projectId) {
-    const list = document.getElementById('project-comments-list');
-    if (!list) return;
-    const projComms = comments.filter(c => c.project_id === projectId && !c.task_id);
-    const myId = getActiveUserObj().id;
-    
-    list.innerHTML = projComms.map(c => {
-        const isMine = c.user_id === myId;
-        const actionsHtml = isMine ? `
-            <div style="display:flex; gap: 8px; align-items: center; margin-left: 10px;">
-                <button type="button" style="background:none; border:none; padding:0; cursor:pointer; color:#5e6c84; font-size: 14px;" onclick="triggerEditComment('${c.id}')" title="Edit">✎</button>
-                <button type="button" style="background:none; border:none; padding:0; cursor:pointer; color:#de350b; font-size: 14px;" onclick="triggerDeleteComment('${c.id}')" title="Delete">✕</button>
-            </div>
-        ` : '';
-
-        return `
-        <div style="background: #f4f5f7; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px; align-items: center;">
-                <strong style="color: #172b4d;">${sanitize(getUserName(c.user_id))}</strong>
-                <div style="display: flex; align-items: center;">
-                    <span style="color: #5e6c84; font-size: 11px;">${new Date(c.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
-                    ${actionsHtml}
-                </div>
-            </div>
-            <div style="color: #172b4d; line-height: 1.4;">${linkify(sanitize(c.content))}</div>
-        </div>`;
-    }).join('') || '<div style="color: #5e6c84; font-size: 13px; text-align: center;">No project notes yet.</div>';
-    
-    list.scrollTop = list.scrollHeight;
-}
-
-function postTaskComment() {
-    const input = document.getElementById('new-task-comment');
-    const content = input.value.trim();
-    if (!content || !draftTask) return;
-    
-    const targetId = draftSubtaskId || draftTask.id;
-    
-    const newComment = {
-        id: generateUUID(),
-        workspace_id: currentWorkspaceId,
-        project_id: draftTask.project_id,
-        task_id: targetId,
-        user_id: getActiveUserObj().id,
-        content: content,
-        created_at: new Date().toISOString()
-    };
-    
-    comments.push(newComment);
-    input.value = '';
-    renderTaskComments(targetId);
-    apiCall('/comments', 'POST', newComment);
-}
-
-function postProjectComment() {
-    const input = document.getElementById('new-project-comment');
-    const content = input.value.trim();
-    if (!content || !contextTargetProjectId) return;
-    
-    const newComment = {
-        id: generateUUID(),
-        workspace_id: currentWorkspaceId,
-        project_id: contextTargetProjectId,
-        task_id: null,
-        user_id: getActiveUserObj().id,
-        content: content,
-        created_at: new Date().toISOString()
-    };
-    
-    comments.push(newComment);
-    input.value = '';
-    renderProjectComments(contextTargetProjectId);
-    apiCall('/comments', 'POST', newComment);
-}
-
-function triggerEditComment(id) {
-    const c = comments.find(x => x.id === id);
-    if (!c) return;
-    
-    document.getElementById('edit-comment-id').value = id;
-    document.getElementById('edit-comment-input').value = c.content;
-    document.getElementById('edit-comment-modal').showModal();
-}
-
-document.getElementById('edit-comment-form').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const id = document.getElementById('edit-comment-id').value;
-    const newContent = document.getElementById('edit-comment-input').value.trim();
-    const c = comments.find(x => x.id === id);
-    
-    if (c && newContent) {
-        c.content = newContent;
-        apiCall(`/comments/${id}`, 'PUT', { content: c.content });
-        
-        if (c.task_id) renderTaskComments(c.task_id);
-        else if (c.project_id) renderProjectComments(c.project_id);
-    }
-    document.getElementById('edit-comment-modal').close();
-});
-
-function triggerDeleteComment(id) {
-    if (!confirm("Are you sure you want to delete this comment? This cannot be undone.")) return;
-    
-    const c = comments.find(x => x.id === id);
-    if (!c) return;
-    
-    comments = comments.filter(x => x.id !== id);
-    apiCall(`/comments/${id}`, 'DELETE');
-    
-    if (c.task_id) renderTaskComments(c.task_id);
-    else if (c.project_id) renderProjectComments(c.project_id);
 }
