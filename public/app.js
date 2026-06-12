@@ -2508,12 +2508,19 @@ function renderAnalyticsCharts() {
 function renderTaskComments(taskId) {
     const list = document.getElementById('task-comments-list');
     const taskComms = comments.filter(c => c.task_id === taskId);
+    const myId = getActiveUserObj().id;
     
     list.innerHTML = taskComms.map(c => `
         <div style="background: #f4f5f7; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                 <strong style="color: #172b4d;">${sanitize(getUserName(c.user_id))}</strong>
-                <span style="color: #5e6c84; font-size: 11px;">${new Date(c.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span style="color: #5e6c84; font-size: 11px;">${new Date(c.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+                    ${c.user_id === myId ? `
+                        <button type="button" class="edit" style="padding: 0; font-size: 11px;" onclick="openEditCommentModal('${c.id}', 'task')" title="Edit Comment">✎</button>
+                        <button type="button" class="danger" style="padding: 0; font-size: 11px;" onclick="deleteComment('${c.id}', 'task', '${taskId}')" title="Delete Comment">&times;</button>
+                    ` : ''}
+                </div>
             </div>
             <div style="color: #172b4d; line-height: 1.4;">${linkify(sanitize(c.content))}</div>
         </div>
@@ -2525,12 +2532,19 @@ function renderTaskComments(taskId) {
 function renderProjectComments(projectId) {
     const list = document.getElementById('project-comments-list');
     const projComms = comments.filter(c => c.project_id === projectId && !c.task_id);
+    const myId = getActiveUserObj().id;
     
     list.innerHTML = projComms.map(c => `
         <div style="background: #f4f5f7; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                 <strong style="color: #172b4d;">${sanitize(getUserName(c.user_id))}</strong>
-                <span style="color: #5e6c84; font-size: 11px;">${new Date(c.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span style="color: #5e6c84; font-size: 11px;">${new Date(c.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+                    ${c.user_id === myId ? `
+                        <button type="button" class="edit" style="padding: 0; font-size: 11px;" onclick="openEditCommentModal('${c.id}', 'project')" title="Edit Note">✎</button>
+                        <button type="button" class="danger" style="padding: 0; font-size: 11px;" onclick="deleteComment('${c.id}', 'project', '${projectId}')" title="Delete Note">&times;</button>
+                    ` : ''}
+                </div>
             </div>
             <div style="color: #172b4d; line-height: 1.4;">${linkify(sanitize(c.content))}</div>
         </div>
@@ -2580,6 +2594,61 @@ function postProjectComment() {
     renderProjectComments(contextTargetProjectId);
     apiCall('/comments', 'POST', newComment);
 }
+
+// Variable to track which context we are editing in so we know how to re-render
+let editingCommentType = null; 
+
+function deleteComment(id, type, parentId) {
+    if (!confirm("Are you sure you want to delete this note? This cannot be undone.")) return;
+    
+    // 1. Remove from local array instantly for snappy UI
+    comments = comments.filter(c => c.id !== id);
+    
+    // 2. Re-render the correct list
+    if (type === 'task') renderTaskComments(parentId);
+    else if (type === 'project') renderProjectComments(parentId);
+    
+    // 3. Fire to backend
+    apiCall(`/comments/${id}`, 'DELETE');
+}
+
+function openEditCommentModal(id, type) {
+    const c = comments.find(x => x.id === id);
+    if (!c) return;
+    
+    editingCommentType = type;
+    document.getElementById('edit-comment-id').value = id;
+    document.getElementById('edit-comment-input').value = c.content;
+    
+    const m = document.getElementById('edit-comment-modal');
+    m.showModal();
+}
+
+// Handle the submission of the edit comment form
+document.getElementById('edit-comment-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('edit-comment-id').value;
+    const newContent = document.getElementById('edit-comment-input').value.trim();
+    
+    if (!newContent) return;
+    
+    const c = comments.find(x => x.id === id);
+    if (c) {
+        c.content = newContent;
+        
+        // Re-render instantly
+        if (editingCommentType === 'task' && c.task_id) {
+            renderTaskComments(c.task_id);
+        } else if (editingCommentType === 'project' && c.project_id) {
+            renderProjectComments(c.project_id);
+        }
+        
+        // Save to Database
+        await apiCall(`/comments/${id}`, 'PUT', { content: newContent });
+    }
+    
+    document.getElementById('edit-comment-modal').close();
+});
 
 function renderDetailedTimeReport() {
     const timeframe = document.getElementById('report-timeframe').value;
