@@ -7,7 +7,6 @@ function sanitize(str) {
 function linkify(text) {
     if (!text) return '';
     const urlPattern = /(\b(https?):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gim;
-    // FIX: Added draggable="false" and ondragstart to prevent browsers from tearing the link out of the draggable card
     return text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" ondragstart="event.preventDefault()" draggable="false" style="color: #0052cc; text-decoration: underline; pointer-events: auto;">$1</a>');
 }
 
@@ -76,6 +75,8 @@ let timeLogs = [];
 let taskRepetitions = [];
 let comments = [];
 let chartInstances = {};
+let globalChartInstance = null;
+let editingCommentType = null; 
 
 const lists = { future: document.getElementById('future-list'), todo: document.getElementById('todo-list'), doing: document.getElementById('doing-list'), done: document.getElementById('done-list'), recurring: document.getElementById('recurring-list'), complete: document.getElementById('complete-list') };
 const workspaceContextMenu = document.getElementById('workspace-context-menu'); const activeContextMenu = document.getElementById('active-context-menu'); const futureContextMenu = document.getElementById('future-context-menu'); const archiveContextMenu = document.getElementById('archive-context-menu'); const subtaskContextMenu = document.getElementById('subtask-context-menu');
@@ -115,7 +116,29 @@ window.addEventListener('load', async function () {
     }
 
     setInterval(updateGlobalTimer, 1000);
+
+    // Event listener for recurring type change to safely update form
+    document.getElementById('task-recurring-type')?.addEventListener('change', function() {
+        syncFormToDraft();
+        updateFormUI();
+    });
 });
+
+// --- UI TAB FUNCTIONS ---
+function switchTaskTab(tab) {
+    document.getElementById('task-tab-details').classList.toggle('active', tab === 'details');
+    document.getElementById('task-tab-activity').classList.toggle('active', tab === 'activity');
+    document.getElementById('task-content-details').style.display = tab === 'details' ? 'block' : 'none';
+    document.getElementById('task-content-activity').style.display = tab === 'activity' ? 'block' : 'none';
+}
+
+function switchProjectTab(tab) {
+    document.getElementById('project-tab-settings').classList.toggle('active', tab === 'settings');
+    document.getElementById('project-tab-activity').classList.toggle('active', tab === 'activity');
+    document.getElementById('project-content-settings').style.display = tab === 'settings' ? 'block' : 'none';
+    document.getElementById('project-content-activity').style.display = tab === 'activity' ? 'block' : 'none';
+}
+
 
 // --- CHILL CHAT LOGIC ---
 function toggleChatPanel() {
@@ -324,6 +347,7 @@ async function loadDataFromDB() {
             t.timer_started_at = t.timer_started_at ? parseInt(t.timer_started_at, 10) : null;
             t.timer_elapsed = t.timer_elapsed ? parseInt(t.timer_elapsed, 10) : 0;
             t.counter = t.counter ? parseInt(t.counter, 10) : 0;
+            t.recurring_type = t.recurring_type || 'habit';
             
             return t;
         });
@@ -435,6 +459,43 @@ async function deleteProjectDB(id) {
     if (currentProjectId === id) currentProjectId = projects.filter(p => p.workspace_id === currentWorkspaceId)[0]?.id;
     renderAll(); await apiCall(`/projects/${id}`, 'DELETE');
 }
+
+// --- RECURRING LOGIC (HABITS & VICES) ---
+function markRecurringDone(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    
+    const now = new Date();
+    const todayStr = now.toLocaleDateString();
+
+    if (t.completed_at) {
+        const lastCompleted = new Date(t.completed_at).toLocaleDateString();
+        if (lastCompleted === todayStr) return; // Already checked off today
+
+        if (t.recurring_type === 'vice') {
+            // For Vices, check if they missed yesterday. If they did, streak breaks!
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+            if (lastCompleted !== yesterday.toLocaleDateString()) {
+                t.counter = 0; // Reset streak
+            }
+        }
+    } else if (t.recurring_type === 'vice') {
+        t.counter = 0; // First time logging a vice streak
+    }
+
+    t.counter = parseInt(t.counter || 0, 10) + 1;
+    t.completed_at = now.toISOString(); // Marks it done for today
+
+    // Log the win in the history book
+    const rep = { id: generateUUID(), task_id: id, user_id: getActiveUserObj().id, created_at: now.toISOString() };
+    taskRepetitions.push(rep);
+    apiCall('/repetitions', 'POST', rep);
+
+    silentSaveTaskDB(t);
+    if (isMasterView) renderMasterView(); else renderBoard(); // Instantly reflects UI change
+}
+
 
 // --- WORKSPACE RENDERS ---
 function renderWorkspaceMenu() {
@@ -798,8 +859,6 @@ function handleCardAction(e, action, id, param) {
     else if (action === 'edit') editTask(id);
     else if (action === 'move') moveTaskStatus(id, param);
     else if (action === 'menu') showContextMenuMain(e, id);
-    else if (action === 'inline-counter-minus') inlineAdjustCounter(id, -1);
-    else if (action === 'inline-counter-plus') inlineAdjustCounter(id, 1);
     else if (action === 'remove-me') triggerRemoveMeTask(id); 
 }
 
@@ -925,13 +984,17 @@ function renderBoard() {
         
         let recurringCounterHtml = '';
         if (task.status === 'recurring') {
+            const isDoneToday = task.completed_at && new Date(task.completed_at).toLocaleDateString() === new Date().toLocaleDateString();
             const count = task.counter || 0;
+            const iconLabel = task.recurring_type === 'vice' ? '🔥 Streak:' : '⭐ Total:';
+
             recurringCounterHtml = `
-                <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #dfe1e6;" onclick="event.stopPropagation()">
-                    <span style="font-size: 11px; color: #5e6c84; font-weight: bold; text-transform: uppercase;">Repetitions:</span>
-                    <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="handleCardAction(event, 'inline-counter-minus', '${task.id}')">-</button>
-                    <span class="inline-counter-val-${task.id}" style="font-weight: bold; font-size: 14px; min-width: 24px; text-align: center; color: #0052cc; text-decoration: underline; cursor: pointer;" onclick="event.stopPropagation(); openRepetitionReportModal('${task.id}')" title="View Repetition History">${count}</span>
-                    <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="handleCardAction(event, 'inline-counter-plus', '${task.id}')">+</button>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #dfe1e6;" onclick="event.stopPropagation()">
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px; font-weight:bold; color: ${isDoneToday ? '#36b37e' : '#5e6c84'};">
+                        <input type="checkbox" ${isDoneToday ? 'checked disabled' : ''} onchange="markRecurringDone('${task.id}')" style="width:16px; height:16px; cursor:pointer;">
+                        ${isDoneToday ? 'Done Today' : 'Mark Daily Win'}
+                    </label>
+                    <span style="font-size: 13px; font-weight: bold; color: #0052cc; cursor: pointer;" onclick="openRepetitionReportModal('${task.id}')" title="View History">${iconLabel} ${count}</span>
                 </div>
             `;
         }
@@ -1124,13 +1187,17 @@ function renderMasterView() {
 
        let recurringCounterHtml = '';
         if (task.status === 'recurring') {
+            const isDoneToday = task.completed_at && new Date(task.completed_at).toLocaleDateString() === new Date().toLocaleDateString();
             const count = task.counter || 0;
+            const iconLabel = task.recurring_type === 'vice' ? '🔥 Streak:' : '⭐ Total:';
+
             recurringCounterHtml = `
-                <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #dfe1e6;" onclick="event.stopPropagation()">
-                    <span style="font-size: 11px; color: #5e6c84; font-weight: bold; text-transform: uppercase;">Repetitions:</span>
-                    <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="handleCardAction(event, 'inline-counter-minus', '${task.id}')">-</button>
-                    <span class="inline-counter-val-${task.id}" style="font-weight: bold; font-size: 14px; min-width: 24px; text-align: center; color: #0052cc; text-decoration: underline; cursor: pointer;" onclick="event.stopPropagation(); openRepetitionReportModal('${task.id}')" title="View Repetition History">${count}</span>
-                    <button type="button" class="secondary" style="padding: 2px 10px; font-size: 14px; border-radius: 12px; height: 24px; display: flex; align-items: center;" onclick="handleCardAction(event, 'inline-counter-plus', '${task.id}')">+</button>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #dfe1e6;" onclick="event.stopPropagation()">
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px; font-weight:bold; color: ${isDoneToday ? '#36b37e' : '#5e6c84'};">
+                        <input type="checkbox" ${isDoneToday ? 'checked disabled' : ''} onchange="markRecurringDone('${task.id}')" style="width:16px; height:16px; cursor:pointer;">
+                        ${isDoneToday ? 'Done Today' : 'Mark Daily Win'}
+                    </label>
+                    <span style="font-size: 13px; font-weight: bold; color: #0052cc; cursor: pointer;" onclick="openRepetitionReportModal('${task.id}')" title="View History">${iconLabel} ${count}</span>
                 </div>
             `;
         }
@@ -1658,36 +1725,14 @@ function dragEnd(e) {
         }
     }
 }
+
 function allowDrop(e, status) { e.preventDefault(); const list = document.getElementById(status + '-list'); const dragEl = document.querySelector('.dragging'); if (!dragEl) return; const afterEl = [...list.querySelectorAll('.card:not(.dragging)')].reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = e.clientY - box.top - box.height / 2; return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest; }, { offset: Number.NEGATIVE_INFINITY }).element; if (afterEl == null) list.appendChild(dragEl); else list.insertBefore(dragEl, afterEl); }
 
 function handleStatusChange(status) {
+    syncFormToDraft();
     document.getElementById('date-label').innerText = (status === 'recurring') ? 'End Recurring Date' : 'Due Date';
-    document.getElementById('timer-section').style.display = (!draftSubtaskId) ? 'block' : 'none';
-}
-
-function inlineAdjustCounter(id, amount) {
-    const t = tasks.find(x => x.id === id);
-    if (!t) return;
-    t.counter = parseInt(t.counter || 0, 10) + amount;
-    if (t.counter < 0) t.counter = 0;
-
-    // Log the repetition if it's an addition!
-    if (amount > 0) {
-        const rep = {
-            id: generateUUID(),
-            task_id: id,
-            user_id: getActiveUserObj().id,
-            created_at: new Date().toISOString()
-        };
-        taskRepetitions.push(rep);
-        apiCall('/repetitions', 'POST', rep);
-    }
-
-    document.querySelectorAll(`.inline-counter-val-${id}`).forEach(el => {
-        el.innerText = t.counter;
-    });
-
-    silentSaveTaskDB(t);
+    document.getElementById('recurring-type-container').style.display = (status === 'recurring') ? 'block' : 'none';
+    updateFormUI();
 }
 
 function clearTimer() {
@@ -1724,7 +1769,6 @@ function toggleTimer() {
         draftTask.timer_started_at = null;
         
        if (sessionDuration > 1000) { 
-            // Fix: Pull native project to prevent cross-workspace contamination
             const nativeProj = projects.find(p => p.id === draftTask.project_id);
             const nativeWsId = nativeProj ? nativeProj.workspace_id : currentWorkspaceId;
             
@@ -1739,6 +1783,11 @@ function toggleTimer() {
             };
             timeLogs.push(newLog); 
             apiCall('/time_logs', 'POST', newLog);
+
+            // Auto-check daily habits
+            if (draftTask.status === 'recurring' && draftTask.recurring_type !== 'vice') {
+                markRecurringDone(draftTask.id);
+            }
         }
         
         btn.innerText = '▶ Start';
@@ -1826,7 +1875,6 @@ function generateTimeReportHTML(taskId) {
     let html = `<div style="display: flex; flex-direction: column; gap: 10px;">`;
     for (let u in userGroups) {
         const uData = userGroups[u];
-        // FIX: Removed the 'open' attribute so it defaults to closed
         html += `
         <details style="border: 1px solid #dfe1e6; border-radius: 6px; overflow: hidden;">
             <summary style="background: #f4f5f7; padding: 10px 12px; cursor: pointer; font-weight: bold; color: #172b4d; display: flex; justify-content: space-between; outline: none;">
@@ -1838,7 +1886,6 @@ function generateTimeReportHTML(taskId) {
         for (let dKey in uData.dates) {
             const dData = uData.dates[dKey];
             let isToday = (dKey === new Date().toLocaleDateString()) ? ' (Today)' : '';
-            // FIX: Removed the 'open' attribute
             html += `
             <details style="margin-bottom: 6px; border-left: 2px solid #ebecf0; padding-left: 10px;">
                 <summary style="padding: 4px 6px; cursor: pointer; font-size: 13px; font-weight: 600; color: #42526e; display: flex; justify-content: space-between; outline: none;">
@@ -1922,7 +1969,7 @@ function openModal(defaultStatus) {
     
     draftTask = { 
         id: generateUUID(), title: '', description: '', assignees: defaultAssignees, due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null,
-        counter: 0, timer_running: false, timer_started_at: null, timer_elapsed: 0, completed_at: null, creator_id: getActiveUserObj().id
+        counter: 0, timer_running: false, timer_started_at: null, timer_elapsed: 0, completed_at: null, creator_id: getActiveUserObj().id, recurring_type: 'habit'
     };
     
     draftSubtasks = []; draftSubtaskId = null; document.getElementById('task-form').reset(); updateFormUI(); 
@@ -1940,9 +1987,8 @@ function editTask(id) {
     clearInterval(activeTimerInterval);
     
     draftTask = JSON.parse(JSON.stringify(tasks.find(t => t.id === id))); 
-    
-    // SELF-HEALING TIMER FIX
-    // Ensures database corruption or offset jumps are silently healed upon load
+    if (!draftTask.recurring_type) draftTask.recurring_type = 'habit';
+
     const taskLogs = timeLogs.filter(l => l.task_id === id);
     let actualElapsed = taskLogs.reduce((sum, log) => sum + parseInt(log.duration_ms || 0, 10), 0);
     
@@ -1993,6 +2039,10 @@ function syncFormToDraft() {
         }
         
         data.urgency = document.getElementById('task-urgency').value; 
+        
+        if (document.getElementById('task-recurring-type')) {
+            data.recurring_type = document.getElementById('task-recurring-type').value;
+        }
     }
 }
 
@@ -2027,25 +2077,18 @@ function removeAssigneeFromTask(userId) {
     updateFormUI();
 }
 
-function switchTaskTab(tab) {
-    document.getElementById('task-tab-details').classList.toggle('active', tab === 'details');
-    document.getElementById('task-tab-activity').classList.toggle('active', tab === 'activity');
-    document.getElementById('task-content-details').style.display = tab === 'details' ? 'block' : 'none';
-    document.getElementById('task-content-activity').style.display = tab === 'activity' ? 'block' : 'none';
-}
-
-function switchProjectTab(tab) {
-    document.getElementById('project-tab-settings').classList.toggle('active', tab === 'settings');
-    document.getElementById('project-tab-activity').classList.toggle('active', tab === 'activity');
-    document.getElementById('project-content-settings').style.display = tab === 'settings' ? 'block' : 'none';
-    document.getElementById('project-content-activity').style.display = tab === 'activity' ? 'block' : 'none';
-}
-
 function updateFormUI() {
     if (!draftTask) return; const data = draftSubtaskId ? draftSubtasks.find(s => s.id === draftSubtaskId) : draftTask; if (!data) return;
     document.getElementById('task-title').value = data.title || ''; document.getElementById('task-desc').value = data.description || ''; document.getElementById('task-due-date').value = data.due_date || ''; document.getElementById('task-status').value = data.status || 'todo'; document.getElementById('task-urgency').value = data.urgency || 'low';
     
-    handleStatusChange(data.status || 'todo');
+    if (document.getElementById('task-recurring-type')) {
+        document.getElementById('task-recurring-type').value = data.recurring_type || 'habit';
+    }
+
+    // Set Visibility correctly based on Vice/Habit
+    document.getElementById('date-label').innerText = (data.status === 'recurring') ? 'End Recurring Date' : 'Due Date';
+    document.getElementById('recurring-type-container').style.display = (data.status === 'recurring') ? 'block' : 'none';
+    const isVice = data.status === 'recurring' && data.recurring_type === 'vice';
     
     const btn = document.getElementById('timer-toggle-btn');
     if (data.timer_running) {
@@ -2082,20 +2125,23 @@ function updateFormUI() {
     });
     
     document.getElementById('dynamic-tools-section').style.display = draftSubtaskId ? 'none' : 'block';
+    document.getElementById('timer-section').style.display = (!draftSubtaskId && !isVice) ? 'block' : 'none';
     document.getElementById('subtasks-form-section').style.display = draftSubtaskId ? 'none' : 'block'; 
     document.getElementById('status-form-section').style.display = draftSubtaskId ? 'none' : 'block'; 
     document.getElementById('modal-back-btn').style.display = draftSubtaskId ? 'inline-block' : 'none'; 
     document.getElementById('modal-title').innerText = draftSubtaskId ? "Subtask Details" : 'Task Configuration';
     
     if (draftSubtaskId) document.getElementById('gcal-checkbox-container').style.display = 'none';
-   const isExistingTask = tasks.some(t => t.id === draftTask.id);
+
+    // UI Tab Display & Reset
+    const isExistingTask = tasks.some(t => t.id === draftTask.id);
     if (isExistingTask && !draftSubtaskId) {
-        document.getElementById('task-tab-activity').style.display = 'block'; // Show Activity tab
+        document.getElementById('task-tab-activity').style.display = 'block'; 
         renderTaskComments(draftTask.id);
     } else {
-        document.getElementById('task-tab-activity').style.display = 'none'; // Hide Activity tab for brand new tasks
+        document.getElementById('task-tab-activity').style.display = 'none'; 
     }
-    switchTaskTab('details'); // Always default back to the Details view when UI updates
+    switchTaskTab('details'); 
     
     if(!draftSubtaskId) renderSubtasks();
 }
@@ -2255,7 +2301,6 @@ function openEditProjectModal(id) {
     document.getElementById('edit-project-name').value = p.name;
     document.getElementById('edit-project-secret').checked = p.isSecret;
     
-    // NEW: Render the project comments
     renderProjectComments(id);
     switchProjectTab('settings');
 
@@ -2505,6 +2550,42 @@ function renderAnalyticsCharts() {
 }
 
 // --- CONTEXTUAL COMMENTS / NOTES ENGINE ---
+function deleteComment(id, type, parentId) {
+    if (!confirm("Are you sure you want to delete this note? This cannot be undone.")) return;
+    comments = comments.filter(c => c.id !== id);
+    if (type === 'task') renderTaskComments(parentId);
+    else if (type === 'project') renderProjectComments(parentId);
+    apiCall(`/comments/${id}`, 'DELETE');
+}
+
+function openEditCommentModal(id, type) {
+    const c = comments.find(x => x.id === id);
+    if (!c) return;
+    editingCommentType = type;
+    document.getElementById('edit-comment-id').value = id;
+    document.getElementById('edit-comment-input').value = c.content;
+    const m = document.getElementById('edit-comment-modal');
+    m.showModal();
+}
+
+document.getElementById('edit-comment-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('edit-comment-id').value;
+    const newContent = document.getElementById('edit-comment-input').value.trim();
+    if (!newContent) return;
+    const c = comments.find(x => x.id === id);
+    if (c) {
+        c.content = newContent;
+        if (editingCommentType === 'task' && c.task_id) {
+            renderTaskComments(c.task_id);
+        } else if (editingCommentType === 'project' && c.project_id) {
+            renderProjectComments(c.project_id);
+        }
+        await apiCall(`/comments/${id}`, 'PUT', { content: newContent });
+    }
+    document.getElementById('edit-comment-modal').close();
+});
+
 function renderTaskComments(taskId) {
     const list = document.getElementById('task-comments-list');
     const taskComms = comments.filter(c => c.task_id === taskId);
@@ -2595,61 +2676,6 @@ function postProjectComment() {
     apiCall('/comments', 'POST', newComment);
 }
 
-// Variable to track which context we are editing in so we know how to re-render
-let editingCommentType = null; 
-
-function deleteComment(id, type, parentId) {
-    if (!confirm("Are you sure you want to delete this note? This cannot be undone.")) return;
-    
-    // 1. Remove from local array instantly for snappy UI
-    comments = comments.filter(c => c.id !== id);
-    
-    // 2. Re-render the correct list
-    if (type === 'task') renderTaskComments(parentId);
-    else if (type === 'project') renderProjectComments(parentId);
-    
-    // 3. Fire to backend
-    apiCall(`/comments/${id}`, 'DELETE');
-}
-
-function openEditCommentModal(id, type) {
-    const c = comments.find(x => x.id === id);
-    if (!c) return;
-    
-    editingCommentType = type;
-    document.getElementById('edit-comment-id').value = id;
-    document.getElementById('edit-comment-input').value = c.content;
-    
-    const m = document.getElementById('edit-comment-modal');
-    m.showModal();
-}
-
-// Handle the submission of the edit comment form
-document.getElementById('edit-comment-form').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const id = document.getElementById('edit-comment-id').value;
-    const newContent = document.getElementById('edit-comment-input').value.trim();
-    
-    if (!newContent) return;
-    
-    const c = comments.find(x => x.id === id);
-    if (c) {
-        c.content = newContent;
-        
-        // Re-render instantly
-        if (editingCommentType === 'task' && c.task_id) {
-            renderTaskComments(c.task_id);
-        } else if (editingCommentType === 'project' && c.project_id) {
-            renderProjectComments(c.project_id);
-        }
-        
-        // Save to Database
-        await apiCall(`/comments/${id}`, 'PUT', { content: newContent });
-    }
-    
-    document.getElementById('edit-comment-modal').close();
-});
-
 function renderDetailedTimeReport() {
     const timeframe = document.getElementById('report-timeframe').value;
     const groupBy = document.getElementById('report-groupby').value;
@@ -2713,7 +2739,6 @@ function renderDetailedTimeReport() {
         const sortedL1 = Object.keys(aggregated).sort((a,b) => aggregated[b].total - aggregated[a].total);
         sortedL1.forEach(l1 => {
             const l1Data = aggregated[l1];
-            // FIX: Removed 'open' attribute
             html += `
             <details style="margin-bottom: 8px; border: 1px solid #dfe1e6; border-radius: 6px; overflow: hidden;">
                 <summary style="background: #f4f5f7; padding: 12px; cursor: pointer; font-weight: bold; color: #172b4d; display: flex; justify-content: space-between; outline: none;">
@@ -2726,7 +2751,6 @@ function renderDetailedTimeReport() {
             const sortedL2 = Object.keys(l1Data.sub).sort((a,b) => l1Data.sub[b].total - l1Data.sub[a].total);
             sortedL2.forEach(l2 => {
                 const l2Data = l1Data.sub[l2];
-                // FIX: Removed 'open' attribute
                 html += `
                 <details style="margin-bottom: 6px; border-left: 2px solid #ebecf0; padding-left: 10px;">
                     <summary style="padding: 6px; cursor: pointer; font-weight: 600; color: #42526e; display: flex; justify-content: space-between; border-bottom: 1px solid #ebecf0; outline: none;">
@@ -2740,7 +2764,6 @@ function renderDetailedTimeReport() {
                 html += `<div style="display: flex; flex-direction: column; gap: 4px;">`;
                 sortedL3.forEach(l3 => {
                     const tData = l2Data.sub[l3];
-                    // FIX: Removed 'open' attribute
                     html += `
                     <details style="border-bottom: 1px dashed #ebecf0; padding: 4px 0;">
                         <summary style="cursor: pointer; display: flex; justify-content: space-between; outline: none; color: #5e6c84; font-size: 13px;">
@@ -2764,4 +2787,79 @@ function renderDetailedTimeReport() {
         });
     }
     document.getElementById('detailed-time-container').innerHTML = html;
+}
+
+// --- GLOBAL ANALYTICS DASHBOARD ---
+function openGlobalAnalyticsModal() {
+    lockBody();
+    const m = document.getElementById('global-analytics-modal');
+    m.showModal();
+    renderGlobalDashboard();
+    setTimeout(() => m.scrollTop = 0, 10);
+}
+
+function renderGlobalDashboard() {
+    const myId = getActiveUserObj().id;
+    const myLogs = timeLogs.filter(l => l.user_id === myId);
+
+    const timeByWorkspace = {};
+    const detailedData = {};
+
+    myLogs.forEach(log => {
+        const ms = parseInt(log.duration_ms, 10);
+        const wsObj = workspaces.find(w => w.id === log.workspace_id);
+        const pObj = projects.find(p => p.id === log.project_id);
+        const wsName = wsObj ? wsObj.name : 'Deleted Workspace';
+        const pName = pObj ? pObj.name : 'Deleted Project';
+
+        timeByWorkspace[wsName] = (timeByWorkspace[wsName] || 0) + ms;
+
+        if (!detailedData[wsName]) detailedData[wsName] = { total: 0, projects: {} };
+        detailedData[wsName].total += ms;
+        if (!detailedData[wsName].projects[pName]) detailedData[wsName].projects[pName] = 0;
+        detailedData[wsName].projects[pName] += ms;
+    });
+
+    const labels = Object.keys(timeByWorkspace);
+    const dataHours = labels.map(l => (timeByWorkspace[l] / 3600000).toFixed(2)); 
+    const colors = ['#0052cc', '#36b37e', '#ff991f', '#de350b', '#6554c0'];
+
+    if (globalChartInstance) globalChartInstance.destroy();
+    const ctx = document.getElementById('global-time-chart').getContext('2d');
+    globalChartInstance = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels.length ? labels : ['No time logged'],
+            datasets: [{
+                data: labels.length ? dataHours : [1],
+                backgroundColor: labels.length ? colors : ['#dfe1e6']
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+    });
+
+    let tableHtml = '';
+    if (labels.length === 0) {
+        tableHtml = '<p style="color: #5e6c84; font-size: 13px;">You have not logged any time yet.</p>';
+    } else {
+        Object.keys(detailedData).sort((a,b) => detailedData[b].total - detailedData[a].total).forEach(ws => {
+            tableHtml += `
+            <div style="margin-bottom: 10px; border: 1px solid #dfe1e6; border-radius: 6px; overflow: hidden;">
+                <div style="background: #f4f5f7; padding: 10px 12px; font-weight: bold; color: #172b4d; display: flex; justify-content: space-between;">
+                    <span>🏢 ${sanitize(ws)}</span>
+                    <span style="color: #0052cc;">${formatTime(detailedData[ws].total)}</span>
+                </div>
+                <div style="padding: 10px;">`;
+                
+            Object.keys(detailedData[ws].projects).sort((a,b) => detailedData[ws].projects[b] - detailedData[ws].projects[a]).forEach(proj => {
+                tableHtml += `
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #ebecf0; padding: 6px 0; font-size: 13px;">
+                    <span style="color: #42526e;">↳ 📁 ${sanitize(proj)}</span>
+                    <span style="font-family: monospace;">${formatTime(detailedData[ws].projects[proj])}</span>
+                </div>`;
+            });
+            tableHtml += `</div></div>`;
+        });
+    }
+    document.getElementById('global-time-table').innerHTML = tableHtml;
 }
