@@ -2800,7 +2800,28 @@ function openGlobalAnalyticsModal() {
 
 function renderGlobalDashboard() {
     const myId = getActiveUserObj().id;
-    const myLogs = timeLogs.filter(l => l.user_id === myId);
+    let myLogs = timeLogs.filter(l => l.user_id === myId);
+
+    // --- NEW: Apply Timeframe Filtering ---
+    const timeframe = document.getElementById('global-timeframe').value;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(today); startOfWeek.setDate(today.getDate() - today.getDay());
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const startOfYear = new Date(today.getFullYear(), 0, 1);
+
+    if (timeframe !== 'all') {
+        myLogs = myLogs.filter(l => {
+            if (!l.created_at) return false;
+            const logDate = new Date(l.created_at);
+            if (timeframe === 'today') return logDate >= today;
+            if (timeframe === 'week') return logDate >= startOfWeek;
+            if (timeframe === 'month') return logDate >= startOfMonth;
+            if (timeframe === 'year') return logDate >= startOfYear;
+            return true;
+        });
+    }
+    // ----------------------------------------
 
     const timeByWorkspace = {};
     const detailedData = {};
@@ -2840,7 +2861,7 @@ function renderGlobalDashboard() {
 
     let tableHtml = '';
     if (labels.length === 0) {
-        tableHtml = '<p style="color: #5e6c84; font-size: 13px;">You have not logged any time yet.</p>';
+        tableHtml = '<p style="color: #5e6c84; font-size: 13px;">You have not logged any time yet in this timeframe.</p>';
     } else {
         Object.keys(detailedData).sort((a,b) => detailedData[b].total - detailedData[a].total).forEach(ws => {
             tableHtml += `
