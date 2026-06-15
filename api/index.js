@@ -47,8 +47,8 @@ app.get('/api/data', async (req, res) => {
 app.post('/api/tasks', async (req, res) => {
     const { 
         id, project_id, parent_task_id, title, description, status, urgency, due_date, assignees,
-        counter, timer_running, timer_started_at, timer_elapsed, completed_at, creator_id
-    } = req.body;
+        counter, timer_running, timer_started_at, timer_elapsed, completed_at, creator_id, recurring_type
+    } = req.body; // <-- Added recurring_type
     
     const client = await pool.connect();
     try {
@@ -57,29 +57,20 @@ app.post('/api/tasks', async (req, res) => {
         await client.query(
             `INSERT INTO tasks (
                 id, project_id, parent_task_id, title, description, status, urgency, due_date,
-                counter, timer_running, timer_started_at, timer_elapsed, completed_at, creator_id
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                counter, timer_running, timer_started_at, timer_elapsed, completed_at, creator_id, recurring_type
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
              ON CONFLICT (id) DO UPDATE SET 
-                project_id = $2,
-                parent_task_id = $3,
-                title = $4, 
-                description = $5, 
-                status = $6, 
-                urgency = $7, 
-                due_date = $8,
-                counter = $9, 
-                timer_running = $10, 
-                timer_started_at = $11, 
-                timer_elapsed = $12,
-                completed_at = $13,
-                creator_id = $14`, 
+                project_id = $2, parent_task_id = $3, title = $4, description = $5, 
+                status = $6, urgency = $7, due_date = $8, counter = $9, 
+                timer_running = $10, timer_started_at = $11, timer_elapsed = $12,
+                completed_at = $13, creator_id = $14, recurring_type = $15`, 
             [
                 id, project_id, parent_task_id || null, title || null, 
                 description !== undefined ? description : null, status || null, 
                 urgency || null, due_date || null,
                 counter !== undefined ? counter : null, timer_running !== undefined ? timer_running : null, 
                 timer_started_at !== undefined ? timer_started_at : null, timer_elapsed !== undefined ? timer_elapsed : null,
-                completed_at !== undefined ? completed_at : null, creator_id || null
+                completed_at !== undefined ? completed_at : null, creator_id || null, recurring_type || 'habit'
             ]
         );
         
