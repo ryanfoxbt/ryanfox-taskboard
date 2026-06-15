@@ -497,13 +497,15 @@
                     </select>
                 </div>
                 
-                <div id="recurring-type-container" style="display: none; margin-top: 12px; padding: 10px; background: #f4f5f7; border-radius: 4px; border: 1px solid #dfe1e6;">
-                    <label style="margin-bottom: 4px;">Recurring Goal Type</label>
-                    <select id="task-recurring-type" onchange="updateFormUI()">
-                        <option value="habit">⭐ Habit (I want to BUILD this)</option>
-                        <option value="vice">🔥 Vice (I want to QUIT this)</option>
-                    </select>
-                </div>
+               <!-- RECURRING TYPE CONTAINER -->
+<div id="recurring-type-container" style="display: none; margin-top: 12px; padding: 10px; background: #f4f5f7; border-radius: 4px; border: 1px solid #dfe1e6;">
+    <label style="margin-bottom: 4px;">Type</label>
+    <!-- FIX: Added syncFormToDraft() before updateFormUI() -->
+    <select id="task-recurring-type" onchange="syncFormToDraft(); updateFormUI();">
+        <option value="habit">⭐ Habit</option>
+        <option value="vice">🔥 Vice</option>
+    </select>
+</div>
                 </div>
             </div>
             
@@ -545,10 +547,24 @@
     </dialog>
         <dialog id="global-analytics-modal" style="width: 95%; max-width: 800px; max-height: 90vh;">
     <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
-    <div class="modal-header-row">
+    
+    <div class="modal-header-row" style="margin-bottom: 15px;">
         <h2 style="margin:0; color: #0052cc;">My Global Dashboard</h2>
         <button class="danger" onclick="document.getElementById('global-analytics-modal').close()" title="Close">&times;</button>
     </div>
+    
+    <!-- NEW: Timeframe Filter -->
+    <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px; background: #f4f5f7; padding: 10px 15px; border-radius: 8px; border: 1px solid #dfe1e6;">
+        <label style="font-size: 13px; font-weight: bold; color: #5e6c84; text-transform: uppercase; margin: 0;">Timeframe:</label>
+        <select id="global-timeframe" onchange="renderGlobalDashboard()" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #dfe1e6; font-family: inherit; font-size: 14px; min-width: 150px;">
+            <option value="today">Today</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+            <option value="year">This Year</option>
+            <option value="all" selected>All Time</option>
+        </select>
+    </div>
+
     <div style="display: flex; flex-direction: column; gap: 20px;">
         <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6;">
             <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px;">Where does my time go? (Across all Workspaces)</h3>
