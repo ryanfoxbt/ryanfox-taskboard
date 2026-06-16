@@ -1,25 +1,12 @@
 * {
     -webkit-tap-highlight-color: transparent !important;
-    box-sizing: border-box; /* Ensures padding doesn't push elements off-screen */
 }
 
-/* Base Styles & Prevent Horizontal Screen Drift */
-html {
-    background: #f4f5f7;
-    overflow-x: hidden;
-}
+/* Prevent horizontal screen drift globally */
+html { overflow-x: hidden; }
 
-body { 
-    font-family: system-ui, -apple-system, sans-serif; 
-    background: #f4f5f7; 
-    margin: 0 auto; 
-    padding: 20px; 
-    color: #172b4d; 
-    max-width: 1400px; /* Keeps desktop UI from stretching infinitely */
-    overflow-x: hidden;
-    width: 100%;
-}
-
+/* Restored exactly to your original working layout */
+body { font-family: system-ui, -apple-system, sans-serif; background: #f4f5f7; margin: 0; padding: 20px; color: #172b4d; overflow-x: hidden; }
 button, a, .card, .tab, .clickable-title, .icon-btn, .clickable-crumb { -webkit-tap-highlight-color: transparent; }
 
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
@@ -48,34 +35,9 @@ button.action-warning:hover { background: #fff5e6; }
 .gear-btn { background: transparent; color: #5e6c84; font-size: 20px; padding: 4px 8px; line-height: 1; }
 .gear-btn:hover { background: #ebecf0; color: #172b4d; }
 
-/* Horizontal Scrolling Project Tabs */
-.project-tabs { 
-    display: flex; 
-    gap: 8px; 
-    margin-bottom: 15px; 
-    border-bottom: 2px solid #dfe1e6; 
-    padding-bottom: 12px; 
-    overflow-x: auto; 
-    -webkit-overflow-scrolling: touch; 
-    flex-wrap: nowrap; /* Forces scrolling instead of wrapping */
-    width: 100%;
-}
-.tab { 
-    display: flex; 
-    align-items: center; 
-    gap: 8px; 
-    background: transparent; 
-    color: #5e6c84; 
-    border: none; 
-    padding: 8px 16px; 
-    border-radius: 4px; 
-    cursor: grab; 
-    font-weight: bold; 
-    font-size: 14px; 
-    transition: opacity 0.2s ease; 
-    white-space: nowrap; 
-    flex-shrink: 0; /* Prevents tabs from squishing on mobile */
-}
+/* FIX: flex-wrap nowrap prevents screen widening, flex-shrink 0 allows perfect swiping */
+.project-tabs { display: flex; gap: 8px; margin-bottom: 15px; border-bottom: 2px solid #dfe1e6; padding-bottom: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+.tab { display: flex; align-items: center; gap: 8px; background: transparent; color: #5e6c84; border: none; padding: 8px 16px; border-radius: 4px; cursor: grab; font-weight: bold; font-size: 14px; transition: opacity 0.2s ease; flex-shrink: 0; white-space: nowrap; }
 .tab:active { cursor: grabbing; }
 .tab:hover { background: #ebecf0; }
 .tab.active { background: #0052cc; color: white; }
