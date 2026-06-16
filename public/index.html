@@ -19,27 +19,6 @@
         <span style="font-size: 16px;">⏱️</span> <span id="global-timer-text">00:00:00</span>
     </div>
 
-    <div id="chat-overlay" onclick="toggleChatPanel()"></div>
-    <div id="chat-panel">
-        <div style="padding: 20px; border-bottom: 2px solid #ebecf0; display: flex; justify-content: space-between; align-items: center; background: white;">
-            <h2 style="margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">Chill Chat <span style="font-size: 14px; opacity: 0.5;">☕️</span></h2>
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <button type="button" class="secondary" style="padding: 4px 8px; font-size: 14px;" onclick="fetchMessages()" title="Refresh Messages">↻</button>
-                <button class="danger" onclick="toggleChatPanel()" style="font-size: 18px; padding: 2px 8px;">&times;</button>
-            </div>
-        </div>
-        <div style="padding: 10px 20px; background: #fafbfc; border-bottom: 1px solid #ebecf0;">
-            <select id="chat-recipient-select" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #dfe1e6; font-size: 14px;" onchange="switchChatRecipient(this.value)">
-                <option value="team">Team Chat (Workspace)</option>
-            </select>
-        </div>
-        <div id="chat-messages"></div>
-        <form id="chat-form">
-            <input type="text" id="chat-input" placeholder="Type a message..." required spellcheck="true">
-            <button type="submit" style="padding: 10px 16px;">Send</button>
-        </form>
-    </div>
-
     <div id="app-container" style="display: none;">
         <div class="header">
             <div class="title-container" style="display: flex; align-items: center; position: relative;">
@@ -57,8 +36,7 @@
             
            <div class="header-controls">
     <div id="user-button"></div>
-    <button class="gear-btn" onclick="toggleChatPanel()" title="Chill Chat">☕️</button>
-    <button class="gear-btn" onclick="openGlobalAnalyticsModal()" title="My Global Dashboard">🌍</button> <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
+   <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
 </div>
 
         <div id="kanban-view-container">
@@ -222,63 +200,89 @@
         </div>
     </dialog>
 
-    <dialog id="analytics-modal" style="width: 95%; max-width: 1000px; height: 90vh;">
-        <div style="display: flex; flex-direction: column; height: 100%;">
-            <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
-            <div class="modal-header-row" style="flex-shrink: 0;">
-                <h2 style="margin:0;">Workspace Analytics</h2>
-                <button class="danger" onclick="closeAnalyticsModal()" title="Close Dashboard">&times;</button>
-            </div>
+   <dialog id="analytics-modal" style="width: 95%; max-width: 1000px; height: 90vh;">
+    <div style="display: flex; flex-direction: column; height: 100%;">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
+        <div class="modal-header-row" style="flex-shrink: 0;">
+            <h2 style="margin:0;">Analytics & Reporting</h2>
+            <button class="danger" onclick="closeAnalyticsModal()" title="Close Dashboard">&times;</button>
+        </div>
 
-            <div style="display: flex; gap: 10px; margin-top: 10px; border-bottom: 2px solid #ebecf0; padding-bottom: 10px; flex-shrink: 0;">
-                <button id="tab-overview" class="view-toggle active" onclick="switchAnalyticsTab('overview')">Overview Charts</button>
-                <button id="tab-time-report" class="view-toggle" onclick="switchAnalyticsTab('time-report')">Detailed Time Report</button>
+        <div style="display: flex; gap: 10px; margin-top: 10px; border-bottom: 2px solid #ebecf0; padding-bottom: 10px; flex-shrink: 0; overflow-x: auto; -webkit-overflow-scrolling: touch;">
+            <button id="tab-overview" class="view-toggle active" onclick="switchAnalyticsTab('overview')" style="white-space: nowrap;">Overview Charts</button>
+            <button id="tab-time-report" class="view-toggle" onclick="switchAnalyticsTab('time-report')" style="white-space: nowrap;">Detailed Time Report</button>
+            <button id="tab-global-time" class="view-toggle" onclick="switchAnalyticsTab('global-time')" style="white-space: nowrap;">Global Time (All Workspaces)</button>
+        </div>
+        
+        <!-- Tab 1: Overview -->
+        <div id="analytics-overview" style="flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-top: 15px; padding-bottom: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+            <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
+                <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Time Allocation (Hours by User)</h3>
+                <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-time-allocation"></canvas></div>
             </div>
-            
-            <div id="analytics-overview" style="flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-top: 15px; padding-bottom: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
-                <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
-                    <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Time Allocation (Hours by User)</h3>
-                    <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-time-allocation"></canvas></div>
-                </div>
-                <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
-                    <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Workload (Active Tasks)</h3>
-                    <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-workload"></canvas></div>
-                </div>
-                <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
-                    <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Velocity (Completed - Last 7 Days)</h3>
-                    <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-velocity"></canvas></div>
-                </div>
-                <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
-                    <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Recurring Consistency (Top Repetitions)</h3>
-                    <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-recurring"></canvas></div>
-                </div>
+            <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
+                <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Workload (Active Tasks)</h3>
+                <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-workload"></canvas></div>
             </div>
-
-            <div id="analytics-time-report" style="flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-top: 15px; padding-bottom: 30px; display: none; flex-direction: column; gap: 15px;">
-                <div style="display: flex; gap: 15px; background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; flex-wrap: wrap;">
-                    <div style="flex: 1; min-width: 200px;">
-                        <label style="font-size: 12px; font-weight: bold; color: #5e6c84; text-transform: uppercase; display: block; margin-bottom: 4px;">Timeframe</label>
-                        <select id="report-timeframe" onchange="renderDetailedTimeReport()" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #dfe1e6;">
-                            <option value="today">Today</option>
-                            <option value="week">This Week</option>
-                            <option value="month">This Month</option>
-                            <option value="year">This Year</option>
-                            <option value="all" selected>All Time</option>
-                        </select>
-                    </div>
-                    <div style="flex: 1; min-width: 200px;">
-                        <label style="font-size: 12px; font-weight: bold; color: #5e6c84; text-transform: uppercase; display: block; margin-bottom: 4px;">Group By Hierarchy</label>
-                        <select id="report-groupby" onchange="renderDetailedTimeReport()" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #dfe1e6;">
-                            <option value="user">User ➔ Project ➔ Task</option>
-                            <option value="project">Project ➔ User ➔ Task</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div id="detailed-time-container" style="background: white; border: 1px solid #dfe1e6; border-radius: 8px; padding: 15px;"></div>
+            <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
+                <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Velocity (Completed - Last 7 Days)</h3>
+                <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-velocity"></canvas></div>
+            </div>
+            <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; height: 250px;">
+                <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px; color: #172b4d;">Recurring Consistency (Top Repetitions)</h3>
+                <div style="position: relative; height: 200px; width: 100%;"><canvas id="chart-recurring"></canvas></div>
             </div>
         </div>
-    </dialog>
+
+        <!-- Tab 2: Detailed Time -->
+        <div id="analytics-time-report" style="flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-top: 15px; padding-bottom: 30px; display: none; flex-direction: column; gap: 15px;">
+            <div style="display: flex; gap: 15px; background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 200px;">
+                    <label style="font-size: 12px; font-weight: bold; color: #5e6c84; text-transform: uppercase; display: block; margin-bottom: 4px;">Timeframe</label>
+                    <select id="report-timeframe" onchange="renderDetailedTimeReport()" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #dfe1e6;">
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                        <option value="year">This Year</option>
+                        <option value="all" selected>All Time</option>
+                    </select>
+                </div>
+                <div style="flex: 1; min-width: 200px;">
+                    <label style="font-size: 12px; font-weight: bold; color: #5e6c84; text-transform: uppercase; display: block; margin-bottom: 4px;">Group By Hierarchy</label>
+                    <select id="report-groupby" onchange="renderDetailedTimeReport()" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #dfe1e6;">
+                        <option value="user">User ➔ Project ➔ Task</option>
+                        <option value="project">Project ➔ User ➔ Task</option>
+                    </select>
+                </div>
+            </div>
+            <div id="detailed-time-container" style="background: white; border: 1px solid #dfe1e6; border-radius: 8px; padding: 15px;"></div>
+        </div>
+
+        <!-- Tab 3: Global Time -->
+        <div id="analytics-global-time" style="flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-top: 15px; padding-bottom: 30px; display: none; flex-direction: column; gap: 15px;">
+            <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px; background: #f4f5f7; padding: 10px 15px; border-radius: 8px; border: 1px solid #dfe1e6;">
+                <label style="font-size: 13px; font-weight: bold; color: #5e6c84; text-transform: uppercase; margin: 0;">Timeframe:</label>
+                <select id="global-timeframe" onchange="renderGlobalDashboard()" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #dfe1e6; font-family: inherit; font-size: 14px; min-width: 150px;">
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="year">This Year</option>
+                    <option value="all" selected>All Time</option>
+                </select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6;">
+                    <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px;">Where does my time go? (Across all Workspaces)</h3>
+                    <div style="position: relative; height: 250px; width: 100%;"><canvas id="global-time-chart"></canvas></div>
+                </div>
+                <div style="background: white; border: 1px solid #dfe1e6; border-radius: 8px; padding: 15px;">
+                    <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px;">Detailed Breakdown</h3>
+                    <div id="global-time-table" style="max-height: 300px; overflow-y: auto;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</dialog>
 
     <dialog id="time-report-modal" style="width: 95%; max-width: 600px; max-height: 80vh; overflow-y: auto; -webkit-overflow-scrolling: touch;">
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
@@ -545,37 +549,6 @@
             </div>
         </form>
     </dialog>
-        <dialog id="global-analytics-modal" style="width: 95%; max-width: 800px; max-height: 90vh;">
-    <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
-    
-    <div class="modal-header-row" style="margin-bottom: 15px;">
-        <h2 style="margin:0; color: #0052cc;">My Global Dashboard</h2>
-        <button class="danger" onclick="document.getElementById('global-analytics-modal').close()" title="Close">&times;</button>
-    </div>
-    
-    <!-- NEW: Timeframe Filter -->
-    <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px; background: #f4f5f7; padding: 10px 15px; border-radius: 8px; border: 1px solid #dfe1e6;">
-        <label style="font-size: 13px; font-weight: bold; color: #5e6c84; text-transform: uppercase; margin: 0;">Timeframe:</label>
-        <select id="global-timeframe" onchange="renderGlobalDashboard()" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #dfe1e6; font-family: inherit; font-size: 14px; min-width: 150px;">
-            <option value="today">Today</option>
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-            <option value="year">This Year</option>
-            <option value="all" selected>All Time</option>
-        </select>
-    </div>
-
-    <div style="display: flex; flex-direction: column; gap: 20px;">
-        <div style="background: #fafbfc; padding: 15px; border-radius: 8px; border: 1px solid #dfe1e6;">
-            <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px;">Where does my time go? (Across all Workspaces)</h3>
-            <div style="position: relative; height: 250px; width: 100%;"><canvas id="global-time-chart"></canvas></div>
-        </div>
-        <div style="background: white; border: 1px solid #dfe1e6; border-radius: 8px; padding: 15px;">
-            <h3 style="font-size: 14px; margin-top: 0; margin-bottom: 10px;">Detailed Breakdown</h3>
-            <div id="global-time-table" style="max-height: 300px; overflow-y: auto;"></div>
-        </div>
-    </div>
-</dialog>
 
     <script src="/app.js"></script>
 </body>
