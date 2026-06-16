@@ -1,14 +1,25 @@
 * {
     -webkit-tap-highlight-color: transparent !important;
+    box-sizing: border-box; /* Ensures padding doesn't push elements off-screen */
 }
 
-html, body {
+/* Base Styles & Prevent Horizontal Screen Drift */
+html {
+    background: #f4f5f7;
     overflow-x: hidden;
-    max-width: 100%;
 }
 
-/* Base Styles & iOS Tap Highlight Fix */
-body { font-family: system-ui, -apple-system, sans-serif; background: #f4f5f7; margin: 0; padding: 20px; color: #172b4d; }
+body { 
+    font-family: system-ui, -apple-system, sans-serif; 
+    background: #f4f5f7; 
+    margin: 0 auto; 
+    padding: 20px; 
+    color: #172b4d; 
+    max-width: 1400px; /* Keeps desktop UI from stretching infinitely */
+    overflow-x: hidden;
+    width: 100%;
+}
+
 button, a, .card, .tab, .clickable-title, .icon-btn, .clickable-crumb { -webkit-tap-highlight-color: transparent; }
 
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
@@ -37,20 +48,18 @@ button.action-warning:hover { background: #fff5e6; }
 .gear-btn { background: transparent; color: #5e6c84; font-size: 20px; padding: 4px 8px; line-height: 1; }
 .gear-btn:hover { background: #ebecf0; color: #172b4d; }
 
+/* Horizontal Scrolling Project Tabs */
 .project-tabs { 
     display: flex; 
     gap: 8px; 
     margin-bottom: 15px; 
     border-bottom: 2px solid #dfe1e6; 
     padding-bottom: 12px; 
-    
-    /* Ensure native horizontal scrolling */
-    max-width: 100%;
     overflow-x: auto; 
     -webkit-overflow-scrolling: touch; 
-    flex-wrap: nowrap;
+    flex-wrap: nowrap; /* Forces scrolling instead of wrapping */
+    width: 100%;
 }
-
 .tab { 
     display: flex; 
     align-items: center; 
@@ -64,12 +73,15 @@ button.action-warning:hover { background: #fff5e6; }
     font-weight: bold; 
     font-size: 14px; 
     transition: opacity 0.2s ease; 
-    
-    /* Force tabs to swipe instead of squishing or breaking the screen */
-    flex-shrink: 0; 
     white-space: nowrap; 
+    flex-shrink: 0; /* Prevents tabs from squishing on mobile */
 }
-
+.tab:active { cursor: grabbing; }
+.tab:hover { background: #ebecf0; }
+.tab.active { background: #0052cc; color: white; }
+.tab.add-new { color: #0052cc; border: 1px dashed #0052cc; cursor: pointer; }
+.tab.add-new:hover { background: #e6fcff; }
+.tab.dragging-tab { opacity: 0.4; transform: scale(0.98); } 
 .delete-project { background: rgba(255,255,255,0.2); border-radius: 50%; width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; font-size: 14px; line-height: 1; padding: 0; margin-left: 5px; cursor: pointer;}
 .delete-project:hover { background: #de350b; color: white; }
 
@@ -118,7 +130,6 @@ button.action-warning:hover { background: #fff5e6; }
 .card h3 { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: #172b4d; line-height: 1.2; word-break: break-word; flex: 1; }
 .card p { color: #42526e; line-height: 1.4; margin: 0; word-break: break-word; }
 
-/* BUG 2 FIX: Removed pointer-events: none from card-footer to allow buttons to be clicked! */
 .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
 .meta-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; pointer-events: none; }
 
@@ -185,6 +196,45 @@ dialog::backdrop { background: rgba(9, 30, 66, 0.54); }
 }
 #global-timer-indicator:hover { transform: translateX(-50%) scale(1.05); }
 
+/* Modal Tabs */
+.modal-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    border-bottom: 2px solid #ebecf0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+}
+
+.modal-tab {
+    background: transparent;
+    color: #5e6c84;
+    font-weight: bold;
+    font-size: 14px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    padding: 8px 12px;
+    margin-bottom: -2px; 
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.modal-tab:hover {
+    color: #172b4d;
+    background: #fafbfc;
+}
+
+.modal-tab.active {
+    color: #0052cc;
+    border-bottom: 2px solid #0052cc;
+}
+
+.modal-tab-content { display: none; }
+.modal-tab-content.active { display: block; }
 
 /* --- MOBILE OPTIMIZATIONS --- */
 @media (max-width: 768px) {
@@ -248,54 +298,4 @@ dialog::backdrop { background: rgba(9, 30, 66, 0.54); }
     .form-group input, .form-group textarea, .form-group select { padding: 12px !important; font-size: 16px !important; }
     
     @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-}
-
-/* Modal Tabs */
-.modal-tabs {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-    border-bottom: 2px solid #ebecf0;
-    
-    /* Native scrolling for small screens */
-    max-width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    flex-wrap: nowrap;
-}
-
-.modal-tab {
-    background: transparent;
-    color: #5e6c84;
-    font-weight: bold;
-    font-size: 14px;
-    border: none;
-    border-bottom: 2px solid transparent;
-    border-radius: 0;
-    padding: 8px 12px;
-    margin-bottom: -2px; 
-    cursor: pointer;
-    transition: all 0.2s ease;
-    
-    /* Prevent shrinking */
-    flex-shrink: 0;
-    white-space: nowrap;
-}
-
-.modal-tab:hover {
-    color: #172b4d;
-    background: #fafbfc;
-}
-
-.modal-tab.active {
-    color: #0052cc;
-    border-bottom: 2px solid #0052cc;
-}
-
-.modal-tab-content {
-    display: none;
-}
-
-.modal-tab-content.active {
-    display: block;
 }
