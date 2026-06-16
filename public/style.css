@@ -2,6 +2,11 @@
     -webkit-tap-highlight-color: transparent !important;
 }
 
+html, body {
+    overflow-x: hidden;
+    max-width: 100%;
+}
+
 /* Base Styles & iOS Tap Highlight Fix */
 body { font-family: system-ui, -apple-system, sans-serif; background: #f4f5f7; margin: 0; padding: 20px; color: #172b4d; }
 button, a, .card, .tab, .clickable-title, .icon-btn, .clickable-crumb { -webkit-tap-highlight-color: transparent; }
@@ -32,14 +37,39 @@ button.action-warning:hover { background: #fff5e6; }
 .gear-btn { background: transparent; color: #5e6c84; font-size: 20px; padding: 4px 8px; line-height: 1; }
 .gear-btn:hover { background: #ebecf0; color: #172b4d; }
 
-.project-tabs { display: flex; gap: 8px; margin-bottom: 15px; border-bottom: 2px solid #dfe1e6; padding-bottom: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.tab { display: flex; align-items: center; gap: 8px; background: transparent; color: #5e6c84; border: none; padding: 8px 16px; border-radius: 4px; cursor: grab; font-weight: bold; font-size: 14px; transition: opacity 0.2s ease; white-space: nowrap; }
-.tab:active { cursor: grabbing; }
-.tab:hover { background: #ebecf0; }
-.tab.active { background: #0052cc; color: white; }
-.tab.add-new { color: #0052cc; border: 1px dashed #0052cc; cursor: pointer; }
-.tab.add-new:hover { background: #e6fcff; }
-.tab.dragging-tab { opacity: 0.4; transform: scale(0.98); } 
+.project-tabs { 
+    display: flex; 
+    gap: 8px; 
+    margin-bottom: 15px; 
+    border-bottom: 2px solid #dfe1e6; 
+    padding-bottom: 12px; 
+    
+    /* Ensure native horizontal scrolling */
+    max-width: 100%;
+    overflow-x: auto; 
+    -webkit-overflow-scrolling: touch; 
+    flex-wrap: nowrap;
+}
+
+.tab { 
+    display: flex; 
+    align-items: center; 
+    gap: 8px; 
+    background: transparent; 
+    color: #5e6c84; 
+    border: none; 
+    padding: 8px 16px; 
+    border-radius: 4px; 
+    cursor: grab; 
+    font-weight: bold; 
+    font-size: 14px; 
+    transition: opacity 0.2s ease; 
+    
+    /* Force tabs to swipe instead of squishing or breaking the screen */
+    flex-shrink: 0; 
+    white-space: nowrap; 
+}
+
 .delete-project { background: rgba(255,255,255,0.2); border-radius: 50%; width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; font-size: 14px; line-height: 1; padding: 0; margin-left: 5px; cursor: pointer;}
 .delete-project:hover { background: #de350b; color: white; }
 
@@ -226,6 +256,12 @@ dialog::backdrop { background: rgba(9, 30, 66, 0.54); }
     gap: 10px;
     margin-bottom: 15px;
     border-bottom: 2px solid #ebecf0;
+    
+    /* Native scrolling for small screens */
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
 }
 
 .modal-tab {
@@ -237,9 +273,13 @@ dialog::backdrop { background: rgba(9, 30, 66, 0.54); }
     border-bottom: 2px solid transparent;
     border-radius: 0;
     padding: 8px 12px;
-    margin-bottom: -2px; /* Pull down to overlap the container's bottom border */
+    margin-bottom: -2px; 
     cursor: pointer;
     transition: all 0.2s ease;
+    
+    /* Prevent shrinking */
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .modal-tab:hover {
