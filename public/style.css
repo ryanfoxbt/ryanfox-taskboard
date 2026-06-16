@@ -155,22 +155,6 @@ dialog::backdrop { background: rgba(9, 30, 66, 0.54); }
 }
 #global-timer-indicator:hover { transform: translateX(-50%) scale(1.05); }
 
-/* Chill Chat Panel */
-#chat-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(9,30,66,0.54); z-index:9998; }
-#chat-panel { 
-    transform: translateX(100%); transition: transform 0.3s ease; position:fixed; top:0; right:0; 
-    width: 100%; max-width: 400px; 
-    height: 100vh;
-    height: 100dvh;
-    background: white; z-index: 9999; display: flex; flex-direction: column; box-shadow: -4px 0 15px rgba(0,0,0,0.1); 
-}
-#chat-form {
-    padding: 20px; border-top: 2px solid #ebecf0; display: flex; gap: 10px; background: white;
-    padding-bottom: calc(20px + env(safe-area-inset-bottom));
-}
-#chat-messages {
-    flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; background: #f4f5f7;
-}
 
 /* --- MOBILE OPTIMIZATIONS --- */
 @media (max-width: 768px) {
