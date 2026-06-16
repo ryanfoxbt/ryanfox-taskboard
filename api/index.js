@@ -216,25 +216,6 @@ app.delete('/api/workspaces/:id', async (req, res) => {
     } catch (err) { await client.query('ROLLBACK'); res.status(500).json({ error: err.message }); } finally { client.release(); }
 });
 
-// 8. CHILL CHAT
-app.get('/api/messages/:workspace_id', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT * FROM messages WHERE workspace_id = $1 ORDER BY created_at ASC', [req.params.workspace_id]);
-        res.json(result.rows);
-    } catch(err) { res.status(500).json({error: err.message}); }
-});
-
-app.post('/api/messages', async (req, res) => {
-    const { id, workspace_id, sender_id, sender_name, recipient_id, content, related_task_id } = req.body;
-    try {
-        await pool.query(
-            `INSERT INTO messages (id, workspace_id, sender_id, sender_name, recipient_id, content, related_task_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [id, workspace_id, sender_id, sender_name, recipient_id || null, content, related_task_id || null]
-        );
-        res.json({success: true});
-    } catch(err) { res.status(500).json({error: err.message}); }
-});
-
 // 9. USERS & SETTINGS
 app.post('/api/users', async (req, res) => {
     const { id, name, email, role, workspace_id, inviter_name, workspace_name, invite_link } = req.body;
