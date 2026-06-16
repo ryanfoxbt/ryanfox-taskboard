@@ -61,9 +61,6 @@ let contextTargetMainId = null; let contextTargetSubtaskId = null; let contextTa
 let selectedTasks = new Set();
 let lastSelectedTaskId = null;
 
-// CHILL CHAT STATE
-let messages = [];
-let activeChatRecipient = 'team';
 let originalAssignees = [];
 
 let isMasterView = false;
@@ -139,177 +136,6 @@ function switchProjectTab(tab) {
     document.getElementById('project-content-activity').style.display = tab === 'activity' ? 'block' : 'none';
 }
 
-
-// --- CHILL CHAT LOGIC ---
-function toggleChatPanel() {
-    const panel = document.getElementById('chat-panel');
-    const overlay = document.getElementById('chat-overlay');
-    if (panel.style.transform === 'translateX(0%)') {
-        panel.style.transform = 'translateX(100%)';
-        overlay.style.display = 'none';
-        unlockBody(); 
-    } else {
-        panel.style.transform = 'translateX(0%)';
-        overlay.style.display = 'block';
-        lockBody();  
-        populateChatRecipients();
-        fetchMessages(); 
-    }
-}
-
-function populateChatRecipients() {
-    const select = document.getElementById('chat-recipient-select');
-    select.innerHTML = '<option value="team">Team Chat (Workspace)</option>';
-    const me = getActiveUserObj();
-    
-    getVisibleUsers().forEach(u => {
-        if (u.id !== me.id) {
-            const opt = document.createElement('option');
-            opt.value = u.id;
-            opt.innerHTML = `DM: ${sanitize(u.name)}`;
-            select.appendChild(opt);
-        }
-    });
-    select.value = activeChatRecipient;
-}
-
-function switchChatRecipient(val) {
-    activeChatRecipient = val;
-    renderChat();
-}
-
-async function fetchMessages() {
-    if (!currentWorkspaceId) return;
-    try {
-        const res = await fetch(`${API_URL}/messages/${currentWorkspaceId}`);
-        if (res.ok) {
-            messages = await res.json();
-            renderChat();
-        }
-        
-        const dataRes = await fetch(`${API_URL}/data`);
-        if (dataRes.ok) {
-            const data = await dataRes.json();
-            tasks = (data.tasks || []).map(t => {
-                t.assignees = (data.task_assignees || []).filter(ta => ta.task_id === t.id).map(ta => ta.user_id);
-                if (t.due_date) t.due_date = t.due_date.split('T')[0];
-                t.timer_started_at = t.timer_started_at ? parseInt(t.timer_started_at, 10) : null;
-                t.timer_elapsed = t.timer_elapsed ? parseInt(t.timer_elapsed, 10) : 0;
-                t.counter = t.counter ? parseInt(t.counter, 10) : 0;
-                return t;
-            });
-            renderAll(); 
-        }
-    } catch (e) { console.error("Error fetching messages/tasks:", e); }
-}
-
-function renderChat() {
-    const container = document.getElementById('chat-messages');
-    container.innerHTML = `
-        <div style="text-align: center; color: #5e6c84; font-size: 13px; margin-bottom: 20px; padding: 15px; background: #e6fcff; border-radius: 6px; border: 1px dashed #b3d4ff;">
-            <strong>Welcome to Chill Chat.</strong><br><br>
-            Take the time to think about your message and communicate clearly. Your teammates will get it soonish. 🧘‍♂️
-        </div>
-    `;
-    
-    const myId = getActiveUserObj().id;
-    
-    const filteredMessages = messages.filter(m => {
-        if (activeChatRecipient === 'team') {
-            return m.recipient_id === null || (m.sender_id === 'system' && m.recipient_id === myId);
-        } else {
-            return (m.sender_id === myId && m.recipient_id === activeChatRecipient) || 
-                   (m.sender_id === activeChatRecipient && m.recipient_id === myId);
-        }
-    });
-
-    filteredMessages.forEach(msg => {
-        const div = document.createElement('div');
-        const isMe = msg.sender_id === myId;
-        const isSystem = msg.sender_id === 'system' || msg.content.startsWith('🤖 System:');
-        
-        div.style.maxWidth = '85%';
-        div.style.padding = '10px 14px';
-        div.style.borderRadius = '8px';
-        div.style.fontSize = '14px';
-        div.style.lineHeight = '1.4';
-        div.style.wordBreak = 'break-word';
-        
-        if (isSystem) {
-            div.style.alignSelf = 'center';
-            div.style.background = '#ebecf0';
-            div.style.color = '#172b4d';
-            div.style.width = '100%';
-            div.style.borderLeft = '4px solid #0052cc';
-            div.style.boxSizing = 'border-box';
-            
-            const btnHtml = msg.related_task_id ? `<br><button type="button" class="secondary" style="margin-top: 8px; font-size: 12px; padding: 4px 12px;" onclick="viewTaskFromChat('${msg.related_task_id}')">View Task</button>` : '';
-            const cleanContent = msg.content.replace('🤖 System:', '').trim();
-            div.innerHTML = `<strong>🤖 System:</strong> ${sanitize(cleanContent)} ${btnHtml}`;
-        } else {
-            div.style.alignSelf = isMe ? 'flex-end' : 'flex-start';
-            div.style.background = isMe ? '#0052cc' : 'white';
-            div.style.color = isMe ? 'white' : '#172b4d';
-            div.style.border = isMe ? 'none' : '1px solid #dfe1e6';
-            
-            const senderName = isMe ? 'You' : sanitize(msg.sender_name);
-            div.innerHTML = `<div style="font-size: 11px; opacity: 0.8; margin-bottom: 4px;">${senderName}</div><div>${linkify(sanitize(msg.content))}</div>`;
-        }
-        container.appendChild(div);
-    });
-    
-    container.scrollTop = container.scrollHeight;
-}
-
-async function viewTaskFromChat(taskId) {
-    toggleChatPanel(); 
-    
-    let targetTask = tasks.find(t => t.id === taskId);
-    
-    if (!targetTask) {
-        document.getElementById('app-title').innerHTML = "Syncing...";
-        await loadDataFromDB(); 
-        targetTask = tasks.find(t => t.id === taskId);
-    }
-    
-    if (targetTask) {
-        if (currentProjectId !== targetTask.project_id) {
-            currentProjectId = targetTask.project_id;
-            localStorage.setItem('currentProjectId', currentProjectId);
-            renderAll();
-        }
-        editTask(taskId);
-    } else {
-        alert("This task has been deleted or you do not have permission to view it.");
-    }
-}
-
-document.getElementById('chat-form').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const input = document.getElementById('chat-input');
-    const content = input.value.trim();
-    if (!content) return;
-    
-    const me = getActiveUserObj();
-    const recipient = activeChatRecipient === 'team' ? null : activeChatRecipient;
-    
-    const newMsg = {
-        id: generateUUID(),
-        workspace_id: currentWorkspaceId,
-        sender_id: me.id,
-        sender_name: activeUserName,
-        recipient_id: recipient,
-        content: content,
-        related_task_id: null,
-        created_at: new Date().toISOString()
-    };
-    
-    messages.push(newMsg);
-    renderChat();
-    input.value = '';
-    
-    await apiCall('/messages', 'POST', newMsg);
-});
 
 // --- DATA LOGIC ---
 async function loadDataFromDB() {
@@ -2154,40 +1980,6 @@ document.getElementById('task-form').addEventListener('submit', async function(e
 
     const me = getActiveUserObj();
     const allAssignees = draftTask.assignees || [];
-    const newlyAdded = allAssignees.filter(id => !originalAssignees.includes(id) && id !== me.id);
-    
-    if (newlyAdded.length > 0 && currentWorkspaceId) {
-        const p = projects.find(x => x.id === currentProjectId);
-        const projName = p ? p.name : 'Unknown Project';
-        
-        const isPrivateDM = allAssignees.length <= 2 && newlyAdded.length === 1;
-
-        if (isPrivateDM) {
-            const targetId = newlyAdded[0];
-            await apiCall('/messages', 'POST', {
-                id: generateUUID(),
-                workspace_id: currentWorkspaceId,
-                sender_id: me.id, 
-                sender_name: activeUserName,
-                recipient_id: targetId,
-                content: `🤖 System: I assigned you to "${draftTask.title}" in ${projName}.`,
-                related_task_id: draftTask.id,
-                created_at: new Date().toISOString()
-            });
-        } else {
-            const addedNames = newlyAdded.map(id => getUserName(id)).join(', ');
-            await apiCall('/messages', 'POST', {
-                id: generateUUID(),
-                workspace_id: currentWorkspaceId,
-                sender_id: 'system',
-                sender_name: 'System',
-                recipient_id: null,
-                content: `🤖 System: ${activeUserName} assigned ${addedNames} to "${draftTask.title}" in ${projName}.`,
-                related_task_id: draftTask.id,
-                created_at: new Date().toISOString()
-            });
-        }
-    }
     
     const syncGcal = document.getElementById('task-gcal-sync').checked;
     if (syncGcal && !draftSubtaskId) {
@@ -2450,9 +2242,14 @@ function closeConfirmModal() {
 function switchAnalyticsTab(tab) {
     document.getElementById('tab-overview').classList.toggle('active', tab === 'overview');
     document.getElementById('tab-time-report').classList.toggle('active', tab === 'time-report');
+    document.getElementById('tab-global-time').classList.toggle('active', tab === 'global-time');
+
     document.getElementById('analytics-overview').style.display = tab === 'overview' ? 'grid' : 'none';
     document.getElementById('analytics-time-report').style.display = tab === 'time-report' ? 'flex' : 'none';
+    document.getElementById('analytics-global-time').style.display = tab === 'global-time' ? 'flex' : 'none';
+
     if (tab === 'time-report') renderDetailedTimeReport();
+    if (tab === 'global-time') renderGlobalDashboard();
 }
 
 function openAnalyticsModal() {
@@ -2787,15 +2584,6 @@ function renderDetailedTimeReport() {
         });
     }
     document.getElementById('detailed-time-container').innerHTML = html;
-}
-
-// --- GLOBAL ANALYTICS DASHBOARD ---
-function openGlobalAnalyticsModal() {
-    lockBody();
-    const m = document.getElementById('global-analytics-modal');
-    m.showModal();
-    renderGlobalDashboard();
-    setTimeout(() => m.scrollTop = 0, 10);
 }
 
 function renderGlobalDashboard() {
