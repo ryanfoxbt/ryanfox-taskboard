@@ -13,7 +13,7 @@ const pool = new Pool({
   ssl: { require: true, rejectUnauthorized: false }
 });
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 const defaultPrefs = JSON.stringify({ 
     projectOrder: [], uiSize: 'auto', 
@@ -219,10 +219,13 @@ app.delete('/api/workspaces/:id', async (req, res) => {
 // 9. USERS & SETTINGS
 app.post('/api/users', async (req, res) => {
     const { id, name, email, role, workspace_id, inviter_name, workspace_name, invite_link } = req.body;
+    const client = await pool.connect();
     try {
-        const userRes = await pool.query(`INSERT INTO users (id, name, email) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET name = $2 RETURNING id`, [id, name, email]);
+        await client.query('BEGIN');
+        const userRes = await client.query(`INSERT INTO users (id, name, email) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET name = $2 RETURNING id`, [id, name, email]);
         const actualUserId = userRes.rows[0].id;
-        await pool.query(`INSERT INTO workspace_members (workspace_id, user_id, role, preferences) VALUES ($1, $2, $3, $4) ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = $3`, [workspace_id, actualUserId, role, defaultPrefs]);
+        await client.query(`INSERT INTO workspace_members (workspace_id, user_id, role, preferences) VALUES ($1, $2, $3, $4) ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = $3`, [workspace_id, actualUserId, role, defaultPrefs]);
+        await client.query('COMMIT');
 
         if (process.env.RESEND_API_KEY && inviter_name) {
             try {
@@ -235,7 +238,7 @@ app.post('/api/users', async (req, res) => {
             } catch (emailErr) { console.error("Email failed to send", emailErr); }
         }
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { await client.query('ROLLBACK'); res.status(500).json({ error: err.message }); } finally { client.release(); }
 });
 
 app.put('/api/users/email', async (req, res) => {
