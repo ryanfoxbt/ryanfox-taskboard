@@ -2618,15 +2618,22 @@ function renderGlobalDashboard() {
         const ms = parseInt(log.duration_ms, 10);
         const wsObj = workspaces.find(w => w.id === log.workspace_id);
         const pObj = projects.find(p => p.id === log.project_id);
+        const tObj = tasks.find(t => t.id === log.task_id);
         const wsName = wsObj ? wsObj.name : 'Deleted Workspace';
         const pName = pObj ? pObj.name : 'Deleted Project';
+        const tName = tObj ? tObj.title : 'Deleted/Unknown Task';
+        const d = log.created_at ? new Date(log.created_at) : new Date();
+        const sessStr = `${d.toLocaleDateString()} at ${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
 
         timeByWorkspace[wsName] = (timeByWorkspace[wsName] || 0) + ms;
 
         if (!detailedData[wsName]) detailedData[wsName] = { total: 0, projects: {} };
         detailedData[wsName].total += ms;
-        if (!detailedData[wsName].projects[pName]) detailedData[wsName].projects[pName] = 0;
-        detailedData[wsName].projects[pName] += ms;
+        if (!detailedData[wsName].projects[pName]) detailedData[wsName].projects[pName] = { total: 0, tasks: {} };
+        detailedData[wsName].projects[pName].total += ms;
+        if (!detailedData[wsName].projects[pName].tasks[tName]) detailedData[wsName].projects[pName].tasks[tName] = { total: 0, sessions: [] };
+        detailedData[wsName].projects[pName].tasks[tName].total += ms;
+        detailedData[wsName].projects[pName].tasks[tName].sessions.push({ str: sessStr, ms: ms });
     });
 
     const labels = Object.keys(timeByWorkspace);
@@ -2653,21 +2660,44 @@ function renderGlobalDashboard() {
     } else {
         Object.keys(detailedData).sort((a,b) => detailedData[b].total - detailedData[a].total).forEach(ws => {
             tableHtml += `
-            <div style="margin-bottom: 10px; border: 1px solid #dfe1e6; border-radius: 6px; overflow: hidden;">
-                <div style="background: #f4f5f7; padding: 10px 12px; font-weight: bold; color: #172b4d; display: flex; justify-content: space-between;">
+            <details style="margin-bottom: 10px; border: 1px solid #dfe1e6; border-radius: 6px; overflow: hidden;">
+                <summary style="background: #f4f5f7; padding: 10px 12px; cursor: pointer; font-weight: bold; color: #172b4d; display: flex; justify-content: space-between; outline: none;">
                     <span>🏢 ${sanitize(ws)}</span>
                     <span style="color: #0052cc;">${formatTime(detailedData[ws].total)}</span>
-                </div>
+                </summary>
                 <div style="padding: 10px;">`;
-                
-            Object.keys(detailedData[ws].projects).sort((a,b) => detailedData[ws].projects[b] - detailedData[ws].projects[a]).forEach(proj => {
+
+            const wsProjects = detailedData[ws].projects;
+            Object.keys(wsProjects).sort((a,b) => wsProjects[b].total - wsProjects[a].total).forEach(proj => {
                 tableHtml += `
-                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #ebecf0; padding: 6px 0; font-size: 13px;">
-                    <span style="color: #42526e;">↳ 📁 ${sanitize(proj)}</span>
-                    <span style="font-family: monospace;">${formatTime(detailedData[ws].projects[proj])}</span>
-                </div>`;
+                <details style="margin-bottom: 6px; border-left: 2px solid #ebecf0; padding-left: 10px;">
+                    <summary style="padding: 6px; cursor: pointer; font-weight: 600; color: #42526e; display: flex; justify-content: space-between; border-bottom: 1px solid #ebecf0; outline: none; font-size: 13px;">
+                        <span>📁 ${sanitize(proj)}</span>
+                        <span style="font-family: monospace;">${formatTime(wsProjects[proj].total)}</span>
+                    </summary>
+                    <div style="padding: 6px 10px 10px 15px; display: flex; flex-direction: column; gap: 4px;">`;
+
+                const projTasks = wsProjects[proj].tasks;
+                Object.keys(projTasks).sort((a,b) => projTasks[b].total - projTasks[a].total).forEach(task => {
+                    const tData = projTasks[task];
+                    tableHtml += `
+                    <details style="border-bottom: 1px dashed #ebecf0; padding: 4px 0;">
+                        <summary style="cursor: pointer; display: flex; justify-content: space-between; outline: none; color: #5e6c84; font-size: 13px;">
+                            <span>↳ ${sanitize(task)}</span>
+                            <span style="color: #172b4d; font-family: monospace;">${formatTime(tData.total)}</span>
+                        </summary>
+                        <div style="padding-left: 15px; font-size: 11px; margin-top: 4px;">`;
+                    tData.sessions.forEach(sess => {
+                        tableHtml += `<div style="display: flex; justify-content: space-between; color: #8993a4; padding: 2px 0;">
+                            <span>↳ ${sess.str}</span>
+                            <span style="font-family: monospace;">${formatTime(sess.ms)}</span>
+                        </div>`;
+                    });
+                    tableHtml += `</div></details>`;
+                });
+                tableHtml += `</div></details>`;
             });
-            tableHtml += `</div></div>`;
+            tableHtml += `</div></details>`;
         });
     }
     document.getElementById('global-time-table').innerHTML = tableHtml;
