@@ -43,9 +43,38 @@ function closeAddUserModal() { unlockBody(); document.getElementById('add-user-m
 function openPromptModal() { lockBody(); document.getElementById('prompt-form').reset(); const m = document.getElementById('prompt-modal'); m.showModal(); setTimeout(() => m.scrollTop = 0, 10); }
 function closePromptModal() { unlockBody(); document.getElementById('prompt-modal').close(); }
 
+function openTemplateModal() { closeMenus(); lockBody(); const m = document.getElementById('template-modal'); m.showModal(); setTimeout(() => m.scrollTop = 0, 10); }
+function closeTemplateModal() { unlockBody(); document.getElementById('template-modal').close(); }
+
+async function createCareerProject() {
+    try {
+        const res = await fetch(`${API_URL}/projects/template`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ workspace_id: currentWorkspaceId, template_type: 'career', user_id: getActiveUserObj().id })
+        });
+        const data = await res.json();
+        if (!data.project) throw new Error(data.error || 'Failed to create template project');
+
+        projects.push(data.project);
+        currentProjectId = data.project.id;
+        localStorage.setItem('currentProjectId', data.project.id);
+
+        closeTemplateModal();
+        renderProjects();
+        renderBoard();
+        updateAssigneeFilterOptions();
+    } catch (err) {
+        console.error('Failed to create career project', err);
+        alert('Failed to create project from template.');
+    }
+}
+
 const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
 
 let workspaces = []; let workspaceUsers = []; let projects = []; let tasks = [];
+let profiles = []; let applications = [];
+let resumes = []; let roleSuggestions = [];
 let currentWorkspaceId = localStorage.getItem('currentWorkspaceId');
 let currentProjectId = localStorage.getItem('currentProjectId');
 
@@ -149,6 +178,10 @@ async function loadDataFromDB() {
         timeLogs = data.time_logs || [];
         taskRepetitions = data.task_repetitions || [];
         comments = data.comments || [];
+        profiles = data.profiles || [];
+        applications = data.applications || [];
+        resumes = data.resumes || [];
+        roleSuggestions = data.role_suggestions || [];
         
         projects = (data.projects || []).map(p => { 
             p.isSecret = p.is_secret; 
@@ -404,7 +437,7 @@ function renderProjects() {
     
     visible.forEach(project => {
         const btn = document.createElement('button'); btn.className = `tab ${project.id === currentProjectId ? 'active' : ''}`;
-        btn.innerHTML = (project.isSecret ? '🔒 ' : '') + sanitize(project.name);
+        btn.innerHTML = (project.isSecret ? '🔒 ' : '') + (project.template_type === 'career' ? '💼 ' : '') + sanitize(project.name);
         
         btn.onclick = () => { 
             if (currentProjectId === project.id) {
@@ -807,6 +840,12 @@ function renderBoard() {
         
         let dateHtml = ''; if (displayConfig.showDate && task.due_date) { const d = new Date(task.due_date + 'T12:00:00'); dateHtml = `<span class="date-badge" title="Due Date">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; }
         const childTasks = tasks.filter(t => t.parent_task_id === task.id); let subtaskHtml = ''; if (childTasks.length > 0) { subtaskHtml = `<span class="badge subtask-badge" title="Subtasks">☑ ${childTasks.filter(s => s.status === 'complete').length}/${childTasks.length}</span>`; }
+
+        let careerBadgeHtml = '';
+        if (task.metadata && task.metadata.company) {
+            const linkPart = task.metadata.job_url ? `<a href="${sanitize(task.metadata.job_url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="margin-left:4px;">🔗</a>` : '';
+            careerBadgeHtml = `<span class="badge" style="background:#e6fcff; color:#0052cc;" title="Company">🏢 ${sanitize(task.metadata.company)}${linkPart}</span>`;
+        }
         
         let recurringCounterHtml = '';
         if (task.status === 'recurring') {
@@ -833,7 +872,7 @@ function renderBoard() {
             ${descHtml}
             ${recurringCounterHtml}
             <div class="card-footer">
-                <div class="meta-group">${assigneesHtml}${dateHtml}${subtaskHtml}</div>
+                <div class="meta-group">${careerBadgeHtml}${assigneesHtml}${dateHtml}${subtaskHtml}</div>
                 <div class="actions">${desktopActions}</div>
             </div>`; 
         (lists[task.status] || lists.todo).appendChild(card);
@@ -1074,6 +1113,246 @@ async function saveSettings() {
     closeSettings(); 
     await apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: user.id, preferences: user.preferences });
     renderAll(); 
+}
+
+// --- APPLICATION PROFILE ---
+function getMyProfile() {
+    const me = getActiveUserObj();
+    return profiles.find(p => p.user_id === me.id) || {};
+}
+
+function switchProfileTab(tab) {
+    ['personal', 'work', 'resume', 'help'].forEach(t => {
+        document.getElementById(`profile-tab-${t}`).classList.toggle('active', t === tab);
+        document.getElementById(`profile-content-${t}`).style.display = t === tab ? 'block' : 'none';
+    });
+}
+
+function openProfileModal() {
+    document.getElementById('settings-modal').close();
+    lockBody();
+    switchProfileTab('personal');
+
+    const p = getMyProfile();
+    const eeo = p.eeo_answers || {};
+    document.getElementById('profile-full-name').value = p.full_name || '';
+    document.getElementById('profile-preferred-name').value = p.preferred_name || '';
+    document.getElementById('profile-email').value = p.email || activeUserEmail || '';
+    document.getElementById('profile-phone').value = p.phone || '';
+    document.getElementById('profile-address').value = p.address_line1 || '';
+    document.getElementById('profile-city').value = p.city || '';
+    document.getElementById('profile-state').value = p.state || '';
+    document.getElementById('profile-postal').value = p.postal_code || '';
+    document.getElementById('profile-country').value = p.country || '';
+    document.getElementById('profile-linkedin').value = p.linkedin_url || '';
+    document.getElementById('profile-github').value = p.github_url || '';
+    document.getElementById('profile-portfolio').value = p.portfolio_url || '';
+
+    document.getElementById('profile-work-auth').value = p.work_authorization || '';
+    document.getElementById('profile-years-exp').value = p.years_experience != null ? p.years_experience : '';
+    document.getElementById('profile-needs-sponsorship').checked = !!p.needs_sponsorship;
+    document.getElementById('profile-willing-relocate').checked = !!p.willing_to_relocate;
+    document.getElementById('profile-desired-salary').value = p.desired_salary || '';
+    document.getElementById('profile-start-date').value = p.earliest_start_date ? p.earliest_start_date.split('T')[0] : '';
+    document.getElementById('profile-current-employer').value = p.current_employer || '';
+    document.getElementById('profile-current-title').value = p.current_title || '';
+    document.getElementById('profile-eeo-gender').value = eeo.gender || 'Decline to answer';
+    document.getElementById('profile-eeo-veteran').value = eeo.veteran_status || 'Decline to answer';
+    document.getElementById('profile-eeo-race').value = eeo.race_ethnicity || '';
+    document.getElementById('profile-eeo-disability').value = eeo.disability_status || 'Decline to answer';
+
+    document.getElementById('profile-resume-text').value = p.resume_text || '';
+    document.getElementById('profile-cover-letter').value = p.cover_letter_template || '';
+    document.getElementById('profile-screening-notes').value = p.screening_notes || '';
+    document.getElementById('profile-additional-skills').value = p.additional_skills_info || '';
+
+    renderResumeList();
+    renderRoleSuggestions();
+
+    const m = document.getElementById('profile-modal');
+    m.showModal();
+    setTimeout(() => m.scrollTop = 0, 10);
+}
+
+function closeProfileModal() { unlockBody(); document.getElementById('profile-modal').close(); }
+
+async function saveProfile() {
+    const me = getActiveUserObj();
+    if (!me || !me.id) { closeProfileModal(); return; }
+
+    const payload = {
+        user_id: me.id,
+        full_name: document.getElementById('profile-full-name').value.trim(),
+        preferred_name: document.getElementById('profile-preferred-name').value.trim(),
+        email: document.getElementById('profile-email').value.trim(),
+        phone: document.getElementById('profile-phone').value.trim(),
+        address_line1: document.getElementById('profile-address').value.trim(),
+        city: document.getElementById('profile-city').value.trim(),
+        state: document.getElementById('profile-state').value.trim(),
+        postal_code: document.getElementById('profile-postal').value.trim(),
+        country: document.getElementById('profile-country').value.trim(),
+        linkedin_url: document.getElementById('profile-linkedin').value.trim(),
+        github_url: document.getElementById('profile-github').value.trim(),
+        portfolio_url: document.getElementById('profile-portfolio').value.trim(),
+        work_authorization: document.getElementById('profile-work-auth').value,
+        needs_sponsorship: document.getElementById('profile-needs-sponsorship').checked,
+        willing_to_relocate: document.getElementById('profile-willing-relocate').checked,
+        desired_salary: document.getElementById('profile-desired-salary').value.trim(),
+        earliest_start_date: document.getElementById('profile-start-date').value || null,
+        current_employer: document.getElementById('profile-current-employer').value.trim(),
+        current_title: document.getElementById('profile-current-title').value.trim(),
+        years_experience: document.getElementById('profile-years-exp').value,
+        resume_text: document.getElementById('profile-resume-text').value,
+        cover_letter_template: document.getElementById('profile-cover-letter').value,
+        screening_notes: document.getElementById('profile-screening-notes').value,
+        additional_skills_info: document.getElementById('profile-additional-skills').value,
+        eeo_answers: {
+            gender: document.getElementById('profile-eeo-gender').value,
+            veteran_status: document.getElementById('profile-eeo-veteran').value,
+            race_ethnicity: document.getElementById('profile-eeo-race').value.trim() || 'Decline to answer',
+            disability_status: document.getElementById('profile-eeo-disability').value
+        }
+    };
+
+    const idx = profiles.findIndex(p => p.user_id === me.id);
+    if (idx > -1) profiles[idx] = { ...profiles[idx], ...payload }; else profiles.push(payload);
+
+    closeProfileModal();
+    await apiCall('/profile', 'POST', payload);
+}
+
+// --- RESUME FILES ---
+function renderResumeList() {
+    const list = document.getElementById('resume-file-list');
+    if (!list) return;
+    const me = getActiveUserObj();
+    const mine = resumes.filter(r => r.user_id === me.id);
+    list.innerHTML = '';
+    if (mine.length === 0) {
+        list.innerHTML = '<div style="font-size:12px; color:#8993a4;">No resumes uploaded yet.</div>';
+        return;
+    }
+    mine.forEach(r => {
+        const div = document.createElement('div'); div.className = 'list-item';
+        const statusBadge = r.extraction_status === 'ok'
+            ? '<span style="color:#00875a;">Text extracted</span>'
+            : `<span style="color:#de350b;" title="${sanitize(r.extraction_error || '')}">Extraction failed</span>`;
+        const uploaded = r.created_at ? new Date(r.created_at).toLocaleDateString() : '';
+        div.innerHTML = `
+            <span class="title" style="display:flex; flex-direction:column; gap:2px;">
+                <span>${r.is_primary ? '⭐ ' : ''}${sanitize(r.label || r.filename || 'Resume')} <span class="meta">(${sanitize(r.filename || '')})</span></span>
+                <span style="font-size:10px; color:#8993a4;">${statusBadge} &middot; ${uploaded}</span>
+            </span>
+            <div class="list-actions">
+                ${!r.is_primary ? `<button type="button" class="edit" style="padding:2px 6px;" onclick="setResumePrimary('${r.id}')">Set Primary</button>` : ''}
+                <a href="${API_URL}/resumes/${r.id}/download" target="_blank" rel="noopener noreferrer" class="secondary" style="padding:2px 6px; font-size:12px; text-decoration:none; display:inline-block;">Download</a>
+                <button type="button" class="danger" style="padding:2px 6px;" onclick="deleteResumeFile('${r.id}')" title="Delete">&times;</button>
+            </div>`;
+        list.appendChild(div);
+    });
+}
+
+// After any mutation that can change which resume is primary (upload/set-primary/
+// delete), the server may have resynced profiles.resume_text server-side - reload
+// from /api/data (the app's usual pattern for staying consistent) and refresh
+// whatever's currently on screen in the profile modal.
+async function refreshResumeUI() {
+    await loadDataFromDB();
+    renderResumeList();
+    renderRoleSuggestions();
+    const textarea = document.getElementById('profile-resume-text');
+    if (textarea) textarea.value = getMyProfile().resume_text || '';
+}
+
+async function uploadResumeFile() {
+    const input = document.getElementById('resume-upload-input');
+    const me = getActiveUserObj();
+    const statusEl = document.getElementById('resume-upload-status');
+    if (!input.files[0] || !me) return;
+
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    fd.append('user_id', me.id);
+    fd.append('label', document.getElementById('resume-upload-label').value.trim());
+
+    statusEl.innerText = 'Uploading...';
+    try {
+        const res = await fetch(`${API_URL}/resumes/upload`, { method: 'POST', body: fd });
+        const json = await res.json();
+        if (json.resume) {
+            input.value = '';
+            document.getElementById('resume-upload-label').value = '';
+            await refreshResumeUI();
+            if (json.resume.extraction_status !== 'ok') {
+                statusEl.innerText = `Uploaded, but: ${json.resume.extraction_error || 'text extraction failed'}`;
+            } else {
+                statusEl.innerText = json.resume.is_primary
+                    ? 'Uploaded - set as your primary resume and synced to Resume Text below.'
+                    : '';
+            }
+        } else {
+            statusEl.innerText = json.error || 'Upload failed';
+        }
+    } catch (err) { statusEl.innerText = 'Upload failed: ' + err.message; }
+}
+
+async function setResumePrimary(id) {
+    await fetch(`${API_URL}/resumes/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_primary: true })
+    });
+    await refreshResumeUI();
+}
+
+async function deleteResumeFile(id) {
+    if (!confirm('Delete this resume file? This cannot be undone.')) return;
+    await fetch(`${API_URL}/resumes/${id}`, { method: 'DELETE' });
+    await refreshResumeUI();
+}
+
+// --- ROLE SUGGESTIONS ---
+function renderRoleSuggestions() {
+    const list = document.getElementById('role-suggestion-list');
+    if (!list) return;
+    const me = getActiveUserObj();
+    const mine = roleSuggestions.filter(s => s.user_id === me.id && s.status !== 'dismissed');
+    list.innerHTML = '';
+    if (mine.length === 0) {
+        list.innerHTML = '<div style="font-size:12px; color:#8993a4;">No suggestions yet.</div>';
+        return;
+    }
+    mine.forEach(s => {
+        const div = document.createElement('div'); div.className = 'list-item';
+        div.innerHTML = `
+            <span class="title" style="display:flex; flex-direction:column; gap:2px;">
+                <span>${s.status === 'interested' ? '👍 ' : ''}${sanitize(s.suggested_title)}</span>
+                <span style="font-size:11px; color:#5e6c84;">${sanitize(s.rationale || '')}</span>
+            </span>
+            <div class="list-actions">
+                ${s.status !== 'interested' ? `<button type="button" class="edit" style="padding:2px 6px;" onclick="setRoleSuggestionStatus('${s.id}', 'interested')">Interested</button>` : ''}
+                <button type="button" class="danger" style="padding:2px 6px;" onclick="setRoleSuggestionStatus('${s.id}', 'dismissed')" title="Not a fit">&times;</button>
+            </div>`;
+        list.appendChild(div);
+    });
+}
+
+async function setRoleSuggestionStatus(id, status) {
+    const s = roleSuggestions.find(x => x.id === id);
+    if (s) s.status = status;
+    renderRoleSuggestions();
+    await apiCall(`/role-suggestions/${id}`, 'PUT', { status });
+}
+
+// --- APPLICATION OUTCOME (career task modal) ---
+async function saveApplicationOutcome() {
+    if (!draftTask) return;
+    const app = applications.find(a => a.task_id === draftTask.id);
+    if (!app) return;
+    app.outcome = document.getElementById('task-app-outcome').value || null;
+    app.outcome_notes = document.getElementById('task-app-outcome-notes').value;
+    // Repost the full known row, not a partial patch - company/title/job_url/notes
+    // are NOT COALESCEd server-side on this endpoint, so omitting them would null
+    // them out (matches the existing "repost the full row" convention used for tasks).
+    await apiCall('/applications', 'POST', app);
 }
 
 function openFeedbackModal(type) {
@@ -1793,9 +2072,9 @@ function openModal(defaultStatus) {
         defaultAssignees = [getActiveUserObj().id];
     }
     
-    draftTask = { 
+    draftTask = {
         id: generateUUID(), title: '', description: '', assignees: defaultAssignees, due_date: '', status: defaultStatus, urgency: 'low', project_id: currentProjectId, parent_task_id: null,
-        counter: 0, timer_running: false, timer_started_at: null, timer_elapsed: 0, completed_at: null, creator_id: getActiveUserObj().id, recurring_type: 'habit'
+        counter: 0, timer_running: false, timer_started_at: null, timer_elapsed: 0, completed_at: null, creator_id: getActiveUserObj().id, recurring_type: 'habit', metadata: {}
     };
     
     draftSubtasks = []; draftSubtaskId = null; document.getElementById('task-form').reset(); updateFormUI(); 
@@ -1812,8 +2091,9 @@ function editTask(id) {
     lockBody();
     clearInterval(activeTimerInterval);
     
-    draftTask = JSON.parse(JSON.stringify(tasks.find(t => t.id === id))); 
+    draftTask = JSON.parse(JSON.stringify(tasks.find(t => t.id === id)));
     if (!draftTask.recurring_type) draftTask.recurring_type = 'habit';
+    if (!draftTask.metadata) draftTask.metadata = {};
 
     const taskLogs = timeLogs.filter(l => l.task_id === id);
     let actualElapsed = taskLogs.reduce((sum, log) => sum + parseInt(log.duration_ms || 0, 10), 0);
@@ -1869,6 +2149,18 @@ function syncFormToDraft() {
         if (document.getElementById('task-recurring-type')) {
             data.recurring_type = document.getElementById('task-recurring-type').value;
         }
+
+        const careerSection = document.getElementById('career-fields-section');
+        if (careerSection && careerSection.style.display !== 'none') {
+            data.metadata = {
+                ...(data.metadata || {}),
+                company: document.getElementById('task-company').value.trim(),
+                job_url: document.getElementById('task-job-url').value.trim(),
+                resume_version: document.getElementById('task-resume-version').value.trim(),
+                salary: document.getElementById('task-salary').value.trim(),
+                application_date: document.getElementById('task-application-date').value
+            };
+        }
     }
 }
 
@@ -1909,6 +2201,39 @@ function updateFormUI() {
     
     if (document.getElementById('task-recurring-type')) {
         document.getElementById('task-recurring-type').value = data.recurring_type || 'habit';
+    }
+
+    const careerProj = projects.find(p => p.id === draftTask.project_id);
+    const careerSection = document.getElementById('career-fields-section');
+    if (careerSection) {
+        const showCareerFields = careerProj && careerProj.template_type === 'career' && !draftSubtaskId;
+        careerSection.style.display = showCareerFields ? 'block' : 'none';
+        if (showCareerFields) {
+            const md = data.metadata || {};
+            document.getElementById('task-company').value = md.company || '';
+            document.getElementById('task-job-url').value = md.job_url || '';
+            document.getElementById('task-resume-version').value = md.resume_version || '';
+            document.getElementById('task-salary').value = md.salary || '';
+            document.getElementById('task-application-date').value = md.application_date || '';
+        }
+
+        const linkedApp = showCareerFields ? applications.find(a => a.task_id === draftTask.id) : null;
+        const appSection = document.getElementById('task-app-status-section');
+        if (appSection) {
+            appSection.style.display = linkedApp ? 'block' : 'none';
+            if (linkedApp) {
+                const appliedPart = linkedApp.applied_at ? ` &middot; Applied ${new Date(linkedApp.applied_at).toLocaleDateString()}` : '';
+                document.getElementById('task-app-status-badge').innerHTML = `Status: ${sanitize(linkedApp.status || 'draft')}${appliedPart}`;
+                document.getElementById('task-app-outcome').value = linkedApp.outcome || '';
+                document.getElementById('task-app-outcome-notes').value = linkedApp.outcome_notes || '';
+                const resumeDetails = document.getElementById('task-app-resume-details');
+                resumeDetails.style.display = linkedApp.tailored_resume_text ? 'block' : 'none';
+                document.getElementById('task-app-resume-text').value = linkedApp.tailored_resume_text || '';
+                const coverDetails = document.getElementById('task-app-cover-details');
+                coverDetails.style.display = linkedApp.tailored_cover_letter_text ? 'block' : 'none';
+                document.getElementById('task-app-cover-text').value = linkedApp.tailored_cover_letter_text || '';
+            }
+        }
     }
 
     // Set Visibility correctly based on Vice/Habit
@@ -2092,7 +2417,20 @@ function openEditProjectModal(id) {
     if (!p) return;
     document.getElementById('edit-project-name').value = p.name;
     document.getElementById('edit-project-secret').checked = p.isSecret;
-    
+
+    const careerSettingsSection = document.getElementById('career-settings-section');
+    const isCareer = p.template_type === 'career';
+    careerSettingsSection.style.display = isCareer ? 'block' : 'none';
+    if (isCareer) {
+        const s = p.settings || {};
+        document.getElementById('career-settings-titles').value = s.titles || '';
+        document.getElementById('career-settings-industry').value = s.industry || '';
+        document.getElementById('career-settings-location').value = s.location || '';
+        document.getElementById('career-settings-salary').value = s.salaryFloor || '';
+        document.getElementById('career-settings-recency').value = s.recency || '24h';
+        document.getElementById('career-settings-sources').value = s.additionalSources || '';
+    }
+
     renderProjectComments(id);
     switchProjectTab('settings');
 
@@ -2107,13 +2445,25 @@ document.getElementById('edit-project-form').addEventListener('submit', async fu
     e.preventDefault(); 
     const name = document.getElementById('edit-project-name').value.trim();
     const isSecret = document.getElementById('edit-project-secret').checked;
-    if (name) { 
-        const p = projects.find(x => x.id === contextTargetProjectId); 
-        if (p) { 
-            p.name = name; 
-            p.isSecret = isSecret; 
-            await saveProjectDB(p); 
-        } 
+    if (name) {
+        const p = projects.find(x => x.id === contextTargetProjectId);
+        if (p) {
+            p.name = name;
+            p.isSecret = isSecret;
+
+            if (p.template_type === 'career') {
+                p.settings = {
+                    titles: document.getElementById('career-settings-titles').value.trim(),
+                    industry: document.getElementById('career-settings-industry').value.trim(),
+                    location: document.getElementById('career-settings-location').value.trim(),
+                    salaryFloor: document.getElementById('career-settings-salary').value.trim(),
+                    recency: document.getElementById('career-settings-recency').value,
+                    additionalSources: document.getElementById('career-settings-sources').value.trim()
+                };
+            }
+
+            await saveProjectDB(p);
+        }
     }
     closeEditProjectModal();
 });

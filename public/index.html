@@ -28,6 +28,7 @@
                 <div id="workspace-context-menu" class="custom-context-menu" style="position: absolute; top: 100%; left: 0; margin-top: 8px;">
                     <div id="workspace-list-menu"></div>
                     <hr style="margin: 4px 0; border: none; border-top: 1px solid #dfe1e6;">
+                    <button onclick="openTemplateModal()">📁 Create Project from Template</button>
                     <button onclick="openCreateWorkspaceModal()">+ Create Workspace</button>
                     <button onclick="editCurrentWorkspace()">✎ Edit Current Workspace</button>
                     <button id="workspace-delete-btn" onclick="deleteCurrentWorkspace(event)" class="danger-text">✕ Delete Current Workspace</button>
@@ -168,6 +169,9 @@
         <div class="settings-section-title" style="margin-top: 0;">Analytics</div>
         <button type="button" class="action-primary" style="width: 100%; margin-bottom: 20px; font-size: 14px;" onclick="openAnalyticsModal()">📊 View Analytics Dashboard</button>
 
+        <div class="settings-section-title" style="margin-top: 0;">Job Applications</div>
+        <button type="button" class="action-primary" style="width: 100%; margin-bottom: 20px; font-size: 14px;" onclick="openProfileModal()">🧾 My Application Profile</button>
+
         <div class="settings-section-title" style="margin-top: 0;">Workspace Users</div>
         <div class="list-container" id="settings-user-list"></div>
         <button type="button" class="secondary" style="width: 100%; font-size: 13px;" onclick="openAddUserModal()">+ Invite New User</button>
@@ -197,6 +201,202 @@
         <div class="dialog-actions">
             <button type="button" class="secondary" onclick="closeSettings()">Cancel</button>
             <button type="button" onclick="saveSettings()">Save Settings</button>
+        </div>
+    </dialog>
+
+    <dialog id="profile-modal" style="width: 95%; max-width: 640px; max-height: 85vh; overflow-y: auto; -webkit-overflow-scrolling: touch;">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
+        <div class="modal-header-row" style="position: sticky; top: 0; background: white; z-index: 10; padding-bottom: 10px; border-bottom: 1px solid #dfe1e6;">
+            <h2 style="margin:0;">My Application Profile</h2>
+            <button class="danger" onclick="closeProfileModal()" title="Close">&times;</button>
+        </div>
+        <p style="font-size:12px; color:#5e6c84; margin: 10px 0;">
+            Stored so I can autofill job applications (Greenhouse, Ashby, Gem, LinkedIn, etc.) on your behalf.
+            I will always fill and stop for your review before submitting anything &mdash; I never submit an
+            application without you clicking submit yourself.
+        </p>
+
+        <div class="modal-tabs">
+            <button type="button" class="modal-tab active" id="profile-tab-personal" onclick="switchProfileTab('personal')">Personal Info</button>
+            <button type="button" class="modal-tab" id="profile-tab-work" onclick="switchProfileTab('work')">Work Details</button>
+            <button type="button" class="modal-tab" id="profile-tab-resume" onclick="switchProfileTab('resume')">Resume &amp; Answers</button>
+            <button type="button" class="modal-tab" id="profile-tab-help" onclick="switchProfileTab('help')">How It Works</button>
+        </div>
+
+        <div id="profile-content-personal" class="modal-tab-content active">
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <div class="form-group" style="flex:1; min-width:180px;"><label>Full Legal Name</label><input type="text" id="profile-full-name" autocomplete="off"></div>
+                <div class="form-group" style="flex:1; min-width:140px;"><label>Preferred Name</label><input type="text" id="profile-preferred-name" autocomplete="off"></div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <div class="form-group" style="flex:1; min-width:180px;"><label>Email</label><input type="email" id="profile-email" autocomplete="off"></div>
+                <div class="form-group" style="flex:1; min-width:140px;"><label>Phone</label><input type="tel" id="profile-phone" autocomplete="off"></div>
+            </div>
+            <div class="form-group"><label>Street Address</label><input type="text" id="profile-address" autocomplete="off"></div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <div class="form-group" style="flex:1; min-width:120px;"><label>City</label><input type="text" id="profile-city" autocomplete="off"></div>
+                <div class="form-group" style="flex:1; min-width:80px;"><label>State</label><input type="text" id="profile-state" autocomplete="off"></div>
+                <div class="form-group" style="flex:1; min-width:100px;"><label>Postal Code</label><input type="text" id="profile-postal" autocomplete="off"></div>
+                <div class="form-group" style="flex:1; min-width:100px;"><label>Country</label><input type="text" id="profile-country" autocomplete="off"></div>
+            </div>
+            <div class="form-group"><label>LinkedIn URL</label><input type="url" id="profile-linkedin" autocomplete="off" placeholder="https://linkedin.com/in/..."></div>
+            <div class="form-group"><label>GitHub URL</label><input type="url" id="profile-github" autocomplete="off" placeholder="https://github.com/..."></div>
+            <div class="form-group"><label>Portfolio / Website URL</label><input type="url" id="profile-portfolio" autocomplete="off"></div>
+        </div>
+
+        <div id="profile-content-work" class="modal-tab-content" style="display:none;">
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <div class="form-group" style="flex:1; min-width:200px;">
+                    <label>Work Authorization</label>
+                    <select id="profile-work-auth">
+                        <option value="">-- Select --</option>
+                        <option value="US Citizen">US Citizen</option>
+                        <option value="Green Card / Permanent Resident">Green Card / Permanent Resident</option>
+                        <option value="Visa Holder">Visa Holder (specify in notes)</option>
+                        <option value="Not authorized to work in the US">Not authorized to work in the US</option>
+                        <option value="Other / Not US-based">Other / Not US-based</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex:1; min-width:140px;"><label>Years of Experience</label><input type="number" min="0" step="0.5" id="profile-years-exp" autocomplete="off"></div>
+            </div>
+            <div class="checkbox-group"><input type="checkbox" id="profile-needs-sponsorship"><label for="profile-needs-sponsorship">I require visa sponsorship now or in the future</label></div>
+            <div class="checkbox-group"><input type="checkbox" id="profile-willing-relocate"><label for="profile-willing-relocate">Willing to relocate</label></div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <div class="form-group" style="flex:1; min-width:160px;"><label>Desired Salary</label><input type="text" id="profile-desired-salary" placeholder="e.g. $150,000 base" autocomplete="off"></div>
+                <div class="form-group" style="flex:1; min-width:160px;"><label>Earliest Start Date</label><input type="date" id="profile-start-date"></div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <div class="form-group" style="flex:1; min-width:160px;"><label>Current Employer</label><input type="text" id="profile-current-employer" autocomplete="off"></div>
+                <div class="form-group" style="flex:1; min-width:160px;"><label>Current Title</label><input type="text" id="profile-current-title" autocomplete="off"></div>
+            </div>
+            <div class="settings-section-title">Voluntary Self-Identification (EEO)</div>
+            <p style="font-size:11px; color:#8993a4; margin-top:-6px;">Optional on almost every application. Defaults to "Decline to answer" unless you set it here.</p>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <div class="form-group" style="flex:1; min-width:160px;">
+                    <label>Gender</label>
+                    <select id="profile-eeo-gender"><option value="Decline to answer">Decline to answer</option><option value="Male">Male</option><option value="Female">Female</option><option value="Non-binary">Non-binary</option><option value="Other">Other</option></select>
+                </div>
+                <div class="form-group" style="flex:1; min-width:160px;">
+                    <label>Veteran Status</label>
+                    <select id="profile-eeo-veteran"><option value="Decline to answer">Decline to answer</option><option value="Not a veteran">Not a veteran</option><option value="Veteran">Veteran</option><option value="Protected veteran">Protected veteran</option></select>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <div class="form-group" style="flex:1; min-width:160px;">
+                    <label>Race / Ethnicity</label>
+                    <input type="text" id="profile-eeo-race" placeholder="Decline to answer" autocomplete="off">
+                </div>
+                <div class="form-group" style="flex:1; min-width:160px;">
+                    <label>Disability Status</label>
+                    <select id="profile-eeo-disability"><option value="Decline to answer">Decline to answer</option><option value="No disability">No disability</option><option value="Yes, I have a disability">Yes, I have a disability</option></select>
+                </div>
+            </div>
+        </div>
+
+        <div id="profile-content-resume" class="modal-tab-content" style="display:none;">
+            <div class="form-group">
+                <label>Uploaded Resume Files</label>
+                <div class="list-container" id="resume-file-list"></div>
+                <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center;">
+                    <input type="file" id="resume-upload-input" accept=".docx">
+                    <input type="text" id="resume-upload-label" placeholder="Label (e.g. Marketing Ops v2)" style="flex:1; min-width:160px;" autocomplete="off">
+                    <button type="button" class="secondary" onclick="uploadResumeFile()">Upload</button>
+                </div>
+                <p style="font-size:11px; color:#8993a4; margin:4px 0 0;">Word documents (.docx) only for now &mdash; PDF isn't supported yet. If your resume is a PDF, re-save/export it as .docx first (File &rarr; Save As / Download As in Word or Google Docs).</p>
+                <div id="resume-upload-status" style="font-size:12px; color:#5e6c84; margin-top:4px;"></div>
+            </div>
+            <div class="form-group">
+                <label>Suggested Adjacent Roles</label>
+                <p style="font-size:11px; color:#8993a4; margin-top:-4px;">Populated when you ask me to analyze your uploaded resumes for roles you may be qualified for beyond your current search.</p>
+                <div class="list-container" id="role-suggestion-list"></div>
+            </div>
+            <div class="form-group">
+                <label>Resume Text</label>
+                <p style="font-size:11px; color:#8993a4; margin-top:-4px;">Automatically kept in sync with whichever uploaded resume above is marked &#9733; Primary &mdash; this is what gets pasted into free-text resume fields on application forms. Mark a different file as Primary to switch which one autofills. You can also edit this by hand; it'll be overwritten the next time you upload a new resume or change your primary.</p>
+                <textarea id="profile-resume-text" rows="10" spellcheck="true" placeholder="Upload a resume above, or paste your full resume as plain text here."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Cover Letter Template</label>
+                <textarea id="profile-cover-letter" rows="5" spellcheck="true" placeholder="Optional starting template I can adapt per job."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Common Screening Question Answers</label>
+                <textarea id="profile-screening-notes" rows="5" spellcheck="true" placeholder="Freeform notes for recurring questions, e.g.:&#10;Why this company: ...&#10;Reason for leaving last role: ...&#10;Notice period: 2 weeks"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Additional Skills &amp; Info</label>
+                <p style="font-size:11px; color:#8993a4; margin-top:-4px;">Anything about your skills, tools, or
+                    accomplishments that isn't fully captured in an uploaded resume &mdash; e.g. a detailed list of
+                    HubSpot wins, a certification, a side project. I'll read this alongside your resumes as part of
+                    the full picture when tailoring applications or suggesting roles, so nothing you know you're
+                    good at gets left out just because it's not on a resume file.</p>
+                <textarea id="profile-additional-skills" rows="8" spellcheck="true" placeholder="E.g.:&#10;HubSpot: built lead-scoring model that lifted MQL-to-SQL conversion 18%; migrated 40k contacts with zero data loss; certified in HubSpot Marketing Software.&#10;Other tools: ...&#10;Certifications: ..."></textarea>
+            </div>
+        </div>
+
+        <div id="profile-content-help" class="modal-tab-content" style="display:none; font-size:13px; line-height:1.5; color:#172b4d;">
+            <p style="color:#5e6c84;">The Career &amp; Job Search board is a mix of things you fill in here (<span class="badge" style="background:#e3fcef; color:#00875a;">In App</span>)
+                and things you ask me to do in a Claude Code chat (<span class="badge" style="background:#eae6ff; color:#5243aa;">Claude Code Skill</span>).
+                For each skill, say the exact command shown, or just describe what you want in your own words &mdash;
+                either works.</p>
+
+            <div class="settings-section-title" style="margin-top:16px;">1. Set up your profile (this modal) <span class="badge" style="background:#e3fcef; color:#00875a;">In App</span></div>
+            <p><strong>Personal Info</strong> and <strong>Work Details</strong> are the facts I autofill application
+                forms with &mdash; contact info, work authorization, salary expectations, EEO answers. Fill these in
+                once and every application draft reuses them.</p>
+            <p><strong>Resume &amp; Answers</strong> is where you upload past resumes (.docx) and I extract the text
+                from them. Your first upload becomes the <strong>primary</strong> resume automatically; after that,
+                mark whichever one you want with "Set Primary." The <strong>Resume Text</strong> box below
+                auto-syncs to your current primary resume &mdash; that's the exact text I paste into free-text
+                resume fields on application forms, so it's kept as one clean, coherent resume rather than every
+                version merged together. For <strong>tailoring</strong> a resume/cover letter to a specific job
+                (see #5 below), I read the full content of <em>every</em> resume you've uploaded, not just the
+                primary one, so nothing you've ever written gets left out of the raw material I draw from.</p>
+
+            <div class="settings-section-title">2. Set your search criteria <span class="badge" style="background:#e3fcef; color:#00875a;">In App</span></div>
+            <p>Open the Career &amp; Job Search project's <strong>Edit Project</strong> menu and fill in the "Job
+                Search Criteria" section &mdash; target titles, industry, location, salary floor, and any extra job
+                boards. This is what the daily search reads, so it knows what you're actually looking for.</p>
+
+            <div class="settings-section-title">3. Find jobs <span class="badge" style="background:#eae6ff; color:#5243aa;">Claude Code Skill</span></div>
+            <p>Searches LinkedIn, Google Jobs, and any extra sources you listed, using your saved criteria, and adds
+                new postings to the board: strong matches go in <strong>To Do</strong> ("Apply Today"), borderline
+                ones go in the <strong>Future</strong> tab ("Worth Reviewing").</p>
+            <p style="background:#f4f5f7; border-radius:4px; padding:8px 10px; margin-top:6px;"><strong>Say:</strong> <code>/search-jobs</code></p>
+
+            <div class="settings-section-title">4. Suggest adjacent roles <span class="badge" style="background:#eae6ff; color:#5243aa;">Claude Code Skill</span></div>
+            <p>Once you've uploaded at least one resume, this looks for roles you might be qualified for beyond what
+                you're currently targeting (e.g. spotting Product Manager potential in Marketing Ops experience).
+                Suggestions show up above in <strong>Suggested Adjacent Roles</strong>, where you can mark each one
+                Interested or Not a fit.</p>
+            <p style="background:#f4f5f7; border-radius:4px; padding:8px 10px; margin-top:6px;"><strong>Say:</strong> <code>/suggest-roles</code></p>
+
+            <div class="settings-section-title">5. Tailor an application <span class="badge" style="background:#eae6ff; color:#5243aa;">Claude Code Skill</span></div>
+            <p>For any specific job, drafts a tailored resume and cover letter &mdash; reworking your real experience
+                to fit that listing (never inventing anything) &mdash; and saves the draft to that job's card for
+                you to review. Open the task afterward and look for <strong>Application Status &amp; Materials</strong>
+                under Career Tracker Details.</p>
+            <p style="background:#f4f5f7; border-radius:4px; padding:8px 10px; margin-top:6px;"><strong>Say:</strong> <code>/tailor-application Acme Corp - Product Manager</code>
+                <br><span style="font-size:11px; color:#5e6c84;">(name the company/job, or just the task, so I know which one &mdash; I'll ask if it's ambiguous)</span></p>
+
+            <div class="settings-section-title">6. Apply to today's jobs <span class="badge" style="background:#eae6ff; color:#5243aa;">Claude Code Skill</span></div>
+            <p>Opens each "Apply Today" listing and fills out the application form (using a tailored draft if one
+                exists, otherwise your profile), then stops before the final submit &mdash; you always review and
+                click submit yourself.</p>
+            <p style="background:#f4f5f7; border-radius:4px; padding:8px 10px; margin-top:6px;"><strong>Say:</strong> <code>/apply-to-jobs</code></p>
+
+            <div class="settings-section-title">7. Record progress &amp; outcomes <span class="badge" style="background:#eae6ff; color:#5243aa;">Claude Code Skill</span></div>
+            <p>Once you've clicked submit on something I filled out, or you hear back from a company &mdash;
+                interview, offer, rejection, or silence &mdash; just tell me in plain language and I'll log it on
+                that job's card (Outcome / Outcome Notes under Application Status &amp; Materials). No slash command
+                needed here, just say it naturally. Over time this is what shows which roles, companies, and
+                tailoring approaches are actually working.</p>
+            <p style="background:#f4f5f7; border-radius:4px; padding:8px 10px; margin-top:6px;"><strong>Say:</strong> <code>"Mark Acme submitted"</code> or <code>"Acme rejected me"</code> or <code>"I have an interview with Acme"</code></p>
+        </div>
+
+        <div class="dialog-actions">
+            <button type="button" class="secondary" onclick="closeProfileModal()">Cancel</button>
+            <button type="button" onclick="saveProfile()">Save Profile</button>
         </div>
     </dialog>
 
@@ -358,6 +558,20 @@
         </form>
     </dialog>
 
+    <dialog id="template-modal">
+        <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
+        <h2 style="margin-top:0;">Create Project from Template</h2>
+        <div class="list-container" style="padding: 4px;">
+            <div class="list-item" style="cursor:pointer; padding: 14px; align-items:flex-start;" onclick="createCareerProject()">
+                <div>
+                    <div style="font-weight:bold; font-size:15px; margin-bottom:4px;">💼 Career &amp; Job Tracker</div>
+                    <div style="font-size:13px; color:#5e6c84;">Track job applications, resume versions, and interview stages. New leads can be dropped in automatically by a daily job search.</div>
+                </div>
+            </div>
+        </div>
+        <div class="dialog-actions"><button type="button" class="secondary" onclick="closeTemplateModal()">Cancel</button></div>
+    </dialog>
+
     <dialog id="prompt-modal">
         <button autofocus style="position: absolute; width: 1px; height: 1px; top: 0; left: 0; opacity: 0; pointer-events: none;" tabindex="-1"></button>
         <h2 style="margin-top:0;">New Project</h2>
@@ -389,6 +603,32 @@
             <div class="checkbox-group" style="margin-top: 15px; padding: 10px; background: #e6fcff; border-radius: 4px; border: 1px solid #b3f0ff;">
                 <input type="checkbox" id="edit-project-secret">
                 <label for="edit-project-secret" style="margin:0; font-weight:bold; color: #006644;">🔒 Make Secret (Only visible to me)</label>
+            </div>
+
+            <div id="career-settings-section" style="display:none; margin-top: 15px; background:#f4f5f7; padding:10px; border-radius:4px; border:1px solid #dfe1e6;">
+                <div style="font-weight:bold; font-size:12px; color:#5e6c84; text-transform:uppercase; margin-bottom:8px;">Job Search Criteria</div>
+                <div class="form-group">
+                    <label>Titles (comma-separated)</label>
+                    <input type="text" id="career-settings-titles" placeholder="E.g., Director of Sales, VP of Sales, Head of Sales" autocomplete="off">
+                </div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div class="form-group" style="flex:1; min-width:140px;"><label>Industry</label><input type="text" id="career-settings-industry" placeholder="E.g., SaaS, EdTech" autocomplete="off"></div>
+                    <div class="form-group" style="flex:1; min-width:140px;"><label>Location</label><input type="text" id="career-settings-location" placeholder="E.g., Remote (US)" autocomplete="off"></div>
+                </div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div class="form-group" style="flex:1; min-width:140px;"><label>Salary Floor</label><input type="text" id="career-settings-salary" placeholder="E.g., $130,000" autocomplete="off"></div>
+                    <div class="form-group" style="flex:1; min-width:140px;">
+                        <label>Recency</label>
+                        <select id="career-settings-recency">
+                            <option value="24h">Last 24 hours</option>
+                            <option value="week">Last week</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Additional Sources (niche boards, company career pages — one per line)</label>
+                    <textarea id="career-settings-sources" rows="3" placeholder="E.g., https://jobs.ashbyhq.com/acme&#10;https://jobs.lever.co/acme" spellcheck="false"></textarea>
+                </div>
             </div>
         </div>
 
@@ -462,7 +702,43 @@
                 </div>
                 <div class="list-container" id="subtasks-container"></div>
             </div>
-            
+
+            <div class="form-group" id="career-fields-section" style="display:none; background:#f4f5f7; padding:10px; border-radius:4px; border:1px solid #dfe1e6;">
+                <div style="font-weight:bold; font-size:12px; color:#5e6c84; text-transform:uppercase; margin-bottom:8px;">Career Tracker Details</div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div style="flex:1; min-width:140px;"><label>Company</label><input type="text" id="task-company" placeholder="E.g., Acme Inc." autocomplete="off"></div>
+                    <div style="flex:1; min-width:140px;"><label>Job Link</label><input type="url" id="task-job-url" placeholder="https://..." autocomplete="off"></div>
+                </div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+                    <div style="flex:1; min-width:140px;"><label>Resume / Cover Letter Version</label><input type="text" id="task-resume-version" placeholder="E.g., Resume_v3_SalesOps" autocomplete="off"></div>
+                    <div style="flex:1; min-width:140px;"><label>Salary</label><input type="text" id="task-salary" placeholder="E.g., $130k-$160k" autocomplete="off"></div>
+                </div>
+                <div style="margin-top: 10px;"><label>Application Date</label><input type="date" id="task-application-date"></div>
+
+                <div id="task-app-status-section" style="display:none; margin-top:12px; padding-top:10px; border-top:1px solid #dfe1e6;">
+                    <div style="font-weight:bold; font-size:12px; color:#5e6c84; text-transform:uppercase; margin-bottom:8px;">Application Status &amp; Materials</div>
+                    <div id="task-app-status-badge" style="font-size:12px; margin-bottom:8px; color:#5e6c84;"></div>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <div style="flex:1; min-width:140px;">
+                            <label>Outcome</label>
+                            <select id="task-app-outcome">
+                                <option value="">Pending / Unknown</option>
+                                <option value="interview">Interview</option>
+                                <option value="offer">Offer</option>
+                                <option value="rejected">Rejected</option>
+                                <option value="ghosted">Ghosted</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top:10px;"><label>Outcome Notes</label><textarea id="task-app-outcome-notes" rows="2" spellcheck="true"></textarea></div>
+                    <details id="task-app-resume-details" style="display:none; margin-bottom:8px;"><summary>Tailored Resume Draft</summary>
+                        <textarea id="task-app-resume-text" rows="8" readonly style="margin-top:6px;"></textarea></details>
+                    <details id="task-app-cover-details" style="display:none;"><summary>Tailored Cover Letter Draft</summary>
+                        <textarea id="task-app-cover-text" rows="6" readonly style="margin-top:6px;"></textarea></details>
+                    <button type="button" class="secondary" style="margin-top:10px;" onclick="saveApplicationOutcome()">Save Outcome</button>
+                </div>
+            </div>
+
             <div style="display: flex; gap: 15px; flex-wrap: wrap;">
                 <div class="form-group" style="flex: 1; min-width: 140px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
