@@ -37,3 +37,26 @@ blindly — sites change; verify against the live page and update the entry if i
   user.** These must always be checked and overwritten with the profile's actual `eeo_answers`
   (which default to "decline to answer") before considering the form ready for review. Never trust
   a platform's own autofill for EEO fields — always verify explicitly, every time.
+
+## 2026-07-23 — Nametag, GTM Operations Manager
+
+- URL pattern: `job-boards.greenhouse.io/<company>/jobs/<numeric id>` (the newer Greenhouse Job
+  Boards product, distinct from the embedded-iframe `?gh_jid=` pattern on a company's own site).
+  `get_page_text` **worked fine** here (unlike the Pantheon iframe case) — but the actual form
+  fields still didn't show up via `read_page`/`find` refs, so still use `computer` (coordinates)
+  + screenshots to fill it, even when `get_page_text` can read the static content.
+- A logged-in **MyGreenhouse** account (separate from RemoteHunter) auto-fills this style of form
+  too: First Name, Last Name, Preferred First Name, Email, Phone, Resume/CV file, and LinkedIn
+  Profile were all correctly pre-filled on page load, with a dismissible "Autofilled from
+  MyGreenhouse" banner. Still verify every field rather than trusting the banner blindly.
+- **Country dropdown next to Phone is the phone country code, not residence** (same as the
+  Pantheon case) — it was left blank by the MyGreenhouse autofill even though Phone was filled.
+  It's a `<select>`-style dropdown here (not the Pantheon iframe's type-to-filter combobox):
+  clicking it opens a list with "United States +1" already at/near the top — just click it.
+- Simple version of this form has no EEO/demographic section and no work-authorization/sponsorship
+  question at all — don't assume every Greenhouse form has one, check each one on its own.
+- Cover Letter is optional and file-upload only here (Attach/Dropbox/Google Drive/"Enter manually"
+  — no plain paste-a-text-box option shown by default). `profiles.cover_letter_template` on file
+  is a fully-written letter for a *specific* past job/hiring manager, not a generic template —
+  never paste it verbatim into a new application; either adapt it first (tailor-application) or
+  leave the field blank if it's optional, which is what happened this run.

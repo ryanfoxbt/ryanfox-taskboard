@@ -44,6 +44,10 @@ curl -s -X POST http://localhost:3000/api/applications \
   down that may not appear in any resume file (e.g. a detailed HubSpot accomplishment list). This
   is real, usable material too; pull from it exactly like resume content whenever it's relevant to
   the target role.
+  - **Check it for corrections to uploaded resume content, too, not just additions** — e.g. an
+    "EMPLOYMENT UPDATE" note saying the user has since left a job that a resume file still lists as
+    current ("Present"). Uploaded resumes are static snapshots and go stale; when a note like this
+    exists, use the corrected end date/status in the draft instead of whatever the resume file says.
 - Get the job description text. Check the task's `metadata`/`description` first; if it's not
   there, ask the user for it or fetch the listing page (`metadata.job_url`) via the Chrome tools.
   Never tailor against a job title alone — the whole point is fitting the real listing.

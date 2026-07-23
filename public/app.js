@@ -2229,9 +2229,11 @@ function updateFormUI() {
                 const resumeDetails = document.getElementById('task-app-resume-details');
                 resumeDetails.style.display = linkedApp.tailored_resume_text ? 'block' : 'none';
                 document.getElementById('task-app-resume-text').value = linkedApp.tailored_resume_text || '';
+                document.getElementById('task-app-resume-download').href = `${API_URL}/applications/${linkedApp.id}/resume.docx`;
                 const coverDetails = document.getElementById('task-app-cover-details');
                 coverDetails.style.display = linkedApp.tailored_cover_letter_text ? 'block' : 'none';
                 document.getElementById('task-app-cover-text').value = linkedApp.tailored_cover_letter_text || '';
+                document.getElementById('task-app-cover-download').href = `${API_URL}/applications/${linkedApp.id}/cover-letter.docx`;
             }
         }
     }

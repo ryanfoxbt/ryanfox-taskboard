@@ -4,6 +4,7 @@ const { Pool } = require('pg');
 const { Resend } = require('resend');
 const multer = require('multer');
 const mammoth = require('mammoth');
+const { buildResumeDoc, buildCoverLetterDoc, safeFilenamePart } = require('./docExport');
 require('dotenv').config({ path: '.env.local' });
 
 const app = express();
@@ -372,45 +373,55 @@ app.post('/api/settings', async (req, res) => {
 
 // 10. JOB APPLICATION PROFILE & TRACKER (personal info + resume used to autofill
 // ATS forms, and a record of individual application attempts)
+// Only ever writes columns actually present in req.body - a partial update
+// (e.g. a skill patching just additional_skills_info) must never null out the
+// rest of the profile. This is a dynamic UPDATE rather than the fixed
+// INSERT...ON CONFLICT DO UPDATE the other endpoints use, specifically to
+// avoid that failure mode (a prior version of this endpoint set every column
+// unconditionally and wiped a real user's profile from a two-field request).
+const PROFILE_TEXT_FIELDS = [
+    'full_name', 'preferred_name', 'email', 'phone', 'address_line1', 'city', 'state',
+    'postal_code', 'country', 'linkedin_url', 'github_url', 'portfolio_url', 'work_authorization',
+    'desired_salary', 'earliest_start_date', 'current_employer', 'current_title',
+    'resume_text', 'cover_letter_template', 'screening_notes', 'additional_skills_info'
+];
+const PROFILE_BOOLEAN_FIELDS = ['needs_sponsorship', 'willing_to_relocate'];
+
 app.post('/api/profile', async (req, res) => {
-    const {
-        user_id, full_name, preferred_name, email, phone, address_line1, city, state,
-        postal_code, country, linkedin_url, github_url, portfolio_url, work_authorization,
-        needs_sponsorship, willing_to_relocate, desired_salary, earliest_start_date,
-        current_employer, current_title, years_experience, resume_text, cover_letter_template,
-        screening_notes, eeo_answers, additional_skills_info
-    } = req.body;
+    const { user_id } = req.body;
     if (!user_id) return res.status(400).json({ error: 'user_id is required' });
+
+    const provided = (key) => Object.prototype.hasOwnProperty.call(req.body, key);
+    const setClauses = [];
+    const values = [];
+
+    [...PROFILE_TEXT_FIELDS, ...PROFILE_BOOLEAN_FIELDS].forEach((field) => {
+        if (provided(field)) {
+            values.push(req.body[field]);
+            setClauses.push(`${field} = $${values.length + 1}`);
+        }
+    });
+    if (provided('years_experience')) {
+        const v = req.body.years_experience;
+        values.push(v === '' ? null : v);
+        setClauses.push(`years_experience = $${values.length + 1}`);
+    }
+    if (provided('eeo_answers')) {
+        values.push(JSON.stringify(req.body.eeo_answers));
+        setClauses.push(`eeo_answers = COALESCE($${values.length + 1}::jsonb, profiles.eeo_answers)`);
+    }
 
     try {
         await pool.query(
-            `INSERT INTO profiles (
-                user_id, full_name, preferred_name, email, phone, address_line1, city, state,
-                postal_code, country, linkedin_url, github_url, portfolio_url, work_authorization,
-                needs_sponsorship, willing_to_relocate, desired_salary, earliest_start_date,
-                current_employer, current_title, years_experience, resume_text, cover_letter_template,
-                screening_notes, eeo_answers, additional_skills_info, updated_at
-             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,COALESCE($25::jsonb,'{}'::jsonb),$26,now())
-             ON CONFLICT (user_id) DO UPDATE SET
-                full_name=$2, preferred_name=$3, email=$4, phone=$5, address_line1=$6, city=$7, state=$8,
-                postal_code=$9, country=$10, linkedin_url=$11, github_url=$12, portfolio_url=$13, work_authorization=$14,
-                needs_sponsorship=$15, willing_to_relocate=$16, desired_salary=$17, earliest_start_date=$18,
-                current_employer=$19, current_title=$20, years_experience=$21, resume_text=$22, cover_letter_template=$23,
-                screening_notes=$24, eeo_answers=COALESCE($25::jsonb, profiles.eeo_answers),
-                additional_skills_info=$26, updated_at=now()`,
-            [
-                user_id, full_name || null, preferred_name || null, email || null, phone || null,
-                address_line1 || null, city || null, state || null, postal_code || null, country || null,
-                linkedin_url || null, github_url || null, portfolio_url || null, work_authorization || null,
-                needs_sponsorship !== undefined ? needs_sponsorship : null,
-                willing_to_relocate !== undefined ? willing_to_relocate : null,
-                desired_salary || null, earliest_start_date || null, current_employer || null, current_title || null,
-                years_experience !== undefined && years_experience !== '' ? years_experience : null,
-                resume_text || null, cover_letter_template || null, screening_notes || null,
-                eeo_answers !== undefined ? JSON.stringify(eeo_answers) : null,
-                additional_skills_info || null
-            ]
+            `INSERT INTO profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [user_id]
         );
+        if (setClauses.length > 0) {
+            setClauses.push('updated_at = now()');
+            await pool.query(
+                `UPDATE profiles SET ${setClauses.join(', ')} WHERE user_id = $1`,
+                [user_id, ...values]
+            );
+        }
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -464,6 +475,35 @@ app.delete('/api/applications/:id', async (req, res) => {
     try {
         await pool.query('UPDATE applications SET is_deleted = true WHERE id = $1', [req.params.id]);
         res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Downloadable .docx versions of the tailor-application skill's plain-text
+// drafts, so the user (or a browser-automation upload) has an actual Word
+// file, not just text to copy-paste.
+app.get('/api/applications/:id/resume.docx', async (req, res) => {
+    try {
+        const r = await pool.query('SELECT company, title, tailored_resume_text FROM applications WHERE id = $1', [req.params.id]);
+        if (r.rows.length === 0 || !r.rows[0].tailored_resume_text) return res.status(404).end();
+        const row = r.rows[0];
+        const buffer = await buildResumeDoc(row.tailored_resume_text);
+        const filename = `${safeFilenamePart(row.company)}_${safeFilenamePart(row.title)}_Resume.docx`;
+        res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.set('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(buffer);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/applications/:id/cover-letter.docx', async (req, res) => {
+    try {
+        const r = await pool.query('SELECT company, title, tailored_cover_letter_text FROM applications WHERE id = $1', [req.params.id]);
+        if (r.rows.length === 0 || !r.rows[0].tailored_cover_letter_text) return res.status(404).end();
+        const row = r.rows[0];
+        const buffer = await buildCoverLetterDoc(row.tailored_cover_letter_text);
+        const filename = `${safeFilenamePart(row.company)}_${safeFilenamePart(row.title)}_Cover_Letter.docx`;
+        res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.set('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(buffer);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
