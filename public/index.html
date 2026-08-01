@@ -13,41 +13,46 @@
     <script async crossorigin="anonymous" data-clerk-publishable-key="pk_live_Y2xlcmsuY2FuZXZlbi5hcHAk" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@4/dist/clerk.browser.js"></script>
 
     <div id="landing-container">
+        <div id="cms-edit-banner">
+            <span>✎ Editing Landing Page — click any highlighted text to change it.</span>
+            <button class="secondary" onclick="exitCmsPreview()">Exit Editing</button>
+        </div>
+
         <nav class="landing-nav">
-            <div class="landing-logo">Can Even</div>
+            <div class="landing-logo" data-cms-key="nav-logo">Can Even</div>
             <button class="secondary" onclick="showSignIn()">Sign In</button>
         </nav>
 
         <header class="landing-hero">
-            <h1>The task board that keeps up with real work.</h1>
-            <p class="landing-subhead">Kanban boards, recurring tasks, time tracking, and team workspaces — all in one place, and completely free to use. Try it instantly, no account required.</p>
+            <h1 data-cms-key="hero-title">The task board that keeps up with real work.</h1>
+            <p class="landing-subhead" data-cms-key="hero-subhead">Kanban boards, recurring tasks, time tracking, and team workspaces — all in one place, and completely free to use. Try it instantly, no account required.</p>
             <div class="landing-cta-row">
                 <button class="landing-cta-primary" onclick="startDemoMode()">Try It Now — No Sign-Up Required</button>
                 <button class="secondary" onclick="showSignIn()">Sign In</button>
             </div>
-            <p class="landing-cta-note">Like what you see? Create a free account anytime to save your board.</p>
+            <p class="landing-cta-note" data-cms-key="cta-note">Like what you see? Create a free account anytime to save your board.</p>
         </header>
 
         <section class="landing-features">
             <div class="landing-feature-card">
                 <div class="landing-feature-icon">📋</div>
-                <h3>Visual Kanban Boards</h3>
-                <p>Drag tasks across Future, To Do, Doing, and Done — organized by project, filtered by assignee, urgency, or due date.</p>
+                <h3 data-cms-key="feature-1-title">Visual Kanban Boards</h3>
+                <p data-cms-key="feature-1-body">Drag tasks across Future, To Do, Doing, and Done — organized by project, filtered by assignee, urgency, or due date.</p>
             </div>
             <div class="landing-feature-card">
                 <div class="landing-feature-icon">🔁</div>
-                <h3>Recurring Tasks &amp; Habits</h3>
-                <p>Set up recurring tasks that reset automatically — perfect for habits and routines you want to stick to.</p>
+                <h3 data-cms-key="feature-2-title">Recurring Tasks &amp; Habits</h3>
+                <p data-cms-key="feature-2-body">Set up recurring tasks that reset automatically — perfect for habits and routines you want to stick to.</p>
             </div>
             <div class="landing-feature-card">
                 <div class="landing-feature-icon">⏱️</div>
-                <h3>Built-In Time Tracking</h3>
-                <p>Start a timer on any task and see exactly where your time goes, across every project and workspace.</p>
+                <h3 data-cms-key="feature-3-title">Built-In Time Tracking</h3>
+                <p data-cms-key="feature-3-body">Start a timer on any task and see exactly where your time goes, across every project and workspace.</p>
             </div>
             <div class="landing-feature-card">
                 <div class="landing-feature-icon">👥</div>
-                <h3>Team Workspaces</h3>
-                <p>Invite teammates, assign tasks, leave comments, and keep everyone's work visible in one shared board.</p>
+                <h3 data-cms-key="feature-4-title">Team Workspaces</h3>
+                <p data-cms-key="feature-4-body">Invite teammates, assign tasks, leave comments, and keep everyone's work visible in one shared board.</p>
             </div>
         </section>
 
@@ -55,6 +60,8 @@
             <p>&copy; <span id="landing-year"></span> Can Even — free to use. <a onclick="startDemoMode()">Try the demo</a> or <a onclick="showSignIn()">sign in</a>.</p>
         </footer>
     </div>
+
+    <div id="cms-toast"></div>
 
     <div id="sign-in-container" style="display: none; height: 100vh; justify-content: center; align-items: center; background: #f4f5f7; position: relative;">
         <button class="secondary" onclick="backToLanding()" style="position: absolute; top: 20px; left: 20px;">&larr; Back</button>
@@ -84,6 +91,7 @@
                     <button onclick="openCreateWorkspaceModal()">+ Create Workspace</button>
                     <button onclick="editCurrentWorkspace()">✎ Edit Current Workspace</button>
                     <button id="workspace-delete-btn" onclick="deleteCurrentWorkspace(event)" class="danger-text">✕ Delete Current Workspace</button>
+                    <button id="cms-edit-landing-btn" style="display:none;" onclick="enterCmsPreview('landing')">🖋 Edit Landing Page</button>
                 </div>
             </div>
             

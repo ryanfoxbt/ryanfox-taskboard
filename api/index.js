@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const { Resend } = require('resend');
+const { createClerkClient, verifyToken } = require('@clerk/backend');
 require('dotenv').config();
 
 const app = express();
@@ -14,6 +15,34 @@ const pool = new Pool({
 });
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+const clerkClient = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+
+// Gates the marketing-page CMS write endpoints. Unlike every other route in this file,
+// this does NOT trust a client-supplied user id -- it verifies the caller's Clerk session
+// token server-side and checks the resulting email against users.is_super_admin, because
+// this endpoint edits a public page and a forged request would be a live defacement.
+async function requireSuperAdmin(req, res, next) {
+    if (!clerkClient) return res.status(500).json({ error: 'CMS auth not configured' });
+    try {
+        const authHeader = req.headers.authorization || '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+        if (!token) return res.status(401).json({ error: 'Missing authorization token' });
+
+        const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY });
+        const clerkUser = await clerkClient.users.getUser(payload.sub);
+        const email = clerkUser.emailAddresses.find(e => e.id === clerkUser.primaryEmailAddressId)?.emailAddress;
+        if (!email) return res.status(403).json({ error: 'Forbidden' });
+
+        const { rows } = await pool.query('SELECT id, is_super_admin FROM users WHERE email = $1', [email]);
+        if (!rows[0] || !rows[0].is_super_admin) return res.status(403).json({ error: 'Forbidden' });
+
+        req.superAdminUserId = rows[0].id;
+        next();
+    } catch (err) {
+        res.status(401).json({ error: 'Invalid or expired token' });
+    }
+}
 
 const defaultPrefs = JSON.stringify({ 
     projectOrder: [], uiSize: 'auto', 
@@ -214,6 +243,31 @@ app.delete('/api/workspaces/:id', async (req, res) => {
         await client.query('COMMIT');
         res.json({ success: true }); 
     } catch (err) { await client.query('ROLLBACK'); res.status(500).json({ error: err.message }); } finally { client.release(); }
+});
+
+// 8. CMS CONTENT (marketing pages)
+app.get('/api/cms/:pageSlug', async (req, res) => {
+    try {
+        const { rows } = await pool.query(
+            'SELECT element_key, content FROM cms_content WHERE page_slug = $1', [req.params.pageSlug]
+        );
+        const map = {};
+        rows.forEach(r => { map[r.element_key] = r.content; });
+        res.json(map);
+    } catch (err) { res.status(500).json({ error: 'Failed to fetch content' }); }
+});
+
+app.put('/api/cms/:pageSlug/:elementKey', requireSuperAdmin, async (req, res) => {
+    const { content } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO cms_content (page_slug, element_key, content, updated_at, updated_by)
+             VALUES ($1, $2, $3, now(), $4)
+             ON CONFLICT (page_slug, element_key) DO UPDATE SET content = $3, updated_at = now(), updated_by = $4`,
+            [req.params.pageSlug, req.params.elementKey, String(content ?? '').slice(0, 5000), req.superAdminUserId]
+        );
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // 9. USERS & SETTINGS

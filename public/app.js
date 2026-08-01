@@ -56,6 +56,14 @@ let currentProjectId = localStorage.getItem('currentProjectId');
 
 let activeUserEmail = null; let activeUserName = null;
 
+// --- CMS (marketing page editing, super admin only) ---
+let isSuperAdmin = false;
+let cmsContent = {};
+let cmsEditMode = false;
+let cmsActivePageSlug = null;
+let cmsActiveEditEl = null;
+let cmsEditControls = null;
+
 let uiSize = 'auto'; 
 let displayConfig = { showDate: true, showUrgency: true, showDesc: true, showAssignee: true };
 
@@ -103,6 +111,10 @@ window.addEventListener('load', async function () {
     const yearEl = document.getElementById('landing-year');
     if (yearEl) yearEl.textContent = new Date().getFullYear();
 
+    // Public, unauthenticated -- fetched independently of Clerk so overrides render for
+    // signed-out visitors even before/without auth state resolving.
+    loadCmsContent('landing');
+
     await Clerk.load();
 
     // Some Clerk flows (e.g. the openSignUp/openSignIn modals) complete without a full
@@ -131,6 +143,7 @@ function showLanding() {
 }
 
 function showSignIn() {
+    if (cmsEditMode) return; // don't navigate away while the super admin is previewing/editing the landing page
     document.getElementById('landing-container').style.display = 'none';
     document.getElementById('sign-in-container').style.display = 'flex';
     if (!signInMounted) {
@@ -149,6 +162,7 @@ function openDemoSignUp() {
 }
 
 async function startDemoMode() {
+    if (cmsEditMode) return; // don't navigate away while the super admin is previewing/editing the landing page
     isDemoMode = true;
     activeUserEmail = DEMO_EMAIL;
     activeUserName = 'You';
@@ -163,6 +177,157 @@ function exitDemoToLanding() {
     document.getElementById('app-container').style.display = 'none';
     document.getElementById('demo-banner').style.display = 'none';
     showLanding();
+}
+
+// --- CMS (marketing page editing, super admin only) ---
+// GET is public/unauthenticated -- it just overlays saved copy on top of the hardcoded
+// defaults already in the HTML, so the page degrades gracefully with zero saved rows.
+// The edit/save UI below is convenience gating only; the real enforcement is the
+// server-side requireSuperAdmin check on the PUT endpoint in api/index.js.
+
+async function loadCmsContent(pageSlug) {
+    try {
+        const res = await fetchWithTimeout(`${API_URL}/cms/${pageSlug}`);
+        if (!res.ok) return;
+        const map = await res.json();
+        cmsContent = map;
+        Object.keys(map).forEach(key => {
+            if (!map[key]) return;
+            const el = document.querySelector(`#landing-container [data-cms-key="${key}"]`);
+            if (el) el.textContent = map[key];
+        });
+    } catch (err) { console.error(`Failed to load CMS content for ${pageSlug}:`, err); }
+}
+
+function enterCmsPreview(pageSlug) {
+    if (!isSuperAdmin) return;
+    closeMenus();
+    cmsActivePageSlug = pageSlug;
+    cmsEditMode = true;
+    document.getElementById('app-container').style.display = 'none';
+    document.getElementById('landing-container').style.display = 'flex';
+    document.getElementById('cms-edit-banner').style.display = 'flex';
+
+    document.querySelectorAll('#landing-container [data-cms-key]').forEach(el => {
+        el.classList.add('cms-editable');
+        el.addEventListener('click', onCmsElementClick);
+    });
+}
+
+function exitCmsPreview() {
+    cancelCmsEdit();
+    cmsEditMode = false;
+    cmsActivePageSlug = null;
+    document.getElementById('cms-edit-banner').style.display = 'none';
+    document.getElementById('landing-container').style.display = 'none';
+    document.getElementById('app-container').style.display = 'block';
+
+    document.querySelectorAll('#landing-container [data-cms-key]').forEach(el => {
+        el.classList.remove('cms-editable');
+        el.removeEventListener('click', onCmsElementClick);
+    });
+}
+
+function onCmsElementClick(e) {
+    if (!cmsEditMode) return;
+    e.preventDefault(); e.stopPropagation();
+    const el = e.currentTarget;
+    if (cmsActiveEditEl === el) return;
+    if (cmsActiveEditEl) cancelCmsEdit();
+
+    cmsActiveEditEl = el;
+    el.dataset.cmsOriginal = el.textContent;
+    el.contentEditable = 'true';
+    el.classList.add('cms-active-edit');
+    el.addEventListener('keydown', blockCmsEnter);
+    el.focus();
+    selectAllCmsText(el);
+
+    showCmsEditControls(el);
+}
+
+function selectAllCmsText(el) {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+}
+
+function blockCmsEnter(e) {
+    if (e.key === 'Enter') e.preventDefault();
+}
+
+function showCmsEditControls(el) {
+    removeCmsEditControls();
+    const rect = el.getBoundingClientRect();
+    const bar = document.createElement('div');
+    bar.id = 'cms-edit-controls';
+    bar.style.top = `${Math.max(rect.top - 44, 8) + window.scrollY}px`;
+    bar.style.left = `${rect.left + window.scrollX}px`;
+    bar.innerHTML = `
+        <button type="button" class="action-success" onclick="confirmCmsEdit()">✓ Save</button>
+        <button type="button" class="danger" onclick="cancelCmsEdit()">✕ Cancel</button>
+    `;
+    document.body.appendChild(bar);
+    cmsEditControls = bar;
+}
+
+function removeCmsEditControls() {
+    if (cmsEditControls) { cmsEditControls.remove(); cmsEditControls = null; }
+}
+
+function cancelCmsEdit() {
+    if (!cmsActiveEditEl) return;
+    const el = cmsActiveEditEl;
+    el.textContent = el.dataset.cmsOriginal ?? el.textContent;
+    el.contentEditable = 'false';
+    el.classList.remove('cms-active-edit');
+    el.removeEventListener('keydown', blockCmsEnter);
+    cmsActiveEditEl = null;
+    removeCmsEditControls();
+}
+
+async function confirmCmsEdit() {
+    if (!cmsActiveEditEl) return;
+    const el = cmsActiveEditEl;
+    const key = el.dataset.cmsKey;
+    const originalText = el.dataset.cmsOriginal;
+    const content = el.textContent.trim();
+    const pageSlug = cmsActivePageSlug;
+
+    el.contentEditable = 'false';
+    el.classList.remove('cms-active-edit');
+    el.removeEventListener('keydown', blockCmsEnter);
+    cmsActiveEditEl = null;
+    removeCmsEditControls();
+
+    if (content === (originalText || '').trim()) return; // nothing changed
+
+    try {
+        const token = await Clerk.session.getToken();
+        const res = await fetchWithTimeout(`${API_URL}/cms/${pageSlug}/${key}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ content })
+        });
+        if (!res.ok) throw new Error('Save failed');
+        cmsContent[key] = content;
+        showCmsToast('Saved');
+    } catch (err) {
+        console.error('CMS save failed:', err);
+        el.textContent = originalText || '';
+        showCmsToast('Failed to save — reverted', true);
+    }
+}
+
+function showCmsToast(message, isError = false) {
+    const toast = document.getElementById('cms-toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.className = isError ? 'cms-toast-visible cms-toast-error' : 'cms-toast-visible';
+    clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(() => { toast.className = ''; }, 2500);
 }
 
 // A brand-new Clerk sign-in with no matching `users` row: either a genuinely new
@@ -413,6 +578,9 @@ async function loadDataFromDB() {
             }
             return u;
         });
+
+        const me = workspaceUsers.find(u => u.email === activeUserEmail);
+        isSuperAdmin = !!(me && me.is_super_admin);
 
         tasks = (data.tasks || []).map(t => {
             t.assignees = (data.task_assignees || []).filter(ta => ta.task_id === t.id).map(ta => ta.user_id);
@@ -1404,7 +1572,10 @@ function toggleWorkspaceMenu(e) {
             delBtn.innerHTML = '🏃 Leave Current Workspace';
         }
     }
-    
+
+    const cmsBtn = document.getElementById('cms-edit-landing-btn');
+    if (cmsBtn) cmsBtn.style.display = isSuperAdmin ? 'block' : 'none';
+
     menu.style.display = menu.style.display === 'block' ? 'none' : 'block'; 
 }
 

@@ -93,3 +93,22 @@ CREATE TABLE IF NOT EXISTS feedback (
     title TEXT,
     description TEXT
 );
+
+-- CMS: per-element content overrides for marketing pages (landing page, and any future
+-- marketing-like page reusing the same page_slug / data-cms-key pattern). No FK to users
+-- (matches this file's no-FK convention) -- updated_by is best-effort audit only.
+CREATE TABLE IF NOT EXISTS cms_content (
+    page_slug TEXT NOT NULL,
+    element_key TEXT NOT NULL,
+    content TEXT,
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    updated_by UUID,
+    PRIMARY KEY (page_slug, element_key)
+);
+
+-- Site-wide super-admin flag (distinct from workspace_members.role, which is per-workspace).
+-- Gates access to the marketing-page CMS editing UI and its write API.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- One-time bootstrap of the site owner as super admin. Idempotent -- safe to re-run.
+UPDATE users SET is_super_admin = TRUE WHERE email = 'ryanfoxbt@gmail.com';

@@ -299,3 +299,31 @@ dialog::backdrop { background: rgba(9, 30, 66, 0.54); }
     .landing-cta-row { flex-direction: column; }
     .landing-cta-primary { width: 100%; }
 }
+
+/* --- CMS (marketing page editing) --- */
+#cms-edit-banner {
+    display: none; align-items: center; justify-content: space-between; gap: 12px;
+    background: #172b4d; color: white;
+    padding: 10px 16px; border-radius: 6px; margin-bottom: 12px; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 100;
+}
+#cms-edit-banner span { font-size: 14px; }
+
+.cms-editable { transition: outline 0.15s ease, background-color 0.15s ease; border-radius: 4px; }
+.cms-editable:hover { outline: 2px dashed #0052cc; outline-offset: 2px; cursor: text; background-color: #e6fcff; }
+.cms-editable.cms-active-edit { outline: 2px solid #0052cc; outline-offset: 2px; background-color: white; cursor: text; }
+
+#cms-edit-controls {
+    position: absolute; z-index: 10001; display: flex; gap: 6px;
+    background: white; border: 1px solid #dfe1e6; border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 4px;
+}
+#cms-edit-controls button { margin: 0; }
+
+#cms-toast {
+    display: none; position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    background: #172b4d; color: white; padding: 10px 20px; border-radius: 30px; font-weight: bold;
+    font-size: 14px; z-index: 10002; box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+}
+#cms-toast.cms-toast-visible { display: block; }
+#cms-toast.cms-toast-error { background: #de350b; }
