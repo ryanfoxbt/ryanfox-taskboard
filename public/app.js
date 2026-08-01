@@ -84,17 +84,33 @@ const lists = { future: document.getElementById('future-list'), todo: document.g
 const workspaceContextMenu = document.getElementById('workspace-context-menu'); const activeContextMenu = document.getElementById('active-context-menu'); const futureContextMenu = document.getElementById('future-context-menu'); const archiveContextMenu = document.getElementById('archive-context-menu'); const subtaskContextMenu = document.getElementById('subtask-context-menu');
 const projectContextMenu = document.getElementById('project-context-menu');
 
+let authHandlerRunning = false;
+async function handleClerkAuthChange(user) {
+    if (authHandlerRunning) return;
+    authHandlerRunning = true;
+    try {
+        if (user) {
+            await bootAuthenticatedUser(user);
+        } else if (!isDemoMode) {
+            showLanding();
+        }
+    } finally {
+        authHandlerRunning = false;
+    }
+}
+
 window.addEventListener('load', async function () {
     const yearEl = document.getElementById('landing-year');
     if (yearEl) yearEl.textContent = new Date().getFullYear();
 
     await Clerk.load();
 
-    if (Clerk.user) {
-        await bootAuthenticatedUser(Clerk.user);
-    } else {
-        showLanding();
-    }
+    // Some Clerk flows (e.g. the openSignUp/openSignIn modals) complete without a full
+    // page reload, so we react to auth-state changes live rather than only checking once.
+    // (handleClerkAuthChange guards against double-processing if addListener also fires
+    // immediately with the current state.)
+    Clerk.addListener(({ user }) => { handleClerkAuthChange(user); });
+    await handleClerkAuthChange(Clerk.user);
 
     setInterval(updateGlobalTimer, 1000);
 
@@ -174,11 +190,16 @@ async function bootAuthenticatedUser(clerkUser) {
         const wsId = generateUUID();
         const wsName = (pendingDemo && pendingDemo.workspaces[0] && pendingDemo.workspaces[0].name) || 'Personal Workspace';
 
-        await apiCall('/workspaces', 'POST', { id: wsId, name: wsName, userId: null, owner_id: newUserId });
-        await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
-
-        if (pendingDemo) await migrateDemoDataToAccount(pendingDemo, wsId, newUserId);
-        clearDemoData();
+        try {
+            await apiCall('/workspaces', 'POST', { id: wsId, name: wsName, userId: null, owner_id: newUserId });
+            await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
+            if (pendingDemo) await migrateDemoDataToAccount(pendingDemo, wsId, newUserId);
+            clearDemoData();
+        } catch (err) {
+            // Even if account creation/migration partially failed, fall through to load
+            // whatever exists rather than leaving the UI stuck on "Loading...".
+            console.error("Account setup failed:", err);
+        }
         await loadDataFromDB();
     } else {
         // Existing account signing in: never let leftover local demo data touch their real data.
@@ -360,7 +381,7 @@ async function loadDataFromDB() {
         if (isDemoMode) {
             data = getDemoData();
         } else {
-            const response = await fetch(`${API_URL}/data`);
+            const response = await fetchWithTimeout(`${API_URL}/data`);
             if (!response.ok) throw new Error("API not ready");
             data = await response.json();
         }
@@ -410,7 +431,10 @@ async function loadDataFromDB() {
         initValidation();
         renderAll(); 
 
-    } catch (error) { console.error("Database connection failed.", error); }
+    } catch (error) {
+        console.error("Database connection failed.", error);
+        document.getElementById('app-title').innerHTML = "Connection error — refresh to retry";
+    }
 }
 
 function getActiveUserObj() { 
@@ -471,6 +495,16 @@ function renderAll() {
 function getVisibleUsers() { return workspaceUsers.filter(u => u.workspace_ids && u.workspace_ids.includes(currentWorkspaceId)); }
 function getUserName(id) { const u = workspaceUsers.find(x => x.id === id); return u ? u.name : 'Unknown'; }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 async function apiCall(endpoint, method, body = null) {
     if (isDemoMode) {
         try { applyDemoMutation(endpoint, method, body); } catch (err) { console.error(`Demo data error on ${endpoint}:`, err); }
@@ -479,7 +513,7 @@ async function apiCall(endpoint, method, body = null) {
     try {
         const options = { method, headers: { 'Content-Type': 'application/json' } };
         if (body) options.body = JSON.stringify(body);
-        await fetch(`${API_URL}${endpoint}`, options);
+        await fetchWithTimeout(`${API_URL}${endpoint}`, options);
     } catch (err) { console.error(`API Error on ${endpoint}:`, err); }
 }
 
