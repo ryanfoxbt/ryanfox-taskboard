@@ -181,7 +181,14 @@ async function bootAuthenticatedUser(clerkUser) {
     activeUserEmail = clerkUser.primaryEmailAddress.emailAddress;
     activeUserName = clerkUser.fullName || activeUserEmail.split('@')[0];
 
-    await loadDataFromDB();
+    const loaded = await loadDataFromDB();
+    if (!loaded) {
+        // Couldn't confirm whether this email already has an account — do NOT guess "new
+        // user" here. Guessing wrong would create a duplicate workspace and/or merge stale
+        // demo data into an existing account. Leave the connection-error state up; the user
+        // (or the reactive Clerk listener) can retry once the API is reachable again.
+        return;
+    }
 
     let myUser = workspaceUsers.find(u => u.email === activeUserEmail);
     if (!myUser) {
@@ -429,11 +436,13 @@ async function loadDataFromDB() {
         });
 
         initValidation();
-        renderAll(); 
+        renderAll();
+        return true;
 
     } catch (error) {
         console.error("Database connection failed.", error);
         document.getElementById('app-title').innerHTML = "Connection error — refresh to retry";
+        return false;
     }
 }
 
