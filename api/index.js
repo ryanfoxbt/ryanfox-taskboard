@@ -254,7 +254,7 @@ app.get('/api/cms/:pageSlug', async (req, res) => {
         const map = {};
         rows.forEach(r => { map[r.element_key] = r.content; });
         res.json(map);
-    } catch (err) { res.status(500).json({ error: 'Failed to fetch content' }); }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.put('/api/cms/:pageSlug/:elementKey', requireSuperAdmin, async (req, res) => {
