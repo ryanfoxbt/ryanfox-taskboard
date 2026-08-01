@@ -115,14 +115,22 @@ window.addEventListener('load', async function () {
     // signed-out visitors even before/without auth state resolving.
     loadCmsContent('landing');
 
-    await Clerk.load();
+    try {
+        await Clerk.load();
 
-    // Some Clerk flows (e.g. the openSignUp/openSignIn modals) complete without a full
-    // page reload, so we react to auth-state changes live rather than only checking once.
-    // (handleClerkAuthChange guards against double-processing if addListener also fires
-    // immediately with the current state.)
-    Clerk.addListener(({ user }) => { handleClerkAuthChange(user); });
-    await handleClerkAuthChange(Clerk.user);
+        // Some Clerk flows (e.g. the openSignUp/openSignIn modals) complete without a full
+        // page reload, so we react to auth-state changes live rather than only checking once.
+        // (handleClerkAuthChange guards against double-processing if addListener also fires
+        // immediately with the current state.)
+        Clerk.addListener(({ user }) => { handleClerkAuthChange(user); });
+        await handleClerkAuthChange(Clerk.user);
+    } catch (err) {
+        // If Clerk itself can't load (outage, a custom-domain DNS/cert issue, a network
+        // blip) fall back to the public landing page instead of leaving the whole site
+        // blank -- sign-in/sign-up just won't work until Clerk is reachable again.
+        console.error('Clerk failed to load:', err);
+        showLanding();
+    }
 
     setInterval(updateGlobalTimer, 1000);
 
