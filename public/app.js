@@ -45,6 +45,11 @@ function closePromptModal() { unlockBody(); document.getElementById('prompt-moda
 
 const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
 
+const DEMO_STORAGE_KEY = 'taskboard_demo_data_v1';
+const DEMO_EMAIL = 'demo@local.taskboard';
+let isDemoMode = false;
+let signInMounted = false;
+
 let workspaces = []; let workspaceUsers = []; let projects = []; let tasks = [];
 let currentWorkspaceId = localStorage.getItem('currentWorkspaceId');
 let currentProjectId = localStorage.getItem('currentProjectId');
@@ -80,36 +85,15 @@ const workspaceContextMenu = document.getElementById('workspace-context-menu'); 
 const projectContextMenu = document.getElementById('project-context-menu');
 
 window.addEventListener('load', async function () {
+    const yearEl = document.getElementById('landing-year');
+    if (yearEl) yearEl.textContent = new Date().getFullYear();
+
     await Clerk.load();
 
     if (Clerk.user) {
-        document.getElementById('app-container').style.display = 'block';
-        Clerk.mountUserButton(document.getElementById('user-button'));
-        
-        activeUserEmail = Clerk.user.primaryEmailAddress.emailAddress;
-        activeUserName = Clerk.user.fullName || activeUserEmail.split('@')[0];
-        
-        await loadDataFromDB(); 
-        
-        let myUser = workspaceUsers.find(u => u.email === activeUserEmail);
-        if (!myUser) {
-            const newUserId = generateUUID();
-            let wsId = currentWorkspaceId;
-            
-            if (workspaces.length === 0) {
-                wsId = generateUUID();
-                await apiCall('/workspaces', 'POST', { id: wsId, name: 'Personal Workspace', userId: null, owner_id: newUserId });
-                await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
-            } else {
-                if (!wsId || !workspaces.find(w => w.id === wsId)) wsId = workspaces[0].id;
-                await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
-            }
-            await loadDataFromDB();
-        }
-
+        await bootAuthenticatedUser(Clerk.user);
     } else {
-        document.getElementById('sign-in-container').style.display = 'flex';
-        Clerk.mountSignIn(document.getElementById('sign-in'));
+        showLanding();
     }
 
     setInterval(updateGlobalTimer, 1000);
@@ -120,6 +104,237 @@ window.addEventListener('load', async function () {
         updateFormUI();
     });
 });
+
+// --- MARKETING / SIGNED-OUT / DEMO MODE ---
+
+function showLanding() {
+    isDemoMode = false;
+    document.getElementById('landing-container').style.display = 'flex';
+    document.getElementById('sign-in-container').style.display = 'none';
+    document.getElementById('app-container').style.display = 'none';
+}
+
+function showSignIn() {
+    document.getElementById('landing-container').style.display = 'none';
+    document.getElementById('sign-in-container').style.display = 'flex';
+    if (!signInMounted) {
+        Clerk.mountSignIn(document.getElementById('sign-in'), { afterSignInUrl: window.location.href, afterSignUpUrl: window.location.href });
+        signInMounted = true;
+    }
+}
+
+function backToLanding() {
+    document.getElementById('sign-in-container').style.display = 'none';
+    showLanding();
+}
+
+function openDemoSignUp() {
+    Clerk.openSignUp({ afterSignUpUrl: window.location.href, afterSignInUrl: window.location.href });
+}
+
+async function startDemoMode() {
+    isDemoMode = true;
+    activeUserEmail = DEMO_EMAIL;
+    activeUserName = 'You';
+    document.getElementById('landing-container').style.display = 'none';
+    document.getElementById('sign-in-container').style.display = 'none';
+    document.getElementById('app-container').style.display = 'block';
+    document.getElementById('demo-banner').style.display = 'flex';
+    await loadDataFromDB();
+}
+
+function exitDemoToLanding() {
+    document.getElementById('app-container').style.display = 'none';
+    document.getElementById('demo-banner').style.display = 'none';
+    showLanding();
+}
+
+// A brand-new Clerk sign-in with no matching `users` row: either a genuinely new
+// self-serve sign-up, or someone who was never invited by an existing admin
+// (invited users already have a `users` row created at invite time). Always gets
+// its own fresh workspace — never reuses another workspace, so a stranger signing
+// up can never land inside somebody else's board.
+async function bootAuthenticatedUser(clerkUser) {
+    isDemoMode = false;
+    document.getElementById('landing-container').style.display = 'none';
+    document.getElementById('sign-in-container').style.display = 'none';
+    document.getElementById('demo-banner').style.display = 'none';
+    document.getElementById('app-container').style.display = 'block';
+    Clerk.mountUserButton(document.getElementById('user-button'));
+
+    activeUserEmail = clerkUser.primaryEmailAddress.emailAddress;
+    activeUserName = clerkUser.fullName || activeUserEmail.split('@')[0];
+
+    await loadDataFromDB();
+
+    let myUser = workspaceUsers.find(u => u.email === activeUserEmail);
+    if (!myUser) {
+        const pendingDemo = hasDemoData() ? getDemoData() : null;
+        const newUserId = generateUUID();
+        const wsId = generateUUID();
+        const wsName = (pendingDemo && pendingDemo.workspaces[0] && pendingDemo.workspaces[0].name) || 'Personal Workspace';
+
+        await apiCall('/workspaces', 'POST', { id: wsId, name: wsName, userId: null, owner_id: newUserId });
+        await apiCall('/users', 'POST', { id: newUserId, name: activeUserName, email: activeUserEmail, role: 'Admin', workspace_id: wsId });
+
+        if (pendingDemo) await migrateDemoDataToAccount(pendingDemo, wsId, newUserId);
+        clearDemoData();
+        await loadDataFromDB();
+    } else {
+        // Existing account signing in: never let leftover local demo data touch their real data.
+        clearDemoData();
+    }
+}
+
+async function migrateDemoDataToAccount(demo, wsId, userId) {
+    for (const p of demo.projects || []) {
+        await apiCall('/projects', 'POST', { id: p.id, workspace_id: wsId, name: p.name, isSecret: p.is_secret, owner_id: userId });
+    }
+    for (const t of demo.tasks || []) {
+        await apiCall('/tasks', 'POST', {
+            id: t.id, project_id: t.project_id, parent_task_id: t.parent_task_id, title: t.title,
+            description: t.description, status: t.status, urgency: t.urgency, due_date: t.due_date,
+            assignees: [userId], counter: t.counter, timer_running: t.timer_running,
+            timer_started_at: t.timer_started_at, timer_elapsed: t.timer_elapsed,
+            completed_at: t.completed_at, creator_id: userId, recurring_type: t.recurring_type
+        });
+    }
+    for (const c of demo.comments || []) {
+        await apiCall('/comments', 'POST', { id: c.id, workspace_id: wsId, project_id: c.project_id, task_id: c.task_id, user_id: userId, content: c.content, created_at: c.created_at });
+    }
+    for (const tl of demo.time_logs || []) {
+        await apiCall('/time_logs', 'POST', { id: tl.id, user_id: userId, workspace_id: wsId, project_id: tl.project_id, task_id: tl.task_id, duration_ms: tl.duration_ms, created_at: tl.created_at });
+    }
+    for (const tr of demo.task_repetitions || []) {
+        await apiCall('/repetitions', 'POST', { id: tr.id, task_id: tr.task_id, user_id: userId, created_at: tr.created_at });
+    }
+}
+
+// --- DEMO MODE LOCAL DATA STORE (mirrors the shape of GET /api/data) ---
+
+function buildSeedDemoData() {
+    const wsId = generateUUID();
+    const userId = generateUUID();
+    const projId = generateUUID();
+    const now = new Date().toISOString();
+    return {
+        workspaces: [{ id: wsId, name: 'My Demo Workspace', owner_id: userId, is_deleted: false }],
+        users: [{ id: userId, name: 'You', email: DEMO_EMAIL }],
+        workspace_members: [{ workspace_id: wsId, user_id: userId, role: 'Admin', preferences: null }],
+        projects: [{ id: projId, workspace_id: wsId, name: 'Getting Started', is_secret: false, owner_id: userId, is_deleted: false }],
+        tasks: [
+            { id: generateUUID(), project_id: projId, parent_task_id: null, title: 'Drag me to "Doing"', description: 'Tasks move across columns as work progresses.', status: 'todo', urgency: 'medium', due_date: null, counter: 0, timer_running: false, timer_started_at: null, timer_elapsed: 0, completed_at: null, creator_id: userId, recurring_type: 'habit', is_deleted: false },
+            { id: generateUUID(), project_id: projId, parent_task_id: null, title: 'Click a task to see details, comments & time tracking', description: '', status: 'doing', urgency: 'high', due_date: null, counter: 0, timer_running: false, timer_started_at: null, timer_elapsed: 0, completed_at: null, creator_id: userId, recurring_type: 'habit', is_deleted: false },
+            { id: generateUUID(), project_id: projId, parent_task_id: null, title: 'Sign up anytime to save this board', description: '', status: 'done', urgency: 'low', due_date: null, counter: 0, timer_running: false, timer_started_at: null, timer_elapsed: 0, completed_at: now, creator_id: userId, recurring_type: 'habit', is_deleted: false }
+        ],
+        task_assignees: [],
+        time_logs: [],
+        task_repetitions: [],
+        comments: []
+    };
+}
+
+function getDemoData() {
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(DEMO_STORAGE_KEY)); } catch (e) { raw = null; }
+    if (!raw) { raw = buildSeedDemoData(); saveDemoData(raw); }
+    return raw;
+}
+
+function saveDemoData(data) { localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(data)); }
+function clearDemoData() { localStorage.removeItem(DEMO_STORAGE_KEY); }
+function hasDemoData() { try { return !!localStorage.getItem(DEMO_STORAGE_KEY); } catch (e) { return false; } }
+
+// Applies one mutation the way the real /api endpoints would, against the local demo store.
+function applyDemoMutation(endpoint, method, body) {
+    const data = getDemoData();
+    const nowIso = () => new Date().toISOString();
+
+    const taskDeleteMatch = endpoint.match(/^\/tasks\/(.+)$/);
+    const commentMatch = endpoint.match(/^\/comments\/(.+)$/);
+    const projectDeleteMatch = endpoint.match(/^\/projects\/(.+)$/);
+    const workspaceDeleteMatch = endpoint.match(/^\/workspaces\/(.+)$/);
+    const userDeleteMatch = endpoint.match(/^\/users\/([^/]+)\/([^/]+)$/);
+
+    if (endpoint === '/tasks' && method === 'POST') {
+        const t = body;
+        const idx = data.tasks.findIndex(x => x.id === t.id);
+        const row = {
+            id: t.id, project_id: t.project_id, parent_task_id: t.parent_task_id || null,
+            title: t.title || null, description: t.description !== undefined ? t.description : null,
+            status: t.status || null, urgency: t.urgency || null, due_date: t.due_date || null,
+            counter: t.counter !== undefined ? t.counter : null, timer_running: t.timer_running !== undefined ? t.timer_running : null,
+            timer_started_at: t.timer_started_at !== undefined ? t.timer_started_at : null,
+            timer_elapsed: t.timer_elapsed !== undefined ? t.timer_elapsed : null,
+            completed_at: t.completed_at !== undefined ? t.completed_at : null,
+            creator_id: t.creator_id || null, recurring_type: t.recurring_type || 'habit', is_deleted: false
+        };
+        if (idx > -1) data.tasks[idx] = row; else data.tasks.push(row);
+        if (t.assignees !== undefined) {
+            data.task_assignees = data.task_assignees.filter(a => a.task_id !== t.id);
+            (t.assignees || []).forEach(uid => data.task_assignees.push({ task_id: t.id, user_id: uid }));
+        }
+    } else if (taskDeleteMatch && method === 'DELETE') {
+        const id = taskDeleteMatch[1];
+        data.tasks.forEach(t => { if (t.id === id || t.parent_task_id === id) t.is_deleted = true; });
+    } else if (endpoint === '/time_logs' && method === 'POST') {
+        data.time_logs.push({ id: body.id, user_id: body.user_id, workspace_id: body.workspace_id, project_id: body.project_id, task_id: body.task_id, duration_ms: body.duration_ms, created_at: body.created_at || nowIso() });
+    } else if (endpoint === '/repetitions' && method === 'POST') {
+        data.task_repetitions.push({ id: body.id, task_id: body.task_id, user_id: body.user_id, created_at: body.created_at || nowIso() });
+    } else if (endpoint === '/comments' && method === 'POST') {
+        data.comments.push({ id: body.id, workspace_id: body.workspace_id, project_id: body.project_id || null, task_id: body.task_id || null, user_id: body.user_id, content: body.content, created_at: body.created_at || nowIso() });
+    } else if (commentMatch && method === 'PUT') {
+        const c = data.comments.find(c => c.id === commentMatch[1]);
+        if (c) c.content = body.content;
+    } else if (commentMatch && method === 'DELETE') {
+        data.comments = data.comments.filter(c => c.id !== commentMatch[1]);
+    } else if (endpoint === '/feedback' && method === 'POST') {
+        // Demo feedback has nowhere real to go; drop it.
+    } else if (endpoint === '/projects' && method === 'POST') {
+        const idx = data.projects.findIndex(p => p.id === body.id);
+        if (idx > -1) { data.projects[idx].name = body.name; data.projects[idx].is_secret = body.isSecret || false; }
+        else data.projects.push({ id: body.id, workspace_id: body.workspace_id, name: body.name, is_secret: body.isSecret || false, owner_id: body.owner_id || null, is_deleted: false });
+    } else if (projectDeleteMatch && method === 'DELETE') {
+        const id = projectDeleteMatch[1];
+        const p = data.projects.find(p => p.id === id);
+        if (p) p.is_deleted = true;
+        data.tasks.forEach(t => { if (t.project_id === id) t.is_deleted = true; });
+    } else if (endpoint === '/workspaces' && method === 'POST') {
+        const idx = data.workspaces.findIndex(w => w.id === body.id);
+        if (idx > -1) data.workspaces[idx].name = body.name;
+        else data.workspaces.push({ id: body.id, name: body.name, owner_id: body.owner_id || body.userId || null, is_deleted: false });
+        if (body.userId) {
+            const mIdx = data.workspace_members.findIndex(m => m.workspace_id === body.id && m.user_id === body.userId);
+            if (mIdx === -1) data.workspace_members.push({ workspace_id: body.id, user_id: body.userId, role: 'Admin', preferences: null });
+            data.projects.push({ id: generateUUID(), workspace_id: body.id, name: 'My Project', is_secret: false, owner_id: body.owner_id || body.userId, is_deleted: false });
+        }
+    } else if (workspaceDeleteMatch && method === 'DELETE') {
+        const id = workspaceDeleteMatch[1];
+        const w = data.workspaces.find(w => w.id === id);
+        if (w) w.is_deleted = true;
+        const projIds = data.projects.filter(p => p.workspace_id === id).map(p => p.id);
+        data.projects.forEach(p => { if (p.workspace_id === id) p.is_deleted = true; });
+        data.tasks.forEach(t => { if (projIds.includes(t.project_id)) t.is_deleted = true; });
+    } else if (endpoint === '/users' && method === 'POST') {
+        let u = data.users.find(u => u.email === body.email);
+        if (!u) { u = { id: body.id, name: body.name, email: body.email }; data.users.push(u); }
+        else { u.name = body.name; }
+        const mIdx = data.workspace_members.findIndex(m => m.workspace_id === body.workspace_id && m.user_id === u.id);
+        if (mIdx === -1) data.workspace_members.push({ workspace_id: body.workspace_id, user_id: u.id, role: body.role, preferences: null });
+        else data.workspace_members[mIdx].role = body.role;
+    } else if (endpoint === '/users/email' && method === 'PUT') {
+        const u = data.users.find(u => u.id === body.id);
+        if (u) u.email = body.email;
+    } else if (userDeleteMatch && method === 'DELETE') {
+        const [, userId, workspaceId] = userDeleteMatch;
+        data.workspace_members = data.workspace_members.filter(m => !(m.user_id === userId && m.workspace_id === workspaceId));
+    } else if (endpoint === '/settings' && method === 'POST') {
+        const m = data.workspace_members.find(m => m.workspace_id === body.workspace_id && m.user_id === body.user_id);
+        if (m) m.preferences = body.preferences;
+    }
+
+    saveDemoData(data);
+}
 
 // --- UI TAB FUNCTIONS ---
 function switchTaskTab(tab) {
@@ -141,10 +356,15 @@ function switchProjectTab(tab) {
 async function loadDataFromDB() {
     try {
         document.getElementById('app-title').innerHTML = "Loading...";
-        const response = await fetch(`${API_URL}/data`);
-        if (!response.ok) throw new Error("API not ready");
-        const data = await response.json();
-        
+        let data;
+        if (isDemoMode) {
+            data = getDemoData();
+        } else {
+            const response = await fetch(`${API_URL}/data`);
+            if (!response.ok) throw new Error("API not ready");
+            data = await response.json();
+        }
+
         workspaces = data.workspaces || [];
         timeLogs = data.time_logs || [];
         taskRepetitions = data.task_repetitions || [];
@@ -252,6 +472,10 @@ function getVisibleUsers() { return workspaceUsers.filter(u => u.workspace_ids &
 function getUserName(id) { const u = workspaceUsers.find(x => x.id === id); return u ? u.name : 'Unknown'; }
 
 async function apiCall(endpoint, method, body = null) {
+    if (isDemoMode) {
+        try { applyDemoMutation(endpoint, method, body); } catch (err) { console.error(`Demo data error on ${endpoint}:`, err); }
+        return;
+    }
     try {
         const options = { method, headers: { 'Content-Type': 'application/json' } };
         if (body) options.body = JSON.stringify(body);

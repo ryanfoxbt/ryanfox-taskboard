@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Personal Task Board</title>
+    <title>Can Even — Task Board, Time Tracking &amp; Team Workspaces</title>
+    <meta name="description" content="Can Even is a fast, visual task board with kanban boards, recurring tasks, time tracking, and team workspaces. Try it free, no sign-up required.">
     <link rel="stylesheet" href="/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -11,7 +12,52 @@
 
     <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_YnJpZWYtc2F3ZmlzaC02MS5jbGVyay5hY2NvdW50cy5kZXYk" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@4/dist/clerk.browser.js"></script>
 
-    <div id="sign-in-container" style="display: none; height: 100vh; justify-content: center; align-items: center; background: #f4f5f7;">
+    <div id="landing-container">
+        <nav class="landing-nav">
+            <div class="landing-logo">Can Even</div>
+            <button class="secondary" onclick="showSignIn()">Sign In</button>
+        </nav>
+
+        <header class="landing-hero">
+            <h1>The task board that keeps up with real work.</h1>
+            <p class="landing-subhead">Kanban boards, recurring tasks, time tracking, and team workspaces — all in one place. Try it instantly, no account required.</p>
+            <div class="landing-cta-row">
+                <button class="landing-cta-primary" onclick="startDemoMode()">Try It Free — No Sign-Up Required</button>
+                <button class="secondary" onclick="showSignIn()">Sign In</button>
+            </div>
+            <p class="landing-cta-note">Like what you see? Sign up anytime to save your board.</p>
+        </header>
+
+        <section class="landing-features">
+            <div class="landing-feature-card">
+                <div class="landing-feature-icon">📋</div>
+                <h3>Visual Kanban Boards</h3>
+                <p>Drag tasks across Future, To Do, Doing, and Done — organized by project, filtered by assignee, urgency, or due date.</p>
+            </div>
+            <div class="landing-feature-card">
+                <div class="landing-feature-icon">🔁</div>
+                <h3>Recurring Tasks &amp; Habits</h3>
+                <p>Set up recurring tasks that reset automatically — perfect for habits and routines you want to stick to.</p>
+            </div>
+            <div class="landing-feature-card">
+                <div class="landing-feature-icon">⏱️</div>
+                <h3>Built-In Time Tracking</h3>
+                <p>Start a timer on any task and see exactly where your time goes, across every project and workspace.</p>
+            </div>
+            <div class="landing-feature-card">
+                <div class="landing-feature-icon">👥</div>
+                <h3>Team Workspaces</h3>
+                <p>Invite teammates, assign tasks, leave comments, and keep everyone's work visible in one shared board.</p>
+            </div>
+        </section>
+
+        <footer class="landing-footer">
+            <p>&copy; <span id="landing-year"></span> Can Even. <a onclick="startDemoMode()">Try the free demo</a> or <a onclick="showSignIn()">sign in</a>.</p>
+        </footer>
+    </div>
+
+    <div id="sign-in-container" style="display: none; height: 100vh; justify-content: center; align-items: center; background: #f4f5f7; position: relative;">
+        <button class="secondary" onclick="backToLanding()" style="position: absolute; top: 20px; left: 20px;">&larr; Back</button>
         <div id="sign-in"></div>
     </div>
 
@@ -20,6 +66,13 @@
     </div>
 
     <div id="app-container" style="display: none;">
+        <div id="demo-banner">
+            <span>🎯 You're using a free demo — your work is saved in this browser only. Sign up to keep it safe and access it anywhere.</span>
+            <div class="demo-banner-actions">
+                <button onclick="openDemoSignUp()">Sign Up to Save</button>
+                <button class="secondary" onclick="exitDemoToLanding()">Exit Demo</button>
+            </div>
+        </div>
         <div class="header">
             <div class="title-container" style="display: flex; align-items: center; position: relative;">
                 <h1 id="app-title" class="clickable-title" onclick="toggleMasterView()" title="Open Master Schedule">Loading...</h1>
