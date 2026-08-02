@@ -115,8 +115,22 @@ window.addEventListener('load', async function () {
     // signed-out visitors even before/without auth state resolving.
     loadCmsContent('landing');
 
+    // ClerkJS can swallow its own network/cert errors internally (logged as console
+    // warnings) without ever rejecting the Clerk.load() promise, so a plain try/catch
+    // doesn't catch a hung load -- race it against a timeout so the page still falls
+    // back instead of staying blank indefinitely.
+    let clerkLoadSettled = false;
+    const clerkFallbackTimer = setTimeout(() => {
+        if (!clerkLoadSettled) {
+            console.error('Clerk.load() did not settle in time, falling back to landing page');
+            showLanding();
+        }
+    }, 8000);
+
     try {
         await Clerk.load();
+        clerkLoadSettled = true;
+        clearTimeout(clerkFallbackTimer);
 
         // Some Clerk flows (e.g. the openSignUp/openSignIn modals) complete without a full
         // page reload, so we react to auth-state changes live rather than only checking once.
@@ -128,6 +142,8 @@ window.addEventListener('load', async function () {
         // If Clerk itself can't load (outage, a custom-domain DNS/cert issue, a network
         // blip) fall back to the public landing page instead of leaving the whole site
         // blank -- sign-in/sign-up just won't work until Clerk is reachable again.
+        clerkLoadSettled = true;
+        clearTimeout(clerkFallbackTimer);
         console.error('Clerk failed to load:', err);
         showLanding();
     }
