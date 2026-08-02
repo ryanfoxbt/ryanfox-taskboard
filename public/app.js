@@ -132,6 +132,17 @@ window.addEventListener('load', async function () {
         clerkLoadSettled = true;
         clearTimeout(clerkFallbackTimer);
 
+        // OAuth providers (Google, etc.) redirect back here after the user authenticates
+        // with the provider. Since this app has no client-side router, Clerk uses a
+        // hash-based "virtual routing" callback (#/sso-callback?redirect_url=...) --
+        // without explicitly completing that handshake, Clerk never finishes creating
+        // the session and the user is just dumped back on the signed-out landing page.
+        if (window.location.hash.startsWith('#/sso-callback')) {
+            const target = window.location.origin + '/';
+            await Clerk.handleRedirectCallback({ afterSignInUrl: target, afterSignUpUrl: target });
+            history.replaceState(null, '', window.location.pathname);
+        }
+
         // Some Clerk flows (e.g. the openSignUp/openSignIn modals) complete without a full
         // page reload, so we react to auth-state changes live rather than only checking once.
         // (handleClerkAuthChange guards against double-processing if addListener also fires
