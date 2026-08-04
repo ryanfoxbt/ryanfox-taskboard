@@ -1,4 +1,4 @@
--- Can Even (ryanfox-taskboard) schema
+-- CanEven (ryanfox-taskboard) schema
 -- Derived from queries in api/index.js — no prior schema file existed in the repo.
 -- No foreign keys: the app's own insert ordering doesn't guarantee referenced rows
 -- exist yet (e.g. POST /workspaces sets owner_id before the user row is created),
