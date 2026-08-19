@@ -32,8 +32,9 @@ button.action-warning:hover { background: #fff5e6; }
 .clickable-title { cursor: pointer; transition: color 0.2s; user-select: none; }
 .clickable-title:hover { color: #0052cc; }
 
-.gear-btn { background: transparent; color: #5e6c84; font-size: 20px; padding: 4px 8px; line-height: 1; }
+.gear-btn { background: transparent; color: #5e6c84; font-size: 20px; padding: 6px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; box-sizing: border-box; transition: background 0.15s ease, color 0.15s ease; }
 .gear-btn:hover { background: #ebecf0; color: #172b4d; }
+.gear-btn svg { width: 19px; height: 19px; display: block; flex-shrink: 0; }
 
 /* FIX: flex-wrap nowrap prevents screen widening, flex-shrink 0 allows perfect swiping */
 .project-tabs { display: flex; gap: 8px; margin-bottom: 15px; border-bottom: 2px solid #dfe1e6; padding-bottom: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
@@ -56,7 +57,7 @@ button.action-warning:hover { background: #fff5e6; }
 
 .search-badge { background: #de350b; color: white; font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: bold; line-height: 1; }
 
-.notif-badge { position: absolute; top: 0; right: 0; background: #0052cc; color: white; font-size: 10px; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 4px; font-weight: bold; line-height: 1; border: 2px solid white; box-sizing: content-box; }
+.notif-badge { position: absolute; top: 2px; right: 2px; background: #0052cc; color: white; font-size: 10px; min-width: 15px; height: 15px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 4px; font-weight: 600; line-height: 1; border: 2px solid #f4f5f7; box-sizing: content-box; box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
 
 .filters-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .filters-bar input[type="text"], .filters-bar select { padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px; box-sizing: border-box; }
@@ -145,11 +146,22 @@ dialog::backdrop { background: rgba(9, 30, 66, 0.54); }
 .list-item .meta { font-size: 11px; color: #5e6c84; font-weight: normal; margin-left: 6px; }
 .list-actions { opacity: 0; transition: opacity 0.2s ease; display: flex; gap: 4px; }
 .list-item:hover .list-actions { opacity: 1; }
-.notification-item { align-items: flex-start; }
+.notification-item { align-items: flex-start; border-color: transparent; }
+.notification-item:hover { background: #f4f5f7; border-color: #ebecf0; }
 .notification-item.unread { background: #e6f0ff; border-color: #b3d4ff; }
+.notification-item.unread:hover { background: #dbe9ff; }
 .notification-item .notif-dot { width: 8px; height: 8px; border-radius: 50%; background: #0052cc; flex-shrink: 0; margin-top: 4px; }
-.notification-item .notif-text { flex: 1; }
+.notification-item .notif-text { flex: 1; line-height: 1.4; }
 .notification-item .notif-meta { font-size: 11px; color: #5e6c84; margin-top: 2px; }
+
+.notif-menu-header { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 8px; margin-bottom: 4px; border-bottom: 1px solid #ebecf0; }
+.notif-mark-all { font-size: 12px; font-weight: 600; color: #0052cc; cursor: pointer; padding: 2px 4px; border-radius: 3px; transition: background 0.15s ease; }
+.notif-mark-all:hover { background: #e6fcff; }
+
+@keyframes notifPop { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (min-width: 769px) {
+    #notification-menu { animation: notifPop 0.14s ease-out; transform-origin: top right; }
+}
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 .settings-section-title { font-size: 12px; text-transform: uppercase; color: #5e6c84; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #dfe1e6; padding-bottom: 4px; margin-top: 24px; }
 
