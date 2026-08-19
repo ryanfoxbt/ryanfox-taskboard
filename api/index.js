@@ -61,22 +61,25 @@ app.get('/api/data', async (req, res) => {
         const task_assignees = await pool.query('SELECT * FROM task_assignees');
         const time_logs = await pool.query('SELECT * FROM time_logs'); 
         const task_repetitions = await pool.query('SELECT * FROM task_repetitions');
-        const comments = await pool.query('SELECT * FROM comments ORDER BY created_at ASC'); 
-        
-        res.json({ 
-            workspaces: workspaces.rows, projects: projects.rows, tasks: tasks.rows, 
-            users: users.rows, workspace_members: workspace_members.rows, 
+        const comments = await pool.query('SELECT * FROM comments ORDER BY created_at ASC');
+        const notifications = await pool.query('SELECT * FROM notifications ORDER BY created_at DESC');
+
+        res.json({
+            workspaces: workspaces.rows, projects: projects.rows, tasks: tasks.rows,
+            users: users.rows, workspace_members: workspace_members.rows,
             task_assignees: task_assignees.rows, time_logs: time_logs.rows,
-            task_repetitions: task_repetitions.rows, comments: comments.rows
+            task_repetitions: task_repetitions.rows, comments: comments.rows,
+            notifications: notifications.rows
         });
     } catch (err) { res.status(500).json({ error: 'Failed to fetch data' }); }
 });
 
 // 2. TASKS & ASSIGNEES
 app.post('/api/tasks', async (req, res) => {
-    const { 
+    const {
         id, project_id, parent_task_id, title, description, status, urgency, due_date, assignees,
-        counter, timer_running, timer_started_at, timer_elapsed, completed_at, creator_id, recurring_type
+        counter, timer_running, timer_started_at, timer_elapsed, completed_at, creator_id, recurring_type,
+        actor_id
     } = req.body; // <-- Added recurring_type
     
     const client = await pool.connect();
@@ -104,10 +107,24 @@ app.post('/api/tasks', async (req, res) => {
         );
         
         if (assignees !== undefined) {
+            const existing = await client.query('SELECT user_id FROM task_assignees WHERE task_id = $1', [id]);
+            const existingIds = new Set(existing.rows.map(r => r.user_id));
+
             await client.query('DELETE FROM task_assignees WHERE task_id = $1', [id]);
             if (assignees && assignees.length > 0) {
-                for (let userId of assignees) { 
-                    await client.query('INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, userId]); 
+                for (let userId of assignees) {
+                    await client.query('INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, userId]);
+                }
+            }
+
+            // Notify newly-added assignees (not the person doing the assigning) that they were assigned.
+            if (actor_id && assignees && assignees.length > 0) {
+                const newlyAssigned = assignees.filter(userId => userId !== actor_id && !existingIds.has(userId));
+                for (const userId of newlyAssigned) {
+                    await client.query(
+                        `INSERT INTO notifications (user_id, actor_id, task_id, task_title) VALUES ($1, $2, $3, $4)`,
+                        [userId, actor_id, id, title || null]
+                    );
                 }
             }
         }
@@ -123,6 +140,22 @@ app.delete('/api/tasks/:id', async (req, res) => {
     try { 
         await pool.query('UPDATE tasks SET is_deleted = true WHERE id = $1 OR parent_task_id = $1', [req.params.id]); 
         res.json({ success: true }); 
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// 2b. NOTIFICATIONS
+app.put('/api/notifications/:id/read', async (req, res) => {
+    try {
+        await pool.query('UPDATE notifications SET is_read = true WHERE id = $1', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/notifications/read-all', async (req, res) => {
+    const { user_id } = req.body;
+    try {
+        await pool.query('UPDATE notifications SET is_read = true WHERE user_id = $1 AND is_read = false', [user_id]);
+        res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

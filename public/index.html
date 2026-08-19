@@ -100,6 +100,19 @@
             </div>
             
            <div class="header-controls">
+    <div style="position: relative;">
+        <button class="gear-btn" onclick="toggleNotificationMenu(event)" title="Notifications" style="position: relative;">
+            🔔
+            <span id="notification-count-badge" class="notif-badge" style="display:none;"></span>
+        </button>
+        <div id="notification-menu" class="custom-context-menu" style="position: absolute; top: 100%; right: 0; margin-top: 8px; width: 320px; max-width: 90vw; padding: 8px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 6px 8px; border-bottom: 1px solid #ebecf0; margin-bottom: 8px;">
+                <strong style="font-size: 13px; color: #172b4d;">Notifications</strong>
+                <span style="font-size: 12px; color: #0052cc; cursor: pointer;" onclick="markAllNotificationsRead()">Mark all read</span>
+            </div>
+            <div id="notification-list" style="max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;"></div>
+        </div>
+    </div>
     <div id="user-button"></div>
    <button class="gear-btn" onclick="openSettings()" title="Board Settings">⚙️</button>
 </div>

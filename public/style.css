@@ -56,6 +56,8 @@ button.action-warning:hover { background: #fff5e6; }
 
 .search-badge { background: #de350b; color: white; font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: bold; line-height: 1; }
 
+.notif-badge { position: absolute; top: 0; right: 0; background: #0052cc; color: white; font-size: 10px; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 4px; font-weight: bold; line-height: 1; border: 2px solid white; box-sizing: content-box; }
+
 .filters-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .filters-bar input[type="text"], .filters-bar select { padding: 6px 10px; border: 1px solid #dfe1e6; border-radius: 4px; outline: none; font-family: inherit; font-size: 14px; box-sizing: border-box; }
 .filters-bar input:focus, .filters-bar select:focus { border-color: #4c9aff; }
@@ -143,6 +145,11 @@ dialog::backdrop { background: rgba(9, 30, 66, 0.54); }
 .list-item .meta { font-size: 11px; color: #5e6c84; font-weight: normal; margin-left: 6px; }
 .list-actions { opacity: 0; transition: opacity 0.2s ease; display: flex; gap: 4px; }
 .list-item:hover .list-actions { opacity: 1; }
+.notification-item { align-items: flex-start; }
+.notification-item.unread { background: #e6f0ff; border-color: #b3d4ff; }
+.notification-item .notif-dot { width: 8px; height: 8px; border-radius: 50%; background: #0052cc; flex-shrink: 0; margin-top: 4px; }
+.notification-item .notif-text { flex: 1; }
+.notification-item .notif-meta { font-size: 11px; color: #5e6c84; margin-top: 2px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 .settings-section-title { font-size: 12px; text-transform: uppercase; color: #5e6c84; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #dfe1e6; padding-bottom: 4px; margin-top: 24px; }
 

@@ -112,3 +112,16 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN NOT NULL DEFAU
 
 -- One-time bootstrap of the site owner as super admin. Idempotent -- safe to re-run.
 UPDATE users SET is_super_admin = TRUE WHERE email = 'ryanfoxbt@gmail.com';
+
+-- In-app notifications. Currently only emitted for "you were assigned to a task"
+-- (see POST /api/tasks). task_title is a snapshot, not a live join, so a notification
+-- still reads sensibly after the task is renamed or deleted.
+CREATE TABLE IF NOT EXISTS notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    actor_id UUID,
+    task_id UUID,
+    task_title TEXT,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT now()
+);

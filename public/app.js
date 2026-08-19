@@ -84,6 +84,7 @@ let activeTimerInterval = null;
 let timeLogs = [];
 let taskRepetitions = [];
 let comments = [];
+let notifications = [];
 let chartInstances = {};
 let globalChartInstance = null;
 let editingCommentType = null; 
@@ -91,6 +92,7 @@ let editingCommentType = null;
 const lists = { future: document.getElementById('future-list'), todo: document.getElementById('todo-list'), doing: document.getElementById('doing-list'), done: document.getElementById('done-list'), recurring: document.getElementById('recurring-list'), complete: document.getElementById('complete-list') };
 const workspaceContextMenu = document.getElementById('workspace-context-menu'); const activeContextMenu = document.getElementById('active-context-menu'); const futureContextMenu = document.getElementById('future-context-menu'); const archiveContextMenu = document.getElementById('archive-context-menu'); const subtaskContextMenu = document.getElementById('subtask-context-menu');
 const projectContextMenu = document.getElementById('project-context-menu');
+const notificationMenu = document.getElementById('notification-menu');
 
 let authHandlerRunning = false;
 async function handleClerkAuthChange(user) {
@@ -458,7 +460,8 @@ function buildSeedDemoData() {
         task_assignees: [],
         time_logs: [],
         task_repetitions: [],
-        comments: []
+        comments: [],
+        notifications: []
     };
 }
 
@@ -597,6 +600,7 @@ async function loadDataFromDB() {
         timeLogs = data.time_logs || [];
         taskRepetitions = data.task_repetitions || [];
         comments = data.comments || [];
+        notifications = data.notifications || [];
         
         projects = (data.projects || []).map(p => { 
             p.isSecret = p.is_secret; 
@@ -692,11 +696,12 @@ function initValidation() {
 }
 
 function renderAll() {
-    renderWorkspaceMenu(); 
-    renderWorkspaceUsers(); 
-    renderProjects(); 
-    updateAssigneeFilterOptions(); 
-    
+    renderWorkspaceMenu();
+    renderWorkspaceUsers();
+    renderProjects();
+    updateAssigneeFilterOptions();
+    renderNotificationBell();
+
     if (isMasterView) {
         renderMasterView();
     } else {
@@ -1593,8 +1598,81 @@ function switchView(v) {
     renderBoard();
 }
 
-function toggleWorkspaceMenu(e) { 
-    e.preventDefault(); e.stopPropagation(); closeMenus(); 
+// --- NOTIFICATIONS (assigned-to-you alerts) ---
+function getMyNotifications() {
+    const myId = getActiveUserObj().id;
+    return notifications.filter(n => n.user_id === myId).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+}
+
+function renderNotificationBell() {
+    const mine = getMyNotifications();
+    const unreadCount = mine.filter(n => !n.is_read).length;
+
+    const badge = document.getElementById('notification-count-badge');
+    if (badge) {
+        badge.style.display = unreadCount > 0 ? 'flex' : 'none';
+        badge.innerText = unreadCount > 9 ? '9+' : String(unreadCount);
+    }
+
+    const list = document.getElementById('notification-list');
+    if (!list) return;
+    list.innerHTML = mine.slice(0, 30).map(n => `
+        <div class="list-item notification-item ${n.is_read ? '' : 'unread'}" onclick="openNotification('${n.id}')">
+            <span class="notif-dot" style="visibility: ${n.is_read ? 'hidden' : 'visible'};"></span>
+            <div class="notif-text">
+                <div>${sanitize(getUserName(n.actor_id))} assigned you to <strong>${sanitize(n.task_title || 'a task')}</strong></div>
+                <div class="notif-meta">${new Date(n.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</div>
+            </div>
+        </div>
+    `).join('') || '<div style="color: #5e6c84; font-size: 13px; text-align: center; padding: 12px 0;">No notifications yet.</div>';
+}
+
+function toggleNotificationMenu(e) {
+    e.preventDefault(); e.stopPropagation();
+    const wasOpen = notificationMenu.style.display === 'block';
+    closeMenus();
+    notificationMenu.style.display = wasOpen ? 'none' : 'block';
+}
+
+async function markAllNotificationsRead(e) {
+    if (e) e.stopPropagation();
+    const me = getActiveUserObj();
+    getMyNotifications().forEach(n => n.is_read = true);
+    renderNotificationBell();
+    await apiCall('/notifications/read-all', 'PUT', { user_id: me.id });
+}
+
+async function openNotification(id) {
+    const n = notifications.find(x => x.id === id);
+    if (!n) return;
+
+    if (!n.is_read) {
+        n.is_read = true;
+        renderNotificationBell();
+        apiCall(`/notifications/${id}/read`, 'PUT');
+    }
+    closeMenus();
+
+    const task = tasks.find(t => t.id === n.task_id);
+    if (!task) return; // Task was deleted since the notification was created.
+
+    const project = projects.find(p => p.id === task.project_id);
+    if (project) {
+        currentWorkspaceId = project.workspace_id; localStorage.setItem('currentWorkspaceId', currentWorkspaceId);
+        currentProjectId = project.id; localStorage.setItem('currentProjectId', currentProjectId);
+    }
+
+    if (isMasterView) toggleMasterView();
+
+    const view = task.status === 'recurring' ? 'recurring' : task.status === 'future' ? 'future' : (task.status === 'complete' || task.status === 'archive') ? 'archive' : 'active';
+    initValidation();
+    renderAll();
+    switchView(view);
+    editTask(task.id);
+}
+
+function toggleWorkspaceMenu(e) {
+    e.preventDefault(); e.stopPropagation(); closeMenus();
     const menu = document.getElementById('workspace-context-menu');
     
     const ws = workspaces.find(w => w.id === currentWorkspaceId);
@@ -1622,13 +1700,14 @@ document.addEventListener('click', (e) => {
     }
 });
 
-function closeMenus() { 
-    activeContextMenu.style.display = 'none'; 
-    futureContextMenu.style.display = 'none'; 
-    archiveContextMenu.style.display = 'none'; 
-    subtaskContextMenu.style.display = 'none'; 
-    workspaceContextMenu.style.display = 'none'; 
-    if(projectContextMenu) projectContextMenu.style.display = 'none'; 
+function closeMenus() {
+    activeContextMenu.style.display = 'none';
+    futureContextMenu.style.display = 'none';
+    archiveContextMenu.style.display = 'none';
+    subtaskContextMenu.style.display = 'none';
+    workspaceContextMenu.style.display = 'none';
+    if(projectContextMenu) projectContextMenu.style.display = 'none';
+    if(notificationMenu) notificationMenu.style.display = 'none';
     const statusDropdown = document.getElementById('mv-status-dropdown');
     if(statusDropdown) statusDropdown.style.display = 'none';
 }
@@ -2446,8 +2525,9 @@ function updateFormUI() {
 }
 
 document.getElementById('task-form').addEventListener('submit', async function(e) {
-    e.preventDefault(); syncFormToDraft(); 
-    
+    e.preventDefault(); syncFormToDraft();
+
+    draftTask.actor_id = getActiveUserObj().id;
     await saveTaskDB(draftTask);
     for (const st of draftSubtasks) { if (st.id.includes('sub_') || st.id.includes('temp')) st.id = generateUUID(); st.parent_task_id = draftTask.id; await saveTaskDB(st); }
 
