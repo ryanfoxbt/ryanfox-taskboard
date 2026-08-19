@@ -317,7 +317,7 @@ app.post('/api/users', async (req, res) => {
         if (process.env.RESEND_API_KEY && inviter_name) {
             try {
                 await resend.emails.send({
-                  from: 'TaskBoard <invites@ryanfox.co>',
+                  from: 'CanEven <invites@caneven.app>',
                     to: email,
                     subject: `You've been invited to ${workspace_name}`,
                     html: `<div style="font-family: sans-serif; color: #172b4d;"><h2>Hi ${name},</h2><p><strong>${inviter_name}</strong> has invited you to collaborate in the <strong>${workspace_name}</strong> workspace.</p><a href="${invite_link}" style="background-color: #0052cc; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; margin-top: 10px;">Accept Invitation</a></div>`
