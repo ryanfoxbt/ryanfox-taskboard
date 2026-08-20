@@ -591,7 +591,8 @@ async function loadDataFromDB() {
         if (isDemoMode) {
             data = getDemoData();
         } else {
-            const response = await fetchWithTimeout(`${API_URL}/data`);
+            const authHeaders = await getAuthHeaders();
+            const response = await fetchWithTimeout(`${API_URL}/data`, { headers: authHeaders });
             if (!response.ok) throw new Error("API not ready");
             data = await response.json();
         }
@@ -723,13 +724,26 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
     }
 }
 
+// The API authorizes every request by the caller's verified Clerk session, not by
+// whatever ids the client happens to send -- so every real (non-demo) call needs this.
+async function getAuthHeaders() {
+    if (!window.Clerk || !Clerk.session) return {};
+    try {
+        const token = await Clerk.session.getToken();
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+    } catch (err) {
+        return {};
+    }
+}
+
 async function apiCall(endpoint, method, body = null) {
     if (isDemoMode) {
         try { applyDemoMutation(endpoint, method, body); } catch (err) { console.error(`Demo data error on ${endpoint}:`, err); }
         return;
     }
     try {
-        const options = { method, headers: { 'Content-Type': 'application/json' } };
+        const authHeaders = await getAuthHeaders();
+        const options = { method, headers: { 'Content-Type': 'application/json', ...authHeaders } };
         if (body) options.body = JSON.stringify(body);
         await fetchWithTimeout(`${API_URL}${endpoint}`, options);
     } catch (err) { console.error(`API Error on ${endpoint}:`, err); }
@@ -2227,7 +2241,8 @@ function startTimerInterval() {
 
 function updateGlobalTimer() {
     const indicator = document.getElementById('global-timer-indicator');
-    const runningTask = tasks.find(t => t.timer_running);
+    const wsProjectIds = projects.filter(p => p.workspace_id === currentWorkspaceId).map(p => p.id);
+    const runningTask = tasks.find(t => t.timer_running && wsProjectIds.includes(t.project_id));
     
     if (!runningTask) {
         indicator.style.display = 'none';
