@@ -285,7 +285,6 @@ dialog::backdrop { background: rgba(9, 30, 66, 0.54); }
 #landing-container { display: none; flex-direction: column; max-width: 1000px; margin: 0 auto; gap: 40px; }
 
 .landing-nav { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; }
-.landing-nav-actions { display: flex; align-items: center; gap: 10px; }
 .landing-logo { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: bold; color: #172b4d; }
 .landing-logo-icon { width: 26px; height: 26px; border-radius: 6px; flex-shrink: 0; }
 
