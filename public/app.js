@@ -663,6 +663,7 @@ function getActiveUserObj() {
     if (!u.preferences.hiddenProjects) u.preferences.hiddenProjects = []; 
     if (!u.preferences.hiddenTasks) u.preferences.hiddenTasks = [];
     if (!u.preferences.displayConfig) u.preferences.displayConfig = { showDate: true, showUrgency: true, showDesc: true, showAssignee: true };
+    if (typeof u.preferences.notifyAllWorkspaces !== 'boolean') u.preferences.notifyAllWorkspaces = true;
     
     return u;
 }
@@ -1524,7 +1525,8 @@ function openSettings() {
     document.getElementById('setting-show-urgency').checked = prefs.displayConfig.showUrgency !== false;
     document.getElementById('setting-show-desc').checked = prefs.displayConfig.showDesc !== false;
     document.getElementById('setting-show-assignee').checked = prefs.displayConfig.showAssignee !== false;
-    
+    document.getElementById('setting-notify-all-workspaces').checked = prefs.notifyAllWorkspaces !== false;
+
     renderWorkspaceUsers();
     const m = document.getElementById('settings-modal');
     m.showModal();
@@ -1538,7 +1540,8 @@ async function saveSettings() {
     if (!user || !user.id) { closeSettings(); return; }
     
     user.preferences.uiSize = document.getElementById('setting-task-size').value;
-    user.preferences.displayConfig = { 
+    user.preferences.notifyAllWorkspaces = document.getElementById('setting-notify-all-workspaces').checked;
+    user.preferences.displayConfig = {
         showDate: document.getElementById('setting-show-date').checked, 
         showUrgency: document.getElementById('setting-show-urgency').checked, 
         showDesc: document.getElementById('setting-show-desc').checked, 
@@ -1600,8 +1603,17 @@ function switchView(v) {
 
 // --- NOTIFICATIONS (assigned-to-you alerts) ---
 function getMyNotifications() {
-    const myId = getActiveUserObj().id;
-    return notifications.filter(n => n.user_id === myId).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const me = getActiveUserObj();
+    const notifyAllWorkspaces = me.preferences.notifyAllWorkspaces !== false;
+
+    return notifications.filter(n => {
+        if (n.user_id !== me.id) return false;
+        if (notifyAllWorkspaces) return true;
+
+        const task = tasks.find(t => t.id === n.task_id);
+        const project = task && projects.find(p => p.id === task.project_id);
+        return !project || project.workspace_id === currentWorkspaceId;
+    }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
 function renderNotificationBell() {

@@ -44,9 +44,9 @@ async function requireSuperAdmin(req, res, next) {
     }
 }
 
-const defaultPrefs = JSON.stringify({ 
-    projectOrder: [], uiSize: 'auto', 
-    displayConfig: { showDate: true, showUrgency: true, showDesc: true, showAssignee: true } 
+const defaultPrefs = JSON.stringify({
+    projectOrder: [], uiSize: 'auto', notifyAllWorkspaces: true,
+    displayConfig: { showDate: true, showUrgency: true, showDesc: true, showAssignee: true }
 });
 
 // 1. GET ALL DATA
