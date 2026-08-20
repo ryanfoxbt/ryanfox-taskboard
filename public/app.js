@@ -194,7 +194,7 @@ function backToLanding() {
     showLanding();
 }
 
-function openDemoSignUp() {
+function openSignUp() {
     Clerk.openSignUp({ afterSignUpUrl: window.location.href, afterSignInUrl: window.location.href });
 }
 
