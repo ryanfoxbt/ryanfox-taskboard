@@ -421,13 +421,14 @@ async function bootAuthenticatedUser(clerkUser) {
 
 let membershipWatchInterval = null;
 
-// Detects an admin removing this user from the workspace they're currently looking at.
-// There's no push channel, so this polls -- GET /api/data is already scoped server-side
-// to the caller's real memberships (see requireAuth/api/index.js), so "our current
-// workspace isn't in the response" is a reliable removal signal, not just a stale cache.
+// Polls two things there's no push channel for: (1) an admin removing this user from the
+// workspace they're currently looking at, and (2) a new/cleared announcement on that
+// workspace -- renderAll() re-renders from in-memory state on lots of local actions, but
+// none of that refetches from the server, so without this poll a freshly-posted
+// announcement would just sit on the server until the next full page reload.
 function startMembershipWatch() {
     stopMembershipWatch();
-    membershipWatchInterval = setInterval(checkStillMemberOfCurrentWorkspace, 60000);
+    membershipWatchInterval = setInterval(pollCurrentWorkspaceState, 20000);
     document.addEventListener('visibilitychange', onVisibilityCheckMembership);
 }
 
@@ -438,18 +439,36 @@ function stopMembershipWatch() {
 }
 
 function onVisibilityCheckMembership() {
-    if (document.visibilityState === 'visible') checkStillMemberOfCurrentWorkspace();
+    if (document.visibilityState === 'visible') pollCurrentWorkspaceState();
 }
 
-async function checkStillMemberOfCurrentWorkspace() {
+async function pollCurrentWorkspaceState() {
     if (isDemoMode || !currentWorkspaceId) return;
     try {
+        // GET /api/data is already scoped server-side to the caller's real memberships
+        // (see requireAuth in api/index.js), so "our current workspace isn't in the
+        // response" is a reliable removal signal, not just a stale cache.
         const authHeaders = await getAuthHeaders();
         const res = await fetchWithTimeout(`${API_URL}/data`, { headers: authHeaders });
         if (!res.ok) return; // transient failure -- don't act on it, the next poll will retry
         const data = await res.json();
-        const stillMember = (data.workspaces || []).some(w => w.id === currentWorkspaceId);
-        if (!stillMember) await handleRemovedFromCurrentWorkspace();
+        const freshWs = (data.workspaces || []).find(w => w.id === currentWorkspaceId);
+        if (!freshWs) {
+            await handleRemovedFromCurrentWorkspace();
+            return;
+        }
+
+        // Only sync the announcement fields -- this is a background poll, not a full data
+        // reload, so it shouldn't clobber other in-memory state (e.g. a workspace rename
+        // someone is mid-typing elsewhere) while the user is actively working.
+        const ws = workspaces.find(w => w.id === currentWorkspaceId);
+        if (ws) {
+            ws.announcement_id = freshWs.announcement_id;
+            ws.announcement_content = freshWs.announcement_content;
+            ws.announcement_author_id = freshWs.announcement_author_id;
+            ws.announcement_created_at = freshWs.announcement_created_at;
+            renderAnnouncementBanner();
+        }
     } catch (err) {
         // network hiccup -- ignore, the next poll will retry
     }
