@@ -85,8 +85,12 @@
             </div>
         </div>
         <div id="announcement-banner">
-            <span>📢 <span id="announcement-banner-text"></span></span>
-            <button class="secondary" onclick="dismissAnnouncement()">Dismiss</button>
+            <span id="announcement-banner-icon">📢</span>
+            <div id="announcement-banner-body">
+                <div id="announcement-banner-text"></div>
+                <a id="announcement-banner-link" class="announcement-banner-link" href="#" target="_blank" rel="noopener noreferrer" style="display:none;">Learn More &rarr;</a>
+            </div>
+            <button class="announcement-dismiss-btn" onclick="dismissAnnouncement()" title="Dismiss" aria-label="Dismiss announcement">&times;</button>
         </div>
         <div class="header">
             <div class="title-container" style="display: flex; align-items: center; position: relative;">
@@ -452,8 +456,9 @@
         <p style="color: #5e6c84; font-size: 13px; margin-top: -8px;">Shown to everyone in this workspace until you clear it or post a new one.</p>
         <form id="announcement-form">
             <div class="form-group"><label>Message</label><textarea id="announcement-input" rows="4" required maxlength="2000" placeholder="e.g. We're closed Monday for the holiday." spellcheck="true"></textarea></div>
+            <div class="form-group"><label>Link (optional)</label><input type="url" id="announcement-link-input" placeholder="https://example.com" autocomplete="off" maxlength="500"></div>
             <div class="dialog-actions">
-                <button type="button" id="announcement-clear-btn" class="danger-text" style="display:none;" onclick="clearAnnouncement()">Clear Announcement</button>
+                <button type="button" id="announcement-clear-btn" class="danger" style="display:none; margin-right: auto;" onclick="clearAnnouncement()">Clear Announcement</button>
                 <button type="button" class="secondary" onclick="closeAnnouncementModal()">Cancel</button>
                 <button type="submit">Post</button>
             </div>

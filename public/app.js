@@ -465,6 +465,7 @@ async function pollCurrentWorkspaceState() {
         if (ws) {
             ws.announcement_id = freshWs.announcement_id;
             ws.announcement_content = freshWs.announcement_content;
+            ws.announcement_link_url = freshWs.announcement_link_url;
             ws.announcement_author_id = freshWs.announcement_author_id;
             ws.announcement_created_at = freshWs.announcement_created_at;
             renderAnnouncementBanner();
@@ -2845,6 +2846,7 @@ function openAnnouncementModal() {
     lockBody();
     const ws = workspaces.find(w => w.id === currentWorkspaceId);
     document.getElementById('announcement-input').value = (ws && ws.announcement_content) || '';
+    document.getElementById('announcement-link-input').value = (ws && ws.announcement_link_url) || '';
     document.getElementById('announcement-clear-btn').style.display = (ws && ws.announcement_content) ? 'inline-block' : 'none';
     const m = document.getElementById('announcement-modal');
     m.showModal();
@@ -2857,7 +2859,12 @@ document.getElementById('announcement-form').addEventListener('submit', async fu
     e.preventDefault();
     const content = document.getElementById('announcement-input').value.trim();
     if (!content) return;
-    await apiCall(`/workspaces/${currentWorkspaceId}/announcement`, 'POST', { content });
+    const linkUrl = document.getElementById('announcement-link-input').value.trim();
+    if (linkUrl && !/^https?:\/\//i.test(linkUrl)) {
+        alert('Link must start with http:// or https://');
+        return;
+    }
+    await apiCall(`/workspaces/${currentWorkspaceId}/announcement`, 'POST', { content, link_url: linkUrl });
     closeAnnouncementModal();
     await loadDataFromDB();
 });
@@ -2879,7 +2886,19 @@ function renderAnnouncementBanner() {
         banner.style.display = 'none';
         return;
     }
+    // Plain text, not linkify() -- the dedicated Link field below already covers "add a
+    // link"; auto-linkifying the message too just duplicates the same URL twice.
     document.getElementById('announcement-banner-text').textContent = ws.announcement_content;
+
+    const linkEl = document.getElementById('announcement-banner-link');
+    if (ws.announcement_link_url && /^https?:\/\//i.test(ws.announcement_link_url)) {
+        linkEl.href = ws.announcement_link_url;
+        linkEl.style.display = 'inline-flex';
+    } else {
+        linkEl.removeAttribute('href');
+        linkEl.style.display = 'none';
+    }
+
     banner.style.display = 'flex';
 }
 

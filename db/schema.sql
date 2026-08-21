@@ -132,5 +132,6 @@ CREATE TABLE IF NOT EXISTS notifications (
 -- id stashed in workspace_members.preferences ->> 'dismissedAnnouncementId'.
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS announcement_id UUID;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS announcement_content TEXT;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS announcement_link_url TEXT;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS announcement_author_id UUID;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS announcement_created_at TIMESTAMPTZ;
