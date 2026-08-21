@@ -66,6 +66,17 @@ async function isWorkspaceMember(userId, workspaceId) {
     return rows.length > 0;
 }
 
+// True if `userId` is an Admin-role member of `workspaceId`. Used to gate posting/
+// clearing that workspace's announcement banner.
+async function isWorkspaceAdmin(userId, workspaceId) {
+    if (!userId || !workspaceId) return false;
+    const { rows } = await pool.query(
+        `SELECT 1 FROM workspace_members WHERE user_id = $1 AND workspace_id = $2 AND role = 'Admin'`,
+        [userId, workspaceId]
+    );
+    return rows.length > 0;
+}
+
 // True if `userId` belongs to the workspace that owns `taskId` (via its project).
 async function isTaskInUsersWorkspace(userId, taskId) {
     if (!userId || !taskId) return false;
@@ -380,6 +391,35 @@ app.delete('/api/workspaces/:id', requireAuth, async (req, res) => {
         await client.query('COMMIT');
         res.json({ success: true });
     } catch (err) { await client.query('ROLLBACK'); res.status(500).json({ error: err.message }); } finally { client.release(); }
+});
+
+// 7b. WORKSPACE ANNOUNCEMENTS -- a single current banner per workspace (Admin-only),
+// shown only to members actively viewing that workspace (see GET /api/data + app.js).
+app.post('/api/workspaces/:id/announcement', requireAuth, async (req, res) => {
+    const { content } = req.body;
+    try {
+        if (!(await isWorkspaceAdmin(req.authUserId, req.params.id))) return res.status(403).json({ error: 'Forbidden' });
+        const trimmed = String(content || '').trim().slice(0, 2000);
+        if (!trimmed) return res.status(400).json({ error: 'Announcement content is required' });
+        await pool.query(
+            `UPDATE workspaces SET announcement_id = gen_random_uuid(), announcement_content = $1,
+             announcement_author_id = $2, announcement_created_at = now() WHERE id = $3`,
+            [trimmed, req.authUserId, req.params.id]
+        );
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/workspaces/:id/announcement', requireAuth, async (req, res) => {
+    try {
+        if (!(await isWorkspaceAdmin(req.authUserId, req.params.id))) return res.status(403).json({ error: 'Forbidden' });
+        await pool.query(
+            `UPDATE workspaces SET announcement_id = NULL, announcement_content = NULL,
+             announcement_author_id = NULL, announcement_created_at = NULL WHERE id = $1`,
+            [req.params.id]
+        );
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // 8. CMS CONTENT (marketing pages)

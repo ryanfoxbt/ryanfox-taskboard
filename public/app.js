@@ -174,6 +174,7 @@ window.addEventListener('load', async function () {
 
 function showLanding() {
     isDemoMode = false;
+    stopMembershipWatch();
     document.getElementById('landing-container').style.display = 'flex';
     document.getElementById('sign-in-container').style.display = 'none';
     document.getElementById('app-container').style.display = 'none';
@@ -414,6 +415,51 @@ async function bootAuthenticatedUser(clerkUser) {
         // Existing account signing in: never let leftover local demo data touch their real data.
         clearDemoData();
     }
+
+    startMembershipWatch();
+}
+
+let membershipWatchInterval = null;
+
+// Detects an admin removing this user from the workspace they're currently looking at.
+// There's no push channel, so this polls -- GET /api/data is already scoped server-side
+// to the caller's real memberships (see requireAuth/api/index.js), so "our current
+// workspace isn't in the response" is a reliable removal signal, not just a stale cache.
+function startMembershipWatch() {
+    stopMembershipWatch();
+    membershipWatchInterval = setInterval(checkStillMemberOfCurrentWorkspace, 60000);
+    document.addEventListener('visibilitychange', onVisibilityCheckMembership);
+}
+
+function stopMembershipWatch() {
+    clearInterval(membershipWatchInterval);
+    membershipWatchInterval = null;
+    document.removeEventListener('visibilitychange', onVisibilityCheckMembership);
+}
+
+function onVisibilityCheckMembership() {
+    if (document.visibilityState === 'visible') checkStillMemberOfCurrentWorkspace();
+}
+
+async function checkStillMemberOfCurrentWorkspace() {
+    if (isDemoMode || !currentWorkspaceId) return;
+    try {
+        const authHeaders = await getAuthHeaders();
+        const res = await fetchWithTimeout(`${API_URL}/data`, { headers: authHeaders });
+        if (!res.ok) return; // transient failure -- don't act on it, the next poll will retry
+        const data = await res.json();
+        const stillMember = (data.workspaces || []).some(w => w.id === currentWorkspaceId);
+        if (!stillMember) await handleRemovedFromCurrentWorkspace();
+    } catch (err) {
+        // network hiccup -- ignore, the next poll will retry
+    }
+}
+
+async function handleRemovedFromCurrentWorkspace() {
+    stopMembershipWatch();
+    alert("You've been removed from this workspace by an admin. You'll be signed out.");
+    try { await Clerk.signOut(); } catch (err) { console.error('Sign-out failed:', err); }
+    window.location.href = window.location.origin + '/';
 }
 
 async function migrateDemoDataToAccount(demo, wsId, userId) {
@@ -703,6 +749,7 @@ function renderAll() {
     renderProjects();
     updateAssigneeFilterOptions();
     renderNotificationBell();
+    renderAnnouncementBanner();
 
     if (isMasterView) {
         renderMasterView();
@@ -821,11 +868,12 @@ function renderWorkspaceMenu() {
     myWorkspaces.forEach(ws => {
         const btn = document.createElement('button');
         btn.innerHTML = ws.id === currentWorkspaceId ? `<strong>✓ ${sanitize(ws.name)}</strong>` : sanitize(ws.name);
-        btn.onclick = async () => { 
+        btn.onclick = async () => {
             currentWorkspaceId = ws.id; localStorage.setItem('currentWorkspaceId', ws.id);
-            currentProjectId = null; workspaceContextMenu.style.display = 'none'; 
-            clearBulkSelect(); 
-            await loadDataFromDB(); 
+            currentProjectId = null; workspaceContextMenu.style.display = 'none';
+            clearBulkSelect();
+            await loadDataFromDB();
+            switchView('active');
         };
         list.appendChild(btn);
     });
@@ -1347,9 +1395,10 @@ async function navigateToProject(wsId, projId) {
     if (currentWorkspaceId !== wsId) {
         currentWorkspaceId = wsId;
         localStorage.setItem('currentWorkspaceId', wsId);
-        await loadDataFromDB(); 
-    } 
-    
+        await loadDataFromDB();
+        switchView('active');
+    }
+
     currentProjectId = projId;
     localStorage.setItem('currentProjectId', projId);
     
@@ -1715,7 +1764,10 @@ function toggleWorkspaceMenu(e) {
     const cmsBtn = document.getElementById('cms-edit-landing-btn');
     if (cmsBtn) cmsBtn.style.display = isSuperAdmin ? 'block' : 'none';
 
-    menu.style.display = menu.style.display === 'block' ? 'none' : 'block'; 
+    const announceBtn = document.getElementById('workspace-announcement-btn');
+    if (announceBtn) announceBtn.style.display = (!isDemoMode && me.role === 'Admin') ? 'block' : 'none';
+
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
 }
 
 document.addEventListener('click', (e) => { 
@@ -2538,15 +2590,17 @@ function updateFormUI() {
     
     if (draftSubtaskId) document.getElementById('gcal-checkbox-container').style.display = 'none';
 
-    // UI Tab Display & Reset
-    const isExistingTask = tasks.some(t => t.id === draftTask.id);
-    if (isExistingTask && !draftSubtaskId) {
-        document.getElementById('task-tab-activity').style.display = 'block'; 
+    // UI Tab Display & Reset -- draftTask.id is a stable client-generated UUID from the
+    // moment the modal opens (see openModal/editTask), so the Activity tab can be shown
+    // and commented on even before the task itself is first saved. Subtasks don't get
+    // their own comment thread.
+    if (!draftSubtaskId) {
+        document.getElementById('task-tab-activity').style.display = 'block';
         renderTaskComments(draftTask.id);
     } else {
-        document.getElementById('task-tab-activity').style.display = 'none'; 
+        document.getElementById('task-tab-activity').style.display = 'none';
     }
-    switchTaskTab('details'); 
+    switchTaskTab('details');
     
     if(!draftSubtaskId) renderSubtasks();
 }
@@ -2702,9 +2756,10 @@ document.getElementById('create-workspace-form').addEventListener('submit', asyn
     e.preventDefault(); const name = document.getElementById('create-workspace-name').value.trim();
     if (name) { 
         const newId = generateUUID(); const currentUserObj = getActiveUserObj();
-        await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj.id, owner_id: currentUserObj.id }); 
-        currentWorkspaceId = newId; localStorage.setItem('currentWorkspaceId', newId); currentProjectId = null; 
-        await loadDataFromDB(); 
+        await apiCall('/workspaces', 'POST', { id: newId, name: name, userId: currentUserObj.id, owner_id: currentUserObj.id });
+        currentWorkspaceId = newId; localStorage.setItem('currentWorkspaceId', newId); currentProjectId = null;
+        await loadDataFromDB();
+        switchView('active');
     }
     closeCreateWorkspaceModal();
 });
@@ -2741,26 +2796,81 @@ function deleteCurrentWorkspace(e) {
         document.getElementById('confirm-message').innerHTML = `Are you sure you want to delete workspace <strong>"${sanitize(ws.name)}"</strong> and all its projects and tasks?<br>This cannot be undone.`; 
         document.getElementById('confirm-execute-btn').className = "danger-solid";
         
-        pendingConfirmAction = async () => { 
-            await apiCall(`/workspaces/${currentWorkspaceId}`, 'DELETE'); 
+        pendingConfirmAction = async () => {
+            await apiCall(`/workspaces/${currentWorkspaceId}`, 'DELETE');
             currentWorkspaceId = null; localStorage.removeItem('currentWorkspaceId');
-            await loadDataFromDB(); 
-        }; 
+            await loadDataFromDB();
+            switchView('active');
+        };
     } else {
         document.getElementById('confirm-message').innerHTML = `Are you sure you want to leave workspace <strong>"${sanitize(ws.name)}"</strong>?<br>You will no longer be able to see its projects.`; 
         document.getElementById('confirm-execute-btn').className = "danger-solid";
         
-        pendingConfirmAction = async () => { 
-            await apiCall(`/users/${me.id}/${currentWorkspaceId}`, 'DELETE'); 
+        pendingConfirmAction = async () => {
+            await apiCall(`/users/${me.id}/${currentWorkspaceId}`, 'DELETE');
             currentWorkspaceId = null; localStorage.removeItem('currentWorkspaceId');
-            await loadDataFromDB(); 
-        }; 
+            await loadDataFromDB();
+            switchView('active');
+        };
     }
     
-    lockBody(); 
+    lockBody();
     const m = document.getElementById('confirm-modal');
     m.showModal();
     setTimeout(() => m.scrollTop = 0, 10);
+}
+
+// --- WORKSPACE ANNOUNCEMENTS (Admin-only, one current banner per workspace) ---
+function openAnnouncementModal() {
+    workspaceContextMenu.style.display = 'none';
+    lockBody();
+    const ws = workspaces.find(w => w.id === currentWorkspaceId);
+    document.getElementById('announcement-input').value = (ws && ws.announcement_content) || '';
+    document.getElementById('announcement-clear-btn').style.display = (ws && ws.announcement_content) ? 'inline-block' : 'none';
+    const m = document.getElementById('announcement-modal');
+    m.showModal();
+    setTimeout(() => m.scrollTop = 0, 10);
+}
+
+function closeAnnouncementModal() { unlockBody(); document.getElementById('announcement-modal').close(); }
+
+document.getElementById('announcement-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const content = document.getElementById('announcement-input').value.trim();
+    if (!content) return;
+    await apiCall(`/workspaces/${currentWorkspaceId}/announcement`, 'POST', { content });
+    closeAnnouncementModal();
+    await loadDataFromDB();
+});
+
+async function clearAnnouncement() {
+    if (!confirm('Clear the current announcement for this workspace?')) return;
+    await apiCall(`/workspaces/${currentWorkspaceId}/announcement`, 'DELETE');
+    closeAnnouncementModal();
+    await loadDataFromDB();
+}
+
+// Renders the current workspace's announcement (if any) unless this member already
+// dismissed that exact announcement_id -- posting a new one clears the dismissal.
+function renderAnnouncementBanner() {
+    const banner = document.getElementById('announcement-banner');
+    const ws = workspaces.find(w => w.id === currentWorkspaceId);
+    const me = getActiveUserObj();
+    if (isDemoMode || !ws || !ws.announcement_content || me.preferences.dismissedAnnouncementId === ws.announcement_id) {
+        banner.style.display = 'none';
+        return;
+    }
+    document.getElementById('announcement-banner-text').textContent = ws.announcement_content;
+    banner.style.display = 'flex';
+}
+
+async function dismissAnnouncement() {
+    const ws = workspaces.find(w => w.id === currentWorkspaceId);
+    if (!ws) return;
+    const me = getActiveUserObj();
+    me.preferences.dismissedAnnouncementId = ws.announcement_id;
+    document.getElementById('announcement-banner').style.display = 'none';
+    await apiCall('/settings', 'POST', { workspace_id: currentWorkspaceId, user_id: me.id, preferences: me.preferences });
 }
 
 document.getElementById('add-user-form').addEventListener('submit', async function(e) {
