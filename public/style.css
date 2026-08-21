@@ -319,13 +319,7 @@ dialog::backdrop { background: rgba(9, 30, 66, 0.54); }
     padding: 12px 14px; border-radius: 8px; margin-bottom: 12px;
 }
 #announcement-banner-icon { font-size: 17px; line-height: 1.4; flex-shrink: 0; }
-#announcement-banner-body { flex: 1; min-width: 0; }
-#announcement-banner-text { font-size: 14px; line-height: 1.5; word-break: break-word; }
-.announcement-banner-link {
-    display: inline-flex; align-items: center; gap: 4px; margin-top: 6px;
-    font-size: 13px; font-weight: bold; color: #0052cc; text-decoration: none;
-}
-.announcement-banner-link:hover { text-decoration: underline; }
+#announcement-banner-text { flex: 1; min-width: 0; font-size: 14px; line-height: 1.5; word-break: break-word; }
 .announcement-dismiss-btn {
     background: transparent; color: #5e6c84; border: none; cursor: pointer;
     font-size: 18px; line-height: 1; padding: 2px 7px; border-radius: 4px; flex-shrink: 0;

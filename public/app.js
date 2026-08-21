@@ -465,7 +465,6 @@ async function pollCurrentWorkspaceState() {
         if (ws) {
             ws.announcement_id = freshWs.announcement_id;
             ws.announcement_content = freshWs.announcement_content;
-            ws.announcement_link_url = freshWs.announcement_link_url;
             ws.announcement_author_id = freshWs.announcement_author_id;
             ws.announcement_created_at = freshWs.announcement_created_at;
             renderAnnouncementBanner();
@@ -2846,7 +2845,6 @@ function openAnnouncementModal() {
     lockBody();
     const ws = workspaces.find(w => w.id === currentWorkspaceId);
     document.getElementById('announcement-input').value = (ws && ws.announcement_content) || '';
-    document.getElementById('announcement-link-input').value = (ws && ws.announcement_link_url) || '';
     document.getElementById('announcement-clear-btn').style.display = (ws && ws.announcement_content) ? 'inline-block' : 'none';
     const m = document.getElementById('announcement-modal');
     m.showModal();
@@ -2859,18 +2857,12 @@ document.getElementById('announcement-form').addEventListener('submit', async fu
     e.preventDefault();
     const content = document.getElementById('announcement-input').value.trim();
     if (!content) return;
-    const linkUrl = document.getElementById('announcement-link-input').value.trim();
-    if (linkUrl && !/^https?:\/\//i.test(linkUrl)) {
-        alert('Link must start with http:// or https://');
-        return;
-    }
-    await apiCall(`/workspaces/${currentWorkspaceId}/announcement`, 'POST', { content, link_url: linkUrl });
+    await apiCall(`/workspaces/${currentWorkspaceId}/announcement`, 'POST', { content });
     closeAnnouncementModal();
     await loadDataFromDB();
 });
 
 async function clearAnnouncement() {
-    if (!confirm('Clear the current announcement for this workspace?')) return;
     await apiCall(`/workspaces/${currentWorkspaceId}/announcement`, 'DELETE');
     closeAnnouncementModal();
     await loadDataFromDB();
@@ -2878,6 +2870,8 @@ async function clearAnnouncement() {
 
 // Renders the current workspace's announcement (if any) unless this member already
 // dismissed that exact announcement_id -- posting a new one clears the dismissal.
+// Any http(s) URL typed into the message is auto-linkified (same helper used for task
+// descriptions and comments), so there's no separate link field to fill in.
 function renderAnnouncementBanner() {
     const banner = document.getElementById('announcement-banner');
     const ws = workspaces.find(w => w.id === currentWorkspaceId);
@@ -2886,19 +2880,7 @@ function renderAnnouncementBanner() {
         banner.style.display = 'none';
         return;
     }
-    // Plain text, not linkify() -- the dedicated Link field below already covers "add a
-    // link"; auto-linkifying the message too just duplicates the same URL twice.
-    document.getElementById('announcement-banner-text').textContent = ws.announcement_content;
-
-    const linkEl = document.getElementById('announcement-banner-link');
-    if (ws.announcement_link_url && /^https?:\/\//i.test(ws.announcement_link_url)) {
-        linkEl.href = ws.announcement_link_url;
-        linkEl.style.display = 'inline-flex';
-    } else {
-        linkEl.removeAttribute('href');
-        linkEl.style.display = 'none';
-    }
-
+    document.getElementById('announcement-banner-text').innerHTML = linkify(sanitize(ws.announcement_content));
     banner.style.display = 'flex';
 }
 

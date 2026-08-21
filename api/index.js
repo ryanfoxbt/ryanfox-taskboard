@@ -396,21 +396,16 @@ app.delete('/api/workspaces/:id', requireAuth, async (req, res) => {
 // 7b. WORKSPACE ANNOUNCEMENTS -- a single current banner per workspace (Admin-only),
 // shown only to members actively viewing that workspace (see GET /api/data + app.js).
 app.post('/api/workspaces/:id/announcement', requireAuth, async (req, res) => {
-    const { content, link_url } = req.body;
+    const { content } = req.body;
     try {
         if (!(await isWorkspaceAdmin(req.authUserId, req.params.id))) return res.status(403).json({ error: 'Forbidden' });
         const trimmed = String(content || '').trim().slice(0, 2000);
         if (!trimmed) return res.status(400).json({ error: 'Announcement content is required' });
 
-        const linkUrl = String(link_url || '').trim().slice(0, 500);
-        if (linkUrl && !/^https?:\/\//i.test(linkUrl)) {
-            return res.status(400).json({ error: 'Link must start with http:// or https://' });
-        }
-
         await pool.query(
             `UPDATE workspaces SET announcement_id = gen_random_uuid(), announcement_content = $1,
-             announcement_link_url = $2, announcement_author_id = $3, announcement_created_at = now() WHERE id = $4`,
-            [trimmed, linkUrl || null, req.authUserId, req.params.id]
+             announcement_author_id = $2, announcement_created_at = now() WHERE id = $3`,
+            [trimmed, req.authUserId, req.params.id]
         );
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -420,7 +415,7 @@ app.delete('/api/workspaces/:id/announcement', requireAuth, async (req, res) => 
     try {
         if (!(await isWorkspaceAdmin(req.authUserId, req.params.id))) return res.status(403).json({ error: 'Forbidden' });
         await pool.query(
-            `UPDATE workspaces SET announcement_id = NULL, announcement_content = NULL, announcement_link_url = NULL,
+            `UPDATE workspaces SET announcement_id = NULL, announcement_content = NULL,
              announcement_author_id = NULL, announcement_created_at = NULL WHERE id = $1`,
             [req.params.id]
         );

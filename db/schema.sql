@@ -129,9 +129,10 @@ CREATE TABLE IF NOT EXISTS notifications (
 -- Per-workspace announcement banner (one current announcement per workspace -- posting a
 -- new one overwrites the old). announcement_id changes on every post/clear so clients can
 -- tell "already dismissed this one" from "there's a new one" by comparing it against the
--- id stashed in workspace_members.preferences ->> 'dismissedAnnouncementId'.
+-- id stashed in workspace_members.preferences ->> 'dismissedAnnouncementId'. Links are
+-- auto-detected from announcement_content client-side (see linkify() in app.js) rather
+-- than stored in their own column.
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS announcement_id UUID;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS announcement_content TEXT;
-ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS announcement_link_url TEXT;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS announcement_author_id UUID;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS announcement_created_at TIMESTAMPTZ;
