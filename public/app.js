@@ -2863,8 +2863,9 @@ document.getElementById('announcement-form').addEventListener('submit', async fu
 });
 
 async function clearAnnouncement() {
+    document.getElementById('announcement-input').value = '';
+    document.getElementById('announcement-clear-btn').style.display = 'none';
     await apiCall(`/workspaces/${currentWorkspaceId}/announcement`, 'DELETE');
-    closeAnnouncementModal();
     await loadDataFromDB();
 }
 
