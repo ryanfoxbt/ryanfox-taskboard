@@ -245,15 +245,11 @@ app.post('/api/tasks/:id/attachments',
     async (req, res) => {
         try {
             // Blob auth resolves automatically inside put()/del(): a BLOB_READ_WRITE_TOKEN
-            // if present, otherwise the deployment's OIDC token (VERCEL_OIDC_TOKEN) paired
-            // with BLOB_STORE_ID -- which is how this project's store is wired. On Vercel
-            // both OIDC vars are always injected; locally they come from `vercel env pull`
-            // / `vercel dev`.
-            const blobConfigured = process.env.BLOB_READ_WRITE_TOKEN
-                || (process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN);
-            if (!blobConfigured) {
-                return res.status(500).json({ error: 'File storage is not configured' });
-            }
+            // if present, otherwise the deployment's OIDC token + BLOB_STORE_ID -- which is
+            // how this project's store is wired. We don't pre-check env vars here: at
+            // runtime Vercel supplies the OIDC token via a request header rather than
+            // process.env, so put() is the only reliable source of truth. If it can't
+            // authenticate it throws, and the catch below returns that message.
             const taskId = req.params.id;
             if (!(await isTaskInUsersWorkspace(req.authUserId, taskId))) {
                 return res.status(403).json({ error: 'Forbidden' });
