@@ -557,7 +557,17 @@
         <div id="task-content-details" class="modal-tab-content active">
             <div class="form-group"><label>Title</label><input type="text" id="task-title" required placeholder="E.g., Take out recycling" spellcheck="true"></div>
             <div class="form-group"><label>Description</label><textarea id="task-desc" rows="2" placeholder="Details go here..." spellcheck="true"></textarea></div>
-            
+
+            <div class="form-group" id="task-attachments-section">
+                <label style="margin: 0 0 6px;">Attachments</label>
+                <div id="task-attachments-list" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;"></div>
+                <input type="file" id="task-attachment-input" multiple
+                       accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
+                       onchange="handleAttachmentUpload(event)"
+                       style="font-size: 12px;">
+                <div id="task-attachment-status" style="font-size: 12px; color: #5e6c84; margin-top: 4px;"></div>
+            </div>
+
             <div class="form-group" id="subtasks-form-section">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                     <label style="margin: 0;">Subtasks</label>

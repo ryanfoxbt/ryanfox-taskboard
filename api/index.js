@@ -3,6 +3,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const { Resend } = require('resend');
 const { createClerkClient, verifyToken } = require('@clerk/backend');
+const { put, del } = require('@vercel/blob');
 require('dotenv').config();
 
 const app = express();
@@ -89,6 +90,14 @@ async function isTaskInUsersWorkspace(userId, taskId) {
     return rows.length > 0;
 }
 
+// Task attachment limits -- enforced here (not in the DB). Keep in sync with the mirror
+// copies in public/app.js used for client-side pre-flight validation.
+const ATTACH_MAX_BYTES = 10 * 1024 * 1024;
+const ATTACH_ALLOWED_EXT = new Set([
+    'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
+    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'zip'
+]);
+
 const defaultPrefs = JSON.stringify({
     projectOrder: [], uiSize: 'auto', notifyAllWorkspaces: true,
     displayConfig: { showDate: true, showUrgency: true, showDesc: true, showAssignee: true }
@@ -125,6 +134,11 @@ app.get('/api/data', requireAuth, async (req, res) => {
              JOIN tasks t ON t.id = tr.task_id JOIN projects p ON p.id = t.project_id
              WHERE p.workspace_id = ANY($1)`, [workspaceIds]);
         const comments = await pool.query('SELECT * FROM comments WHERE workspace_id = ANY($1) ORDER BY created_at ASC', [workspaceIds]);
+        const task_attachments = await pool.query(
+            `SELECT a.* FROM task_attachments a
+             JOIN tasks t ON t.id = a.task_id JOIN projects p ON p.id = t.project_id
+             WHERE p.workspace_id = ANY($1) AND a.is_deleted IS NOT TRUE
+             ORDER BY a.created_at ASC`, [workspaceIds]);
         // Notifications are per-user, not per-workspace -- always scope to the caller only.
         const notifications = userId
             ? await pool.query('SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC', [userId])
@@ -135,6 +149,7 @@ app.get('/api/data', requireAuth, async (req, res) => {
             users: users.rows, workspace_members: workspace_members.rows,
             task_assignees: task_assignees.rows, time_logs: time_logs.rows,
             task_repetitions: task_repetitions.rows, comments: comments.rows,
+            task_attachments: task_attachments.rows,
             notifications: notifications.rows
         });
     } catch (err) { res.status(500).json({ error: 'Failed to fetch data' }); }
@@ -216,6 +231,99 @@ app.delete('/api/tasks/:id', requireAuth, async (req, res) => {
         await pool.query('UPDATE tasks SET is_deleted = true WHERE id = $1 OR parent_task_id = $1', [req.params.id]);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// 2a. TASK ATTACHMENTS -- bytes go to Vercel Blob, metadata to task_attachments.
+// The request body is the raw file (not JSON), so this route gets its own express.raw
+// parser; the global express.json() only touches application/json and leaves this alone.
+// The original filename comes in the x-filename header (URL-encoded) because the body is
+// the file itself. Limit is a little above ATTACH_MAX_BYTES so oversize files reach our
+// own 413 with a clear message instead of being cut off by the parser.
+app.post('/api/tasks/:id/attachments',
+    requireAuth,
+    express.raw({ type: () => true, limit: ATTACH_MAX_BYTES + 512 * 1024 }),
+    async (req, res) => {
+        try {
+            // Blob auth resolves automatically inside put()/del(): a BLOB_READ_WRITE_TOKEN
+            // if present, otherwise the deployment's OIDC token (VERCEL_OIDC_TOKEN) paired
+            // with BLOB_STORE_ID -- which is how this project's store is wired. On Vercel
+            // both OIDC vars are always injected; locally they come from `vercel env pull`
+            // / `vercel dev`.
+            const blobConfigured = process.env.BLOB_READ_WRITE_TOKEN
+                || (process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN);
+            if (!blobConfigured) {
+                return res.status(500).json({ error: 'File storage is not configured' });
+            }
+            const taskId = req.params.id;
+            if (!(await isTaskInUsersWorkspace(req.authUserId, taskId))) {
+                return res.status(403).json({ error: 'Forbidden' });
+            }
+
+            const rawName = decodeURIComponent(req.headers['x-filename'] || '').trim();
+            if (!rawName) return res.status(400).json({ error: 'Missing x-filename header' });
+            const ext = rawName.includes('.') ? rawName.split('.').pop().toLowerCase() : '';
+            if (!ATTACH_ALLOWED_EXT.has(ext)) {
+                return res.status(400).json({ error: `File type ".${ext}" is not allowed` });
+            }
+
+            const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+            if (body.length === 0) return res.status(400).json({ error: 'Empty file' });
+            if (body.length > ATTACH_MAX_BYTES) {
+                return res.status(413).json({ error: 'File exceeds the 10 MB limit' });
+            }
+
+            const wsRow = await pool.query(
+                `SELECT p.workspace_id FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id = $1`,
+                [taskId]
+            );
+            const workspaceId = wsRow.rows[0] ? wsRow.rows[0].workspace_id : null;
+
+            const safeName = rawName.replace(/[^\w.-]+/g, '_').slice(-120);
+            const rand = Math.random().toString(36).slice(2, 10);
+            const contentType = req.headers['content-type'] && req.headers['content-type'] !== 'application/octet-stream'
+                ? req.headers['content-type'] : undefined;
+
+            const blob = await put(`task-attachments/${taskId}/${rand}-${safeName}`, body, {
+                access: 'public',
+                contentType
+            });
+
+            const { rows } = await pool.query(
+                `INSERT INTO task_attachments
+                    (task_id, workspace_id, uploader_id, filename, content_type, size_bytes, blob_url, blob_pathname)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+                [taskId, workspaceId, req.authUserId, rawName, contentType || null, body.length, blob.url, blob.pathname]
+            );
+            res.json(rows[0]);
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    }
+);
+
+// Delete is allowed for the uploader or any Admin of the attachment's workspace.
+app.delete('/api/attachments/:id', requireAuth, async (req, res) => {
+    try {
+        const existing = await pool.query('SELECT * FROM task_attachments WHERE id = $1 AND is_deleted IS NOT TRUE', [req.params.id]);
+        const row = existing.rows[0];
+        if (!row) return res.status(404).json({ error: 'Not found' });
+
+        const allowed = row.uploader_id === req.authUserId
+            || await isWorkspaceAdmin(req.authUserId, row.workspace_id);
+        if (!allowed) return res.status(403).json({ error: 'Forbidden' });
+
+        if (row.blob_url) {
+            try {
+                await del(row.blob_url);
+            } catch (blobErr) {
+                console.error('Blob delete failed, soft-deleting row anyway', blobErr);
+            }
+        }
+        await pool.query('UPDATE task_attachments SET is_deleted = true WHERE id = $1', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // 2b. NOTIFICATIONS

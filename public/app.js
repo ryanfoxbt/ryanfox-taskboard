@@ -84,7 +84,16 @@ let activeTimerInterval = null;
 let timeLogs = [];
 let taskRepetitions = [];
 let comments = [];
+let attachments = [];
 let notifications = [];
+
+// Mirrors of the server-side limits in api/index.js -- used for a friendly pre-flight
+// check before uploading. The server re-validates; these are just for UX.
+const ATTACH_MAX_BYTES = 10 * 1024 * 1024;
+const ATTACH_ALLOWED_EXT = new Set([
+    'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
+    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'zip'
+]);
 let chartInstances = {};
 let globalChartInstance = null;
 let editingCommentType = null; 
@@ -666,6 +675,7 @@ async function loadDataFromDB() {
         timeLogs = data.time_logs || [];
         taskRepetitions = data.task_repetitions || [];
         comments = data.comments || [];
+        attachments = data.task_attachments || [];
         notifications = data.notifications || [];
         
         projects = (data.projects || []).map(p => { 
@@ -1364,6 +1374,7 @@ function renderBoard() {
         
         let dateHtml = ''; if (displayConfig.showDate && task.due_date) { const d = new Date(task.due_date + 'T12:00:00'); dateHtml = `<span class="date-badge" title="Due Date">📅 ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>`; }
         const childTasks = tasks.filter(t => t.parent_task_id === task.id); let subtaskHtml = ''; if (childTasks.length > 0) { subtaskHtml = `<span class="badge subtask-badge" title="Subtasks">☑ ${childTasks.filter(s => s.status === 'complete').length}/${childTasks.length}</span>`; }
+        const attachCount = attachments.filter(a => a.task_id === task.id && !a.is_deleted).length; const attachHtml = attachCount > 0 ? `<span class="badge" title="Attachments">📎 ${attachCount}</span>` : '';
         
         let recurringCounterHtml = '';
         if (task.status === 'recurring') {
@@ -1390,7 +1401,7 @@ function renderBoard() {
             ${descHtml}
             ${recurringCounterHtml}
             <div class="card-footer">
-                <div class="meta-group">${assigneesHtml}${dateHtml}${subtaskHtml}</div>
+                <div class="meta-group">${assigneesHtml}${dateHtml}${subtaskHtml}${attachHtml}</div>
                 <div class="actions">${desktopActions}</div>
             </div>`; 
         (lists[task.status] || lists.todo).appendChild(card);
@@ -2619,6 +2630,14 @@ function updateFormUI() {
     } else {
         document.getElementById('task-tab-activity').style.display = 'none';
     }
+
+    // Attachments: tasks only (not subtasks), and never in demo mode.
+    const attachSection = document.getElementById('task-attachments-section');
+    if (attachSection) {
+        const showAttach = !draftSubtaskId && !isDemoMode;
+        attachSection.style.display = showAttach ? 'block' : 'none';
+        if (showAttach) renderTaskAttachments(draftTask.id);
+    }
     switchTaskTab('details');
     
     if(!draftSubtaskId) renderSubtasks();
@@ -3182,6 +3201,114 @@ function postProjectComment() {
     input.value = '';
     renderProjectComments(contextTargetProjectId);
     apiCall('/comments', 'POST', newComment);
+}
+
+// --- TASK ATTACHMENTS ---
+// Bytes are stored in Vercel Blob; `attachments` holds one metadata row per file.
+// Uploads use a raw fetch (not apiCall, which is JSON-only) with the File as the body.
+// draftTask.id is a stable client UUID from the moment the modal opens, so files can be
+// attached before the task is first saved -- same trick the Activity comments use.
+const ATTACH_ICONS = {
+    pdf: '📄', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊', csv: '📊',
+    ppt: '📽️', pptx: '📽️', txt: '📃', zip: '🗜️'
+};
+
+function isImageAttachment(a) {
+    if (a.content_type && a.content_type.startsWith('image/')) return true;
+    const ext = (a.filename || '').split('.').pop().toLowerCase();
+    return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext);
+}
+
+function formatFileSize(bytes) {
+    const n = parseInt(bytes || 0, 10);
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+    return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function renderTaskAttachments(taskId) {
+    const list = document.getElementById('task-attachments-list');
+    if (!list) return;
+    const files = attachments.filter(a => a.task_id === taskId && !a.is_deleted);
+    const me = getActiveUserObj();
+
+    if (files.length === 0) {
+        list.innerHTML = '<span style="color: #5e6c84; font-size: 12px;">No attachments yet.</span>';
+        return;
+    }
+
+    list.innerHTML = files.map(a => {
+        const canDelete = a.uploader_id === me.id || me.role === 'Admin';
+        const ext = (a.filename || '').split('.').pop().toLowerCase();
+        const delBtn = canDelete
+            ? `<button type="button" class="danger" title="Remove" style="position: absolute; top: -6px; right: -6px; padding: 0 5px; font-size: 12px; line-height: 16px; border-radius: 50%;" onclick="deleteAttachment('${a.id}', '${taskId}')">&times;</button>`
+            : '';
+        const inner = isImageAttachment(a)
+            ? `<a href="${encodeURI(a.blob_url)}" target="_blank" rel="noopener noreferrer" title="${sanitize(a.filename)}">
+                   <img src="${encodeURI(a.blob_url)}" alt="${sanitize(a.filename)}" style="width: 76px; height: 76px; object-fit: cover; border-radius: 6px; display: block;">
+               </a>`
+            : `<a href="${encodeURI(a.blob_url)}" target="_blank" rel="noopener noreferrer" download="${sanitize(a.filename)}"
+                   style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 76px; height: 76px; text-decoration: none; color: #172b4d; padding: 4px; box-sizing: border-box;">
+                   <span style="font-size: 22px;">${ATTACH_ICONS[ext] || '📎'}</span>
+                   <span style="font-size: 10px; line-height: 1.2; text-align: center; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-all;">${sanitize(a.filename)}</span>
+               </a>`;
+        return `<div style="position: relative; border: 1px solid #dfe1e6; border-radius: 6px; background: #f4f5f7;" title="${sanitize(a.filename)} · ${formatFileSize(a.size_bytes)}">${inner}${delBtn}</div>`;
+    }).join('');
+}
+
+async function handleAttachmentUpload(event) {
+    const statusEl = document.getElementById('task-attachment-status');
+    const setStatus = (msg, isError) => { if (statusEl) { statusEl.textContent = msg; statusEl.style.color = isError ? '#de350b' : '#5e6c84'; } };
+
+    if (isDemoMode) { setStatus('Attachments are disabled in demo mode.', true); event.target.value = ''; return; }
+    if (!draftTask) { event.target.value = ''; return; }
+
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    const taskId = draftTask.id;
+
+    for (const file of files) {
+        const ext = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+        if (!ATTACH_ALLOWED_EXT.has(ext)) { setStatus(`"${file.name}" — file type not allowed.`, true); continue; }
+        if (file.size > ATTACH_MAX_BYTES) { setStatus(`"${file.name}" — over the 10 MB limit.`, true); continue; }
+
+        setStatus(`Uploading ${file.name}…`);
+        try {
+            const authHeaders = await getAuthHeaders();
+            const res = await fetch(`${API_URL}/tasks/${taskId}/attachments`, {
+                method: 'POST',
+                headers: {
+                    ...authHeaders,
+                    'Content-Type': file.type || 'application/octet-stream',
+                    'x-filename': encodeURIComponent(file.name)
+                },
+                body: file
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                setStatus(`"${file.name}" — ${err.error || 'upload failed'}.`, true);
+                continue;
+            }
+            const row = await res.json();
+            attachments.push(row);
+            renderTaskAttachments(taskId);
+            setStatus('');
+        } catch (err) {
+            setStatus(`"${file.name}" — upload failed.`, true);
+        }
+    }
+}
+
+async function deleteAttachment(id, taskId) {
+    if (!confirm('Remove this attachment? This cannot be undone.')) return;
+    attachments = attachments.filter(a => a.id !== id);
+    renderTaskAttachments(taskId);
+    try {
+        const authHeaders = await getAuthHeaders();
+        await fetchWithTimeout(`${API_URL}/attachments/${id}`, { method: 'DELETE', headers: authHeaders });
+    } catch (err) {
+        console.error('Failed to delete attachment', err);
+    }
 }
 
 function renderDetailedTimeReport() {

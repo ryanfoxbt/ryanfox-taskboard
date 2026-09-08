@@ -126,6 +126,26 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Per-task file attachments. Bytes live in Vercel Blob (public URLs); this table only
+-- holds metadata + the blob URL. No FK (matches this file's convention). workspace_id is
+-- denormalised from the task's project so GET /api/data can scope without an extra join
+-- at read time, and so DELETE can authorize against the workspace after the task is gone.
+-- Soft-deleted (is_deleted) rather than removed so a failed Blob delete can't desync the
+-- row from the UI. Allowed types + 10 MB cap are enforced in api/index.js, not here.
+CREATE TABLE IF NOT EXISTS task_attachments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id UUID,
+    workspace_id UUID,
+    uploader_id UUID,
+    filename TEXT,
+    content_type TEXT,
+    size_bytes BIGINT,
+    blob_url TEXT,
+    blob_pathname TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    is_deleted BOOLEAN DEFAULT FALSE
+);
+
 -- Per-workspace announcement banner (one current announcement per workspace -- posting a
 -- new one overwrites the old). announcement_id changes on every post/clear so clients can
 -- tell "already dismissed this one" from "there's a new one" by comparing it against the
